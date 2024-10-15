@@ -9,7 +9,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 contract RateLimiterTest is Test {
     using FixedPointMathLib for uint256;
 
-    string _tokenId;
+    address _token;
     uint256 _price;
     RateLimiter _rateLimiter;
     RateLimitParams _rateLimitParams;
@@ -21,12 +21,12 @@ contract RateLimiterTest is Test {
     uint256 ETH_PRICE = 10 * USDC_PRECISION;
 
     function setUp() public {
-        _tokenId = "ETH";
+        _token = address(0);
         _price = ETH_PRICE;
         _rateLimiter = new RateLimiter();
         _rateLimitParams = RateLimitParams({duration: 10, maxAmount: MILLION_USDC, batchSize: 5});
         _mockPriceAggregator = new MockPriceAggregator();
-        _mockPriceAggregator.setPrice(_tokenId, _price);
+        _mockPriceAggregator.setPrice(_token, _price);
         _setPriceOracle(_mockPriceAggregator);
         _setRateLimitParams(_rateLimitParams);
     }
@@ -89,12 +89,12 @@ contract RateLimiterTest is Test {
 
     function testGetPrice() public {
         MockPriceAggregator priceOracle = new MockPriceAggregator();
-        string memory newTokenId = "WBTC";
+        address newToken = address(1);
         uint256 newPrice = 420;
-        priceOracle.setPrice(newTokenId, newPrice);
+        priceOracle.setPrice(newToken, newPrice);
         _setPriceOracle(priceOracle);
 
-        assertEq(priceOracle.getPrice(newTokenId, 100), newPrice);
+        assertEq(priceOracle.getPrice(newToken, 100), newPrice);
     }
 
     function testByPassRateLimit() public {
@@ -107,7 +107,7 @@ contract RateLimiterTest is Test {
 
     function testEvaluateRateLimit() public {
         uint64 batchSize = 3;
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 blocks = 6;
         uint256 txs = 3;
         uint256 expectedBatches = blocks / batchSize;
@@ -117,7 +117,7 @@ contract RateLimiterTest is Test {
         for (uint256 i = 0; i < blocks; i++) {
             vm.roll(i);
             for (uint256 j = 0; j < txs; j++) {
-                result = _rateLimiter.evaluateRateLimit(_tokenId, 1e18);
+                result = _rateLimiter.evaluateRateLimit(_token, 1e18);
             }
         }
         TxHistory memory txHistory = _rateLimiter.getTxHistory(address(this));
@@ -128,7 +128,7 @@ contract RateLimiterTest is Test {
 
         _rateLimiter.setRateLimitParams(RateLimitParams({duration: 1, maxAmount: MILLION_USDC, batchSize: 1}));
         vm.roll(blocks + 1);
-        result = _rateLimiter.evaluateRateLimit(_tokenId, 1e18);
+        result = _rateLimiter.evaluateRateLimit(_token, 1e18);
         txHistory = _rateLimiter.getTxHistory(address(this));
         expectedTotal = _scaleNumber(currentPrice);
         assertEq(txHistory.total, expectedTotal);
@@ -141,12 +141,12 @@ contract RateLimiterTest is Test {
         _rateLimiter.setRateLimitParams(RateLimitParams({duration: duration, maxAmount: MILLION_USDC, batchSize: 1}));
         for (uint256 i = 0; i < blocks; i++) {
             vm.roll(i);
-            _rateLimiter.evaluateRateLimit(_tokenId, 1e18);
+            _rateLimiter.evaluateRateLimit(_token, 1e18);
         }
         vm.roll(duration * 5);
-        _rateLimiter.evaluateRateLimit(_tokenId, 1e18);
+        _rateLimiter.evaluateRateLimit(_token, 1e18);
         TxHistory memory txHistory = _rateLimiter.getTxHistory(address(this));
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100e18);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100e18);
         uint256 expectedTotal = _scaleNumber(currentPrice);
         assertEq(txHistory.total, expectedTotal);
     }
@@ -154,12 +154,12 @@ contract RateLimiterTest is Test {
     function testEvaluateRateLimitBigBatch() public {
         uint256 blocks = 10;
         uint256 txs = 3;
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         _rateLimiter.setRateLimitParams(RateLimitParams({duration: 10, maxAmount: MILLION_USDC, batchSize: 100}));
         for (uint256 i = 0; i < blocks; i++) {
             vm.roll(i);
             for (uint256 j = 0; j < txs; j++) {
-                _rateLimiter.evaluateRateLimit(_tokenId, 1e18);
+                _rateLimiter.evaluateRateLimit(_token, 1e18);
             }
         }
         TxHistory memory txHistory = _rateLimiter.getTxHistory(address(this));
@@ -171,13 +171,13 @@ contract RateLimiterTest is Test {
         uint64 batchSize = 3;
         uint256 duration = 5;
         uint256 blocks = 3 * batchSize;
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100e18);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100e18);
         _rateLimiter.setRateLimitParams(
             RateLimitParams({duration: duration, maxAmount: MILLION_USDC, batchSize: batchSize})
         );
         for (uint256 i = 0; i < blocks; i++) {
             vm.roll(i);
-            _rateLimiter.evaluateRateLimit(_tokenId, 1e18);
+            _rateLimiter.evaluateRateLimit(_token, 1e18);
         }
         TxHistory memory txHistory = _rateLimiter.getTxHistory(address(this));
         uint256 expectedPtr = (blocks / batchSize) - (duration % batchSize);
@@ -192,24 +192,24 @@ contract RateLimiterTest is Test {
     // TODO: fix that
     function testCheckIfLimitExceeds() public {
         RateLimitParams memory rateLimitParams = _rateLimiter.getRateLimitParams();
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 amount = 1e18;
-        (bool exceedsLimit,) = _rateLimiter.checkIfLimitExceeds(msg.sender, _tokenId, amount);
+        (bool exceedsLimit,) = _rateLimiter.checkIfLimitExceeds(msg.sender, _token, amount);
         assertEq(exceedsLimit, false);
         uint256 largeAmount = ((rateLimitParams.maxAmount / currentPrice) + 1) * 1e18;
-        (exceedsLimit,) = _rateLimiter.checkIfLimitExceeds(msg.sender, _tokenId, largeAmount);
+        (exceedsLimit,) = _rateLimiter.checkIfLimitExceeds(msg.sender, _token, largeAmount);
         assertEq(exceedsLimit, true);
     }
 
     function testCheckIfLimitExceedsWithTxn() public {
         address testSender = makeAddr("testSender");
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 amount = 1e18;
 
         vm.prank(testSender);
-        _rateLimiter.evaluateRateLimit(_tokenId, amount);
+        _rateLimiter.evaluateRateLimit(_token, amount);
 
-        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(testSender, _tokenId, amount);
+        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(testSender, _token, amount);
         assertEq(exceedsLimit, false);
         uint256 expectedRemainingAmount = _scaleNumber(1_000_000e6 - 2 * currentPrice);
         assertEq(remainingAmount, expectedRemainingAmount);
@@ -217,16 +217,16 @@ contract RateLimiterTest is Test {
 
     function testCheckIfLimitExceedsWithThreeTxns() public {
         address testSender = makeAddr("testSender");
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 amount = 1e18;
 
         vm.prank(testSender);
-        _rateLimiter.evaluateRateLimit(_tokenId, amount);
+        _rateLimiter.evaluateRateLimit(_token, amount);
 
         vm.prank(testSender);
-        _rateLimiter.evaluateRateLimit(_tokenId, amount);
+        _rateLimiter.evaluateRateLimit(_token, amount);
 
-        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(testSender, _tokenId, amount);
+        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(testSender, _token, amount);
         assertEq(exceedsLimit, false);
         uint256 expectedRemainingAmount = _scaleNumber(1_000_000e6 - 3 * currentPrice);
         assertEq(remainingAmount, expectedRemainingAmount);
@@ -234,19 +234,19 @@ contract RateLimiterTest is Test {
 
     function testCheckIfLimitExceedsWithRemainingAmount() public {
         address testSender = makeAddr("testSender");
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 amount = (_rateLimiter.getRateLimitParams().maxAmount / currentPrice) * 1e18;
 
         vm.prank(testSender);
-        _rateLimiter.evaluateRateLimit(_tokenId, amount);
+        _rateLimiter.evaluateRateLimit(_token, amount);
 
-        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(testSender, _tokenId, amount);
+        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(testSender, _token, amount);
         assertEq(exceedsLimit, true);
     }
 
     function testCheckIfLimitExceedsUnsupportedToken() public {
         vm.expectRevert();
-        _rateLimiter.checkIfLimitExceeds(msg.sender, "DOGE", 2);
+        _rateLimiter.checkIfLimitExceeds(msg.sender, address(69), 2);
     }
 
     function testFuzz_SetRateLimitParams(uint256 duration, uint256 maxAmount, uint64 batchSize) public {
@@ -269,10 +269,10 @@ contract RateLimiterTest is Test {
     ) public {
         amount = bound(amount, 1, 1e20);
 
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 usdValue = (amount * currentPrice) / 1e18;
 
-        bool result = _rateLimiter.evaluateRateLimit(_tokenId, amount);
+        bool result = _rateLimiter.evaluateRateLimit(_token, amount);
 
         if (usdValue <= MILLION_USDC) {
             assertTrue(result, "Rate limit should not be exceeded");
@@ -284,10 +284,10 @@ contract RateLimiterTest is Test {
     function testFuzz_CheckIfLimitExceeds(address sender, uint256 amount) public {
         amount = bound(amount, 1, 1e20);
 
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 usdValue = (amount * currentPrice) / 1e18;
 
-        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(sender, _tokenId, amount);
+        (bool exceedsLimit, uint256 remainingAmount) = _rateLimiter.checkIfLimitExceeds(sender, _token, amount);
 
         if (usdValue <= MILLION_USDC) {
             assertFalse(exceedsLimit, "Limit should not be exceeded");
@@ -304,14 +304,14 @@ contract RateLimiterTest is Test {
         blocksBetweenTx = uint8(bound(blocksBetweenTx, 1, 10));
 
         uint256 totalUsdValue = 0;
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
 
         for (uint8 i = 0; i < txCount; i++) {
             uint256 amount = initialAmount + (i * 1e15);
             uint256 usdValue = (amount * currentPrice) / 1e18;
             totalUsdValue += usdValue;
 
-            bool result = _rateLimiter.evaluateRateLimit(_tokenId, amount);
+            bool result = _rateLimiter.evaluateRateLimit(_token, amount);
 
             if (totalUsdValue <= MILLION_USDC) {
                 assertTrue(result, "Rate limit should not be exceeded");
@@ -336,11 +336,11 @@ contract RateLimiterTest is Test {
             uint256 newPrice = initialPrice + (i * 1e5);
             uint256 amount = initialAmount + (i * 1e15);
 
-            _mockPriceAggregator.setPrice(_tokenId, newPrice);
+            _mockPriceAggregator.setPrice(_token, newPrice);
 
             uint256 usdValue = (amount * newPrice) / 1e18;
 
-            bool result = _rateLimiter.evaluateRateLimit(_tokenId, amount);
+            bool result = _rateLimiter.evaluateRateLimit(_token, amount);
 
             if (usdValue <= MILLION_USDC) {
                 assertTrue(result, "Rate limit should not be exceeded");
@@ -358,7 +358,7 @@ contract RateLimiterTest is Test {
         amount = bound(amount, 1, 1e18);
 
         address testSender = makeAddr("testSender");
-        uint256 currentPrice = _mockPriceAggregator.getPrice(_tokenId, 100);
+        uint256 currentPrice = _mockPriceAggregator.getPrice(_token, 100);
         uint256 usdValue = amount * currentPrice / 1e18;
 
         uint256 duration = 5;
@@ -366,7 +366,7 @@ contract RateLimiterTest is Test {
 
         for (uint256 i = 0; i < numTxs; i++) {
             vm.prank(testSender);
-            bool result = _rateLimiter.evaluateRateLimit(_tokenId, amount);
+            bool result = _rateLimiter.evaluateRateLimit(_token, amount);
 
             if ((i + 1) * usdValue <= MILLION_USDC) {
                 assertTrue(result, "Rate limit should not be exceeded within duration");
@@ -380,7 +380,7 @@ contract RateLimiterTest is Test {
         vm.roll(block.number + duration + 1);
 
         vm.prank(testSender);
-        bool resetResult = _rateLimiter.evaluateRateLimit(_tokenId, MILLION_USDC - 1);
+        bool resetResult = _rateLimiter.evaluateRateLimit(_token, MILLION_USDC - 1);
         assertTrue(resetResult, "Rate limit should be reset after duration expiry");
     }
 

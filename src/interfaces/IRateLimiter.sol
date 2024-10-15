@@ -98,21 +98,17 @@ interface IRateLimiter {
      * @notice Evaluates the USDC amount for tokens using token amount and the token ticker to determine if the transaction should be rate limited.
      * @dev also returns remaining amount that can be transacted
      * @param sender is the address of the sender to be evaluated
-     * @param token is the string for the token to be evaluated
+     * @param token is the address of the token to be evaluated
      * @param amount is the amount of tokens to be evaluated
      */
-    function checkIfLimitExceeds(
-        address sender,
-        string calldata token,
-        uint256 amount
-    ) external view returns (bool, uint256);
+    function checkIfLimitExceeds(address sender, address token, uint256 amount) external view returns (bool, uint256);
 
     /**
      * @notice Evaluates the USDC amount for tokens using token amount and the token ticker to determine if the transaction should be rate limited.
-     * @param token is the string for the token to be evaluated
+     * @param token is the address of the token to be evaluated
      * @param amount is the amount of tokens to be evaluated
      */
-    function evaluateRateLimit(string calldata token, uint256 amount) external returns (bool);
+    function evaluateRateLimit(address token, uint256 amount) external returns (bool);
 
     /**
      * @notice Returns the rate limit parameters for the calling address.

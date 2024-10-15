@@ -4,16 +4,16 @@ pragma solidity =0.8.12;
 import {IPriceAggregator} from "../../src/interfaces/IPriceAggregator.sol";
 
 contract MockPriceAggregator is IPriceAggregator {
-    mapping(string => uint256) public prices;
+    mapping(address => uint256) public prices;
 
-    function setPrice(string calldata tokenID, uint256 price) external {
-        prices[tokenID] = price;
+    function setPrice(address token, uint256 price) external {
+        prices[token] = price;
     }
 
-    function getPrice(string calldata tokenID, uint256 amountIn) external view override returns (uint256) {
-        require(prices[tokenID] != 0, "MockPriceAggregator: token not supported");
+    function getPrice(address token, uint256 amountIn) external view override returns (uint256) {
+        require(prices[token] != 0, "MockPriceAggregator: token not supported");
         require(amountIn > 0, "MockPriceAggregator: amountIn must be greater than 0");
-        return prices[tokenID];
+        return prices[token];
     }
 
     function assetToAsset(
@@ -27,8 +27,8 @@ contract MockPriceAggregator is IPriceAggregator {
     }
 
     function isTokenSupported(
-        string calldata tokenID
+        address token
     ) external view override returns (bool) {
-        return prices[tokenID] != 0;
+        return prices[token] != 0;
     }
 }

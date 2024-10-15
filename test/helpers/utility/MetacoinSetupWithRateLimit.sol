@@ -23,7 +23,7 @@ contract MetacoinSetupWithRateLimit is TestStorage {
         metaCoinContract.setRateLimitParams(rateLimitParams);
 
         priceAggregator = new MockPriceAggregator();
-        priceAggregator.setPrice("META", 1e6);
+        priceAggregator.setPrice(address(metaCoinContract), 1e6);
         metaCoinContract.setPriceOracle(address(priceAggregator));
 
         ownableClientInterface = Ownable(address(metaCoinContract));

@@ -18,8 +18,7 @@ contract PriceAggregatorUniV3 is IPriceAggregator, Ownable {
     address public immutable WETH;
     address public immutable USDC;
     uint256 public defaultTWAPPeriod;
-    mapping(string => address) public tokenIDToAddress;
-    mapping(string => bool) public isTokenSupported;
+    mapping(address => bool) public isTokenSupported;
     mapping(bytes32 => address) public overriddenPoolForRoute;
 
     constructor(address _owner, address _weth, address _usdc, uint256 _defaultTWAPPeriod) {
@@ -52,10 +51,9 @@ contract PriceAggregatorUniV3 is IPriceAggregator, Ownable {
     }
 
     /// @inheritdoc IPriceAggregator
-    function getPrice(string calldata _tokenID, uint256 amountIn) public view override returns (uint256) {
-        require(isTokenSupported[_tokenID], "Token not supported");
-        address token = tokenIDToAddress[_tokenID];
-        return assetToAsset(token, amountIn, USDC, defaultTWAPPeriod);
+    function getPrice(address _token, uint256 _amountIn) public view override returns (uint256) {
+        require(isTokenSupported[_token], "Token not supported");
+        return assetToAsset(_token, _amountIn, USDC, defaultTWAPPeriod);
     }
 
     /// @notice Given a token and its amount, return the equivalent value in ETH
@@ -97,9 +95,8 @@ contract PriceAggregatorUniV3 is IPriceAggregator, Ownable {
     /// @notice Set the Uniswap V3 pool queried on a tokenA:usdc route
     /// @dev it can be reset by using address(0) for _pool
     /// @param _tokenA Address of an ERC20 token contract
-    /// @param _tokenID tokenID for ERC20 token (can be same as symbol)
     /// @param _pool Address of a Uniswap V3 pool constructed with _tokenA and _tokenB
-    function setUSDCPoolForToken(address _tokenA, string calldata _tokenID, address _pool) external onlyOwner {
+    function setUSDCPoolForToken(address _tokenA, address _pool) external onlyOwner {
         PoolAddress.PoolKey memory poolKey = PoolAddress.getPoolKey(
             _tokenA,
             USDC,
@@ -112,8 +109,7 @@ contract PriceAggregatorUniV3 is IPriceAggregator, Ownable {
             );
         }
         overriddenPoolForRoute[_identifyRouteFromPoolKey(poolKey)] = _pool;
-        tokenIDToAddress[_tokenID] = _tokenA;
-        isTokenSupported[_tokenID] = true;
+        isTokenSupported[_tokenA] = true;
     }
 
     /// @notice Set the default TWAP period to be used for price queries
@@ -125,13 +121,12 @@ contract PriceAggregatorUniV3 is IPriceAggregator, Ownable {
     }
 
     /// @notice Remove a token from the list of supported tokens
-    /// @param _tokenID Identifier of the token
+    /// @param _token Address of the token
     function removeToken(
-        string calldata _tokenID
+        address _token
     ) external onlyOwner {
-        require(isTokenSupported[_tokenID], "Token not supported");
-        isTokenSupported[_tokenID] = false;
-        tokenIDToAddress[_tokenID] = address(0);
+        require(isTokenSupported[_token], "Token not supported");
+        isTokenSupported[_token] = false;
     }
 
     /// @notice Fetch the Uniswap V3 pool to be queried for a tokenA:tokenB route

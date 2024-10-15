@@ -5,11 +5,11 @@ pragma solidity =0.8.12;
 interface IPriceAggregator {
     /**
      * @notice Given a token, return the price of the token
-     * @param tokenID Identifier of the token
+     * @param token Address of the token
      * @param amountIn Amount of token to be converted
      * @return price of the token in USDC
      */
-    function getPrice(string calldata tokenID, uint256 amountIn) external view returns (uint256);
+    function getPrice(address token, uint256 amountIn) external view returns (uint256);
 
     /**
      * @notice Given a token and its amount, return the equivalent value in another token
@@ -28,10 +28,10 @@ interface IPriceAggregator {
 
     /**
      * @notice is token supported
-     * @param tokenID Identifier of the token
+     * @param token Address of the token
      * @return true if token is supported
      */
     function isTokenSupported(
-        string calldata tokenID
+        address token
     ) external view returns (bool);
 }

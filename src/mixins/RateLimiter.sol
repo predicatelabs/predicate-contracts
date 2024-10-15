@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.12;
+pragma solidity ^0.8.12;
 
 import {Ownable} from "openzeppelin/access/Ownable.sol";
 import {IRateLimiter, RateLimitParams, TxHistory, TxBatch} from "../interfaces/IRateLimiter.sol";
@@ -23,7 +23,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 contract RateLimiter is IRateLimiter, Ownable {
     error PredicateClient_IsRateLimited();
     error RateLimiter_InvalidToken();
-    error TokenNotSupported(string token);
+    error TokenNotSupported(address token);
     error InvalidMaxAmount(uint256 provided, uint256 minimum, uint256 maximum);
     error InvalidDuration(uint256 provided, uint256 minimum);
     error InvalidBatchSize(uint64 provided, uint64 minimum);
@@ -39,7 +39,7 @@ contract RateLimiter is IRateLimiter, Ownable {
     uint256 private constant SCALING_FACTOR = 10 ** (MAX_DECIMALS - USDC_DECIMALS);
 
     event RateLimitParamsUpdated(uint256 maxAmount, uint256 duration, uint64 batchSize);
-    event RateLimitExceeded(address indexed user, string token, uint256 amount, uint256 limit);
+    event RateLimitExceeded(address indexed user, address token, uint256 amount, uint256 limit);
 
     mapping(address => TxHistory) public txHistory;
     mapping(address => bool) public bypassRateLimit;
@@ -146,18 +146,22 @@ contract RateLimiter is IRateLimiter, Ownable {
 
     /**
      * @notice Evaluates whether a transaction exceeds the rate limit and updates the transaction history if it doesn't.
-     * @param tokenID The identifier of the token being transacted.
+     * @param token The address of the token being transacted.
      * @param amount The amount of the token being transacted.
      * @return bool Returns true if the transaction is within the rate limit, false otherwise.
      */
-    function evaluateRateLimit(string calldata tokenID, uint256 amount) external returns (bool) {
+    function evaluateRateLimit(address token, uint256 amount) external returns (bool) {
+        return _evaluateRateLimit(token, amount);
+    }
+
+    function _evaluateRateLimit(address token, uint256 amount) internal returns (bool) {
         uint256 scaledAmount = amount.mulDivDown(SCALING_FACTOR, USDC_PRECISION);
-        uint256 price = priceOracle.getPrice(tokenID, amount);
-        uint256 txAmount = scaledAmount.mulDivDown(priceOracle.getPrice(tokenID, amount), MAX_PRECISION);
+        uint256 price = priceOracle.getPrice(token, amount);
+        uint256 txAmount = scaledAmount.mulDivDown(price, MAX_PRECISION);
         uint256 maxAmount = rateLimitParams.maxAmount.mulDivDown(SCALING_FACTOR, USDC_PRECISION);
-        (bool _exceedsLimit,) = _checkIfLimitExceeds(msg.sender, tokenID, txAmount, maxAmount);
+        (bool _exceedsLimit,) = _checkIfLimitExceeds(msg.sender, token, txAmount, maxAmount);
         if (_exceedsLimit) {
-            emit RateLimitExceeded(msg.sender, tokenID, amount, rateLimitParams.maxAmount);
+            emit RateLimitExceeded(msg.sender, token, amount, rateLimitParams.maxAmount);
             return false;
         }
         uint256 oldestRelevantBlock = _getOldestRelevantBlock(block.number);
@@ -169,14 +173,21 @@ contract RateLimiter is IRateLimiter, Ownable {
     /**
      * @notice Checks if a potential transaction would exceed the rate limit without modifying state.
      * @param sender The address initiating the transaction.
-     * @param token The identifier of the token being transacted.
-     * @param txAmount The amount of the token being transacted.
+     * @param token The address of the token being transacted.
+     * @param amount The amount of the token being transacted.
      * @return bool Indicates whether the transaction would exceed the rate limit.
      * @return uint256 The remaining allowance for transactions within the current time window.
      */
+    function checkIfLimitExceeds(address sender, address token, uint256 amount) external view returns (bool, uint256) {
+        uint256 scaledAmount = amount.mulDivDown(SCALING_FACTOR, USDC_PRECISION);
+        uint256 txAmount = scaledAmount.mulDivDown(priceOracle.getPrice(token, amount), MAX_PRECISION);
+        uint256 maxAmount = rateLimitParams.maxAmount.mulDivDown(SCALING_FACTOR, USDC_PRECISION);
+        return _checkIfLimitExceeds(sender, token, txAmount, maxAmount);
+    }
+
     function _checkIfLimitExceeds(
         address sender,
-        string calldata token,
+        address token,
         uint256 txAmount,
         uint256 maxAmount
     ) internal view returns (bool, uint256) {
@@ -189,17 +200,6 @@ contract RateLimiter is IRateLimiter, Ownable {
         bool _exceeds = _exceedsRateLimit(sender, totalActiveTxValue, txAmount, maxAmount);
 
         return (_exceeds, remainingAllowance);
-    }
-
-    function checkIfLimitExceeds(
-        address sender,
-        string calldata tokenID,
-        uint256 amount
-    ) external view returns (bool, uint256) {
-        uint256 scaledAmount = amount.mulDivDown(SCALING_FACTOR, USDC_PRECISION);
-        uint256 txAmount = scaledAmount.mulDivDown(priceOracle.getPrice(tokenID, amount), MAX_PRECISION);
-        uint256 maxAmount = rateLimitParams.maxAmount.mulDivDown(SCALING_FACTOR, USDC_PRECISION);
-        return _checkIfLimitExceeds(sender, tokenID, txAmount, maxAmount);
     }
 
     function _updateTxHistory(uint256 blockNumber, uint256 amount) internal {

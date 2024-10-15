@@ -26,7 +26,7 @@ contract PriceAggregatorUniV3Test is Test {
         _priceAggImpl = new PriceAggregatorUniV3(_owner, _weth, _usdc, _defaultTwapPeriod);
         _priceAgg = IPriceAggregator(address(_priceAggImpl));
         vm.prank(_owner);
-        _priceAggImpl.setUSDCPoolForToken(_weth, "ETH", address(_wethPool));
+        _priceAggImpl.setUSDCPoolForToken(_weth, address(_wethPool));
     }
 
     function testConstructorArgs() public {
@@ -39,30 +39,30 @@ contract PriceAggregatorUniV3Test is Test {
     function testOwnerOveriddenPoolForRoute() public {
         MockUniswapV3Pool wethPool = new MockUniswapV3Pool(_weth, _usdc, 4000);
         vm.prank(_owner);
-        _priceAggImpl.setUSDCPoolForToken(_weth, "ETH", address(wethPool));
+        _priceAggImpl.setUSDCPoolForToken(_weth, address(wethPool));
         assertTrue(address(wethPool) == _priceAggImpl.getPoolForRoute(_weth, _usdc));
     }
 
     function testNotOwnerOveriddenPoolForRoute() public {
         MockUniswapV3Pool wethPool = new MockUniswapV3Pool(_weth, _usdc, 4000);
         vm.expectRevert();
-        _priceAggImpl.setUSDCPoolForToken(_weth, "ETH", address(wethPool));
+        _priceAggImpl.setUSDCPoolForToken(_weth, address(wethPool));
     }
 
     function testRemoveTokenNotOwner() public {
         vm.expectRevert();
-        _priceAggImpl.removeToken("ETH");
+        _priceAggImpl.removeToken(_weth);
     }
 
     function testRemoveToken() public {
         vm.prank(_owner);
-        _priceAggImpl.removeToken("ETH");
-        assertFalse(_priceAgg.isTokenSupported("ETH"));
+        _priceAggImpl.removeToken(_weth);
+        assertFalse(_priceAgg.isTokenSupported(_weth));
     }
 
     function testTokenIDSupported() public {
-        assertTrue(_priceAgg.isTokenSupported("ETH"));
-        assertFalse(_priceAgg.isTokenSupported("BTC"));
+        assertTrue(_priceAgg.isTokenSupported(_weth));
+        assertFalse(_priceAgg.isTokenSupported(address(69)));
     }
 
     function testOwnerSetDefaultTwapPeriod() public {
@@ -80,14 +80,14 @@ contract PriceAggregatorUniV3Test is Test {
 
     function getPriceTokenNotSupported() public {
         vm.expectRevert();
-        _priceAgg.getPrice("BTC", 100);
+        _priceAgg.getPrice(address(69), 100);
     }
 
     function testOwnerAddingTokenSupport() public {
         address _wbtc = makeAddr("wbtc");
         MockUniswapV3Pool wbtcPool = new MockUniswapV3Pool(_wbtc, _usdc, 4000);
         vm.prank(_owner);
-        _priceAggImpl.setUSDCPoolForToken(_wbtc, "BTC", address(wbtcPool));
+        _priceAggImpl.setUSDCPoolForToken(_wbtc, address(wbtcPool));
         assertTrue(address(wbtcPool) == _priceAggImpl.getPoolForRoute(_wbtc, _usdc));
     }
 
@@ -95,7 +95,7 @@ contract PriceAggregatorUniV3Test is Test {
         address _wbtc = makeAddr("wbtc");
         MockUniswapV3Pool wbtcPool = new MockUniswapV3Pool(_wbtc, _usdc, 4000);
         vm.expectRevert();
-        _priceAggImpl.setUSDCPoolForToken(_wbtc, "BTC", address(wbtcPool));
+        _priceAggImpl.setUSDCPoolForToken(_wbtc, address(wbtcPool));
     }
 }
 
