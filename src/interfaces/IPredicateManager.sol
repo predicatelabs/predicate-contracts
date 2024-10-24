@@ -2,8 +2,7 @@
 
 pragma solidity ^0.8.12;
 
-import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/ISignatureUtils.sol";
-import {IDelegationManager} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
+import {ISignatureUtils} from "./ISignatureUtils.sol";
 
 struct Task {
     string taskId;
