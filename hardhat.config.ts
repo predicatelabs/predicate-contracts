@@ -28,7 +28,7 @@ module.exports = {
     }),
   },
   paths: {
-    sources: "./src/contracts",
+    sources: "./src/",
     cache: "./cache_hardhat",
   }
 };
