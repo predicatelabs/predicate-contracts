@@ -249,12 +249,9 @@ contract ServiceManager is IPredicateManager, OwnableUpgradeable {
         if (totalStake >= thresholdStake) {
             operators[msg.sender] = OperatorInfo(totalStake, OperatorStatus.REGISTERED);
             signingKeyToOperator[_operatorSigningKey] = msg.sender;
-            ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSig =
-                ISignatureUtils.SignatureWithSaltAndExpiry(
-                    _operatorSignature.signature,
-                    _operatorSignature.salt,
-                    _operatorSignature.expiry
-                );
+            ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSig = ISignatureUtils.SignatureWithSaltAndExpiry(
+                _operatorSignature.signature, _operatorSignature.salt, _operatorSignature.expiry
+            );
             IAVSDirectory(avsDirectory).registerOperatorToAVS(msg.sender, _operatorSig);
             emit OperatorRegistered(msg.sender);
         }

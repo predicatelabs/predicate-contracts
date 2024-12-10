@@ -17,39 +17,35 @@ contract MetaCoin is PredicateClient, Ownable {
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address owner, address serviceManager) {
-        balances[owner] = 10_000_000_000_000;
-        setPredicateManager(serviceManager);
-        _transferOwnership(owner);
+    constructor(address _owner, address _serviceManager, string memory _policyID) {
+        balances[_owner] = 10_000_000_000_000;
+        _initPredicateClient(_serviceManager, _policyID);
+        _transferOwnership(_owner);
     }
 
-    function sendCoin(address receiver, uint256 amount, PredicateMessage calldata predicateMessage) public {
+    function sendCoin(address receiver, uint256 amount, PredicateMessage calldata predicateMessage) public payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", receiver, amount);
-        require(_authorizeTransaction(predicateMessage, encodedSigAndArgs), "MetaCoin: unauthorized transaction");
+        require(
+            _authorizeTransaction(predicateMessage, encodedSigAndArgs, msg.sender, msg.value),
+            "MetaCoin: unauthorized transaction"
+        );
 
         // business logic function that is protected
         _sendCoin(receiver, amount);
     }
 
-    /**
-     * @notice Updates the policy ID
-     * @param _policyID policy ID from onchain
-     */
+    // @inheritdoc IPredicateClient
     function setPolicy(
         string memory _policyID
     ) external onlyOwner {
-        policyID = _policyID;
-        serviceManager.setPolicy(_policyID);
+        _setPolicy(_policyID);
     }
 
-    /**
-     * @notice Function for setting the ServiceManager
-     * @param _predicateManager address of the service manager
-     */
+    // @inheritdoc IPredicateClient
     function setPredicateManager(
         address _predicateManager
     ) public onlyOwner {
-        serviceManager = IPredicateManager(_predicateManager);
+        _setPredicateManager(_predicateManager);
     }
 
     // business logic function that is protected
