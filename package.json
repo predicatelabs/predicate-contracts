@@ -1,6 +1,6 @@
 {
   "name": "@predicate/contracts",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Core contracts for Predicate AVS",
   "main": "index.js",
   "files": [
