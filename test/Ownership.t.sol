@@ -9,7 +9,7 @@ import "forge-std/Test.sol";
 
 contract OwnershipClientTest is ServiceManagerSetup {
     function test_OwnerIsOwnerByDefault() public {
-        assertTrue(address(this) == ownableClientInterface.owner());
+        assertTrue(address(owner) == ownableClientInterface.owner());
     }
 
     function test_RandomAccountCannotTransferOwnership() public {

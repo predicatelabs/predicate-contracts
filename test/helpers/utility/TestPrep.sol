@@ -23,11 +23,8 @@ contract TestPrep is TestStorage {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOnePk, messageHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        operatorSignature = SignatureWithSaltAndExpiry({
-            signature: signature,
-            salt: keccak256("abc"),
-            expiry: 10_000_000_000_000
-        });
+        operatorSignature =
+            SignatureWithSaltAndExpiry({signature: signature, salt: keccak256("abc"), expiry: 10_000_000_000_000});
         delegationManager.registerAsOperator(operatorDetails, "metadata uri");
 
         (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
@@ -51,11 +48,8 @@ contract TestPrep is TestStorage {
         (v, r, s) = vm.sign(operatorTwoPk, messageHashTwo);
         signature = abi.encodePacked(r, s, v);
 
-        operatorTwoSignature = SignatureWithSaltAndExpiry({
-            signature: signature,
-            salt: keccak256("abc"),
-            expiry: 10_000_000_000_000
-        });
+        operatorTwoSignature =
+            SignatureWithSaltAndExpiry({signature: signature, salt: keccak256("abc"), expiry: 10_000_000_000_000});
 
         delegationManager.registerAsOperator(operatorTwoDetails, "metadata uri");
         (, status) = serviceManager.operators(operatorTwo);

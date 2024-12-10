@@ -8,12 +8,13 @@ import "forge-std/Test.sol";
 
 contract MockClientTest is ServiceManagerSetup {
     function testServiceManagerIsSet() public {
-        assertTrue(address(serviceManager) == address(client.serviceManager()));
+        assertTrue(address(serviceManager) == client.getPredicateManager());
     }
 
     function testOwnerCanSetPolicy() public {
+        vm.prank(owner);
         client.setPolicy("testpolicy99");
-        assertEq(client.policyID(), "testpolicy99");
+        assertEq(client.getPolicy(), "testpolicy99");
     }
 
     function testRandomAccountCannotSetPolicy() public {
@@ -29,7 +30,7 @@ contract MockClientTest is ServiceManagerSetup {
     }
 
     function testServiceManagerCanCallConfidentialFunction() public {
-        vm.prank(address(serviceManager));
+        vm.prank(client.getPredicateManager());
         client.incrementCounter();
     }
 }
