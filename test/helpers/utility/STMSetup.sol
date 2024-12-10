@@ -53,8 +53,7 @@ contract STMSetup is TestStorage {
         (testReceiver, testReceiverPk) = makeAddrAndKey("testReceiver");
 
         vm.startPrank(testSender);
-        metaCoinContract = new MetaCoin(testSender, address(serviceManager));
-        metaCoinContract.setPolicy("testPolicy");
+        metaCoinContract = new MetaCoin(testSender, address(serviceManager), "testPolicy");
         ownableClientInterface = Ownable(address(metaCoinContract));
         vm.stopPrank();
     }

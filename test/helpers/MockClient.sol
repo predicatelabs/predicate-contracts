@@ -10,36 +10,27 @@ import "forge-std/console.sol";
 contract MockClient is PredicateClient, Ownable {
     uint256 public counter;
 
-    constructor(
-        address _serviceManager
-    ) {
-        setPredicateManager(_serviceManager);
-        _transferOwnership(msg.sender);
+    constructor(address _owner, address _serviceManager, string memory _policyID) {
+        _initPredicateClient(_serviceManager, _policyID);
+        _transferOwnership(_owner);
     }
 
     function incrementCounter() external onlyPredicateServiceManager {
         counter++;
     }
 
-    /**
-     * @notice Updates the policy ID
-     * @param _policyID policy ID from onchain
-     */
+    // @inheritdoc IPredicateClient
     function setPolicy(
-        string memory _policyID
+        string calldata _policyID
     ) external onlyOwner {
-        policyID = _policyID;
-        serviceManager.setPolicy(_policyID);
+        _setPolicy(_policyID);
     }
 
-    /**
-     * @notice Internal function for setting the ServiceManager
-     * @param _predicateManager address of the service manager
-     */
+    // @inheritdoc IPredicateClient
     function setPredicateManager(
         address _predicateManager
     ) public onlyOwner {
-        serviceManager = IPredicateManager(_predicateManager);
+        _setPredicateManager(_predicateManager);
     }
 
     fallback() external payable {

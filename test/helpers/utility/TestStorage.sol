@@ -77,6 +77,4 @@ contract TestStorage is Test {
     //Signatures
     SignatureWithSaltAndExpiry operatorSignature;
     SignatureWithSaltAndExpiry operatorTwoSignature;
-
-
 }

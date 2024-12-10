@@ -41,8 +41,7 @@ contract ServiceManagerSetup is TestStorage {
         );
         vm.stopPrank();
 
-        client = new MockClient(address(serviceManager));
-        client.setPolicy("testPolicy");
+        client = new MockClient(owner, address(serviceManager), "testPolicy");
         ownableClientInterface = Ownable(address(client));
         (operatorOne, operatorOnePk) = makeAddrAndKey("operatorOne");
         (operatorOneAlias, operatorOneAliasPk) = makeAddrAndKey("operatorOneAlias");
