@@ -1,27 +1,29 @@
-# predicate-contracts <TO BE UPDATED>
+# predicate-contracts 
 
+Solidity library for creating compliant smart contracts application (e.g. Uniswap V4 hooks) using the Predicate network.
 
-Predicate AVS Contracts
+## Installation
 
 This repository depends on some submodules. Please run the following command before testing. 
-```
+
+```bash
 git submodule update --init --recursive
 ```
 
-Foundry consists of:
+### Foundry 
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+```shell
+$ forge install PredicateLabs/predicate-contracts 
+```
 
-## Documentation
+### Node
 
-https://book.getfoundry.sh/
+```bash
+npm install @predicate/predicate-contracts
+```
 
-## Usage
 
-### Build
+## Build
 
 ```shell
 $ forge build
@@ -57,10 +59,6 @@ $ anvil
 $ cast <subcommand>
 ```
 
-### Help
+### Disclaimer 
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+This library is provided as-is, without any guarantees or warranties. Use at your own risk.
