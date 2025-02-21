@@ -1,6 +1,5 @@
 // SPDX-License-Indetifier: MIT
-
-pragma solidity =0.8.12;
+pragma solidity ^0.8.12;
 
 import {DelegationManager} from "./eigenlayer/DelegationManager.sol";
 import {IStrategyManager} from "./eigenlayer/interfaces/IStrategyManager.sol";

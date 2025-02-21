@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-
-pragma solidity =0.8.12;
+pragma solidity ^0.8.12;
 
 import {TransparentUpgradeableProxy} from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {MockProxyAdmin} from "./MockProxyAdmin.sol";

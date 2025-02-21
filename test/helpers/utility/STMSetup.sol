@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity =0.8.12;
+pragma solidity ^0.8.12;
 
 import "./TestStorage.sol";
 import "../DummyToken.sol";
@@ -8,7 +8,7 @@ import {MetaCoin} from "../../../src/examples/MetaCoin.sol";
 contract STMSetup is TestStorage {
     MetaCoin public metaCoinContract;
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.startPrank(owner);
         eigenPodManager = new MockEigenPodManager();
         strategyManager = new MockStrategyManager();

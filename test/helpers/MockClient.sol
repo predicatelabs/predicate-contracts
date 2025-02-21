@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-
-pragma solidity =0.8.12;
+pragma solidity ^0.8.12;
 
 import {PredicateClient} from "../../src/mixins/PredicateClient.sol";
 import {IPredicateManager} from "../../src/interfaces/IPredicateManager.sol";
