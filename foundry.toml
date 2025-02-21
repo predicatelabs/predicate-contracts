@@ -4,7 +4,7 @@ out = "out"
 libs = ["lib"]
 gas_reports = ["*"]
 # Override the Solidity version (this overrides `auto_detect_solc`)
-solc_version = '^0.8.12'
+solc_version = '0.8.20'
 
 [fmt]
 bracket_spacing = false
