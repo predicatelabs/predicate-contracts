@@ -2,17 +2,18 @@
 pragma solidity ^0.8.12;
 
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 
 import {IDelegationManager} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
 import {IAVSDirectory} from "eigenlayer-contracts/src/contracts/interfaces/IAVSDirectory.sol";
 import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/ISignatureUtils.sol";
 import {IStrategy} from "eigenlayer-contracts/src/contracts/interfaces/IStrategy.sol";
-import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 import {IPredicateManager, Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.sol";
 
-contract ServiceManager is IPredicateManager, OwnableUpgradeable {
+contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable {
     error ServiceManager__Unauthorized();
     error ServiceManager__InvalidOperator();
     error ServiceManager__InvalidStrategy();
@@ -90,10 +91,6 @@ contract ServiceManager is IPredicateManager, OwnableUpgradeable {
         _;
     }
 
-    constructor() {
-        _disableInitializers();
-    }
-
     function initialize(
         address _owner,
         address _aggregator,
@@ -102,7 +99,7 @@ contract ServiceManager is IPredicateManager, OwnableUpgradeable {
         address _avsDirectory,
         uint256 _thresholdStake
     ) external initializer {
-        _transferOwnership(_owner);
+        __Ownable_init(_owner);
         aggregator = _aggregator;
         delegationManager = _delegationManager;
         stakeRegistry = _stakeRegistry;
@@ -233,7 +230,7 @@ contract ServiceManager is IPredicateManager, OwnableUpgradeable {
     function registerOperatorToAVS(
         address _operatorSigningKey,
         SignatureWithSaltAndExpiry memory _operatorSignature
-    ) external onlyPermissionedOperator {
+    ) external {
         require(
             signingKeyToOperator[_operatorSigningKey] == address(0),
             "ServiceManager.registerOperatorToAVS: operator already registered"
@@ -277,6 +274,7 @@ contract ServiceManager is IPredicateManager, OwnableUpgradeable {
      * @notice Deploys a policy for which clients can use
      * @param _policyID is a unique identifier
      * @param _policy is set of formatted rules
+     * @param _quorumThreshold is the number of signatures required to validate a task
      */
     function deployPolicy(
         string memory _policyID,

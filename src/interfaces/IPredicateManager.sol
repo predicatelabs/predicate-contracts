@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.12;
 
-// @notice Struct that bundles together a task's parameters for validation
+/// @notice Struct that bundles together a task's parameters for validation
 struct Task {
     // the unique identifier for the task
     string taskId;
@@ -22,7 +22,7 @@ struct Task {
     uint256 expireByBlockNumber;
 }
 
-// @notice Struct that bundles together a signature, a salt for uniqueness, and an expiration time for the signature. Used primarily for stack management.
+/// @notice Struct that bundles together a signature, a salt for uniqueness, and an expiration time for the signature. Used primarily for stack management.
 struct SignatureWithSaltAndExpiry {
     // the signature itself, formatted as a single bytes object
     bytes signature;
