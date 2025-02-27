@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import {Ownable} from "openzeppelin/access/Ownable.sol";
 import {MockClient} from "./helpers/MockClient.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
-import "forge-std/Test.sol";
 
 contract OwnershipClientTest is ServiceManagerSetup {
     function test_OwnerIsOwnerByDefault() public {
@@ -32,8 +31,11 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
     }
 
     function test_RandomAccountCannotTransferOwnership() public {
-        vm.expectRevert();
-        vm.prank(address(44));
-        ownableServiceManagerInterface.transferOwnership(address(33));
+        address randomAccount = makeAddr("random");
+        
+        vm.startPrank(randomAccount);
+        vm.expectRevert("Ownable: caller is not the owner");
+        serviceManager.transferOwnership(randomAccount);
+        vm.stopPrank();
     }
 }
