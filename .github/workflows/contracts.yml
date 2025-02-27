@@ -14,6 +14,16 @@ jobs:
             with:
               submodules: recursive
 
+          - name: Cache build
+            uses: actions/cache@v3
+            with:
+              path: |
+                cache
+                out
+              key: ${{ runner.os }}-forge-${{ hashFiles('src/**/*.sol') }}
+              restore-keys: |
+                ${{ runner.os }}-forge-
+
           - name: Install Foundry
             uses: foundry-rs/foundry-toolchain@v1
 
@@ -21,7 +31,8 @@ jobs:
             run: forge --version
 
           - name: Build
-            run: forge build --via-ir
+            run: forge build
+
     test:
         runs-on: ubuntu-latest
         steps:
@@ -38,7 +49,7 @@ jobs:
             run: forge --version
 
           - name: Run tests
-            run: forge test --via-ir -vvvv
+            run: forge test
 
     fmt:
         runs-on: ubuntu-latest
