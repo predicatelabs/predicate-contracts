@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {MockClient} from "./helpers/mocks/MockClient.sol";
+import {MockClient} from "./helpers/MockClient.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
 import "forge-std/Test.sol";
 /// console.log
