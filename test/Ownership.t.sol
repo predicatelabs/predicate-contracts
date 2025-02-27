@@ -2,10 +2,12 @@
 pragma solidity ^0.8.12;
 
 import "forge-std/Test.sol";
-import {Ownable} from "openzeppelin/access/Ownable.sol";
-import {MockClient} from "./helpers/MockClient.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {MockClient} from "./helpers/mocks/MockClient.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
 import "forge-std/Test.sol";
+/// console.log
+import "forge-std/console.sol";
 
 contract OwnershipClientTest is ServiceManagerSetup {
     function test_OwnerIsOwnerByDefault() public {
@@ -32,8 +34,9 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
     }
 
     function test_RandomAccountCannotTransferOwnership() public {
-        vm.expectRevert();
+        Ownable ownableSM = Ownable(address(serviceManager));
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(44)));
         vm.prank(address(44));
-        ownableServiceManagerInterface.transferOwnership(address(33));
+        ownableSM.transferOwnership(address(33));
     }
 }
