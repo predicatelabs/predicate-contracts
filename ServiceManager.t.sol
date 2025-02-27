@@ -7,20 +7,20 @@ import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/IDe
 
 import {ServiceManager} from "../src/ServiceManager.sol";
 import {Task} from "../src/interfaces/IPredicateManager.sol";
-import {MockClient} from "./helpers/MockClient.sol";
-import {MockProxy} from "./helpers/MockProxy.sol";
-import {MockProxyAdmin} from "./helpers/MockProxyAdmin.sol";
-import {MockStakeRegistry} from "./helpers/MockStakeRegistry.sol";
-import {MockDelegationManager} from "./helpers/MockDelegationManager.sol";
+import {MockClient} from "./helpers/mocks/MockClient.sol";
+import {MockProxy} from "./helpers/mocks/MockProxy.sol";
+import {MockProxyAdmin} from "./helpers/mocks/MockProxyAdmin.sol";
+import {MockStakeRegistry} from "./helpers/mocks/MockStakeRegistry.sol";
+import {MockDelegationManager} from "./helpers/mocks/MockDelegationManager.sol";
 import {IPauserRegistry} from "./helpers/eigenlayer/interfaces/IPauserRegistry.sol";
 import {IDelegationManager} from "./helpers/eigenlayer/interfaces/IDelegationManager.sol";
-import {MockStrategyManager} from "./helpers/MockStrategyManager.sol";
-import {MockEigenPodManager} from "./helpers/MockEigenPodManager.sol";
+import {MockStrategyManager} from "./helpers/mocks/MockStrategyManager.sol";
+import {MockEigenPodManager} from "./helpers/mocks/MockEigenPodManager.sol";
 import "./helpers/utility/TestUtils.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
-import "./helpers/utility/TestPrep.sol";
+import "./helpers/utility/OperatorTestPrep.sol";
 
-contract ServiceManagerTest is TestPrep, ServiceManagerSetup {
+contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
     modifier permissionedOperators() {
         vm.startPrank(address(this));
         address[] memory operators = new address[](2);
