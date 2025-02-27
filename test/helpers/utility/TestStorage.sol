@@ -2,23 +2,24 @@
 pragma solidity ^0.8.12;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "openzeppelin/access/Ownable.sol";
 
 import {ServiceManager} from "../../../src/ServiceManager.sol";
 import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IPredicateManager.sol";
 import {PredicateClient} from "../../../src/mixins/PredicateClient.sol";
-import {MockClient} from "../mocks/MockClient.sol";
-import {MockProxy} from "../mocks/MockProxy.sol";
-import {MockProxyAdmin} from "../mocks/MockProxyAdmin.sol";
-import {MockStakeRegistry} from "../mocks/MockStakeRegistry.sol";
-import {MockDelegationManager} from "../mocks/MockDelegationManager.sol";
+import {MockClient} from "./../../helpers/MockClient.sol";
+import {MockProxy} from "./../../helpers/MockProxy.sol";
+import {MockProxyAdmin} from "./../../helpers/MockProxyAdmin.sol";
+import {MockStakeRegistry} from "./../../helpers/MockStakeRegistry.sol";
+import {MockDelegationManager} from "./../../helpers/MockDelegationManager.sol";
 import {IPauserRegistry} from "./../../helpers/eigenlayer/interfaces/IPauserRegistry.sol";
 import {IDelegationManager} from "./../../helpers/eigenlayer/interfaces/IDelegationManager.sol";
-import {MockStrategyManager} from "../mocks/MockStrategyManager.sol";
-import {MockEigenPodManager} from "../mocks/MockEigenPodManager.sol";
+import {MockStrategyManager} from "./../../helpers/MockStrategyManager.sol";
+import {MockEigenPodManager} from "./../../helpers/MockEigenPodManager.sol";
 
 contract TestStorage is Test {
     //Events
+
     event SetPolicy(address indexed client, string indexed policy);
     event RemovePolicy(address indexed client, string indexed policy);
     event OperatorRegistered(address indexed operator);
@@ -43,6 +44,7 @@ contract TestStorage is Test {
     Ownable ownableServiceManagerInterface;
 
     //Addresses
+
     address aggregator = makeAddr("aggregator");
     address operator = makeAddr("operator");
     address randomAddr = makeAddr("randomAddr");

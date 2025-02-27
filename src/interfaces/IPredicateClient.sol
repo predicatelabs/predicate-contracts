@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 
 import {IPredicateManager} from "../interfaces/IPredicateManager.sol";
 
-/// @notice Struct that bundles together a task's parameters for validation
+// @notice Struct that bundles together a task's parameters for validation
 struct PredicateMessage {
     // the unique identifier for the task
     string taskId;
@@ -16,10 +16,17 @@ struct PredicateMessage {
     bytes[] signatures;
 }
 
-/// @notice error type for unauthorized access
+// @notice Struct to contain stateful values for PredicateClient-type contracts
+// @custom:storage-location erc7201:predicate.storage.PredicateClient
+struct PredicateClientStorage {
+    IPredicateManager serviceManager;
+    string policyID;
+}
+
+// @notice error type for unauthorized access
 error PredicateClient__Unauthorized();
 
-/// @notice Interface for a PredicateClient-type contract that enables clients to define execution rules or parameters for tasks they submit
+// @notice Interface for a PredicateClient-type contract that enables clients to define execution rules or parameters for tasks they submit
 interface IPredicateClient {
     /**
      * @notice Sets a policy for the calling address, associating it with a policy document stored on IPFS.

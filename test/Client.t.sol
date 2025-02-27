@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.12;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {MockClient} from "./helpers/mocks/MockClient.sol";
+import {Ownable} from "openzeppelin/access/Ownable.sol";
+import {MockClient} from "./helpers/MockClient.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
 import "forge-std/Test.sol";
 
