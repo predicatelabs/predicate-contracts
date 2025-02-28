@@ -2,12 +2,12 @@
 pragma solidity ^0.8.12;
 
 import "./helpers/utility/TestUtils.sol";
-import "./helpers/utility/STMSetup.sol";
-import "./helpers/utility/TestPrep.sol";
+import "./helpers/utility/MetaCoinTestSetup.sol";
+import "./helpers/utility/OperatorTestPrep.sol";
 import {PredicateMessage} from "../src/interfaces/IPredicateClient.sol";
 import "forge-std/console.sol";
 
-contract STMTest is TestPrep, STMSetup {
+contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
     modifier permissionedOperators() {
         vm.startPrank(address(this));
         address[] memory operators = new address[](2);
@@ -18,7 +18,7 @@ contract STMTest is TestPrep, STMSetup {
         _;
     }
 
-    function testHappyPathSwapWithSTM() public permissionedOperators prepOperatorRegistration(false) {
+    function testMetaCoinTransferWithPredicateMessage() public permissionedOperators prepOperatorRegistration(true) {
         uint256 expireByBlock = block.number + 100;
         string memory taskId = "unique-identifier";
         uint256 amount = 10;
@@ -37,14 +37,9 @@ contract STMTest is TestPrep, STMSetup {
         );
 
         bytes memory signature;
-
-        // register operator and sign message hash
-        vm.prank(operatorOne);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, messageHash);
         signature = abi.encodePacked(r, s, v);
 
-        // create
         address[] memory signerAddresses = new address[](1);
         bytes[] memory operatorSignatures = new bytes[](1);
         signerAddresses[0] = operatorOneAlias;

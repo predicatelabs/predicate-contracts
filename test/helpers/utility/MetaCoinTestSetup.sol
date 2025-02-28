@@ -3,12 +3,12 @@ pragma solidity ^0.8.12;
 
 import "./TestStorage.sol";
 import "../DummyToken.sol";
-import {MetaCoin} from "../../../src/examples/MetaCoin.sol";
+import {MetaCoin} from "../../../src/examples/inheritance/MetaCoin.sol";
 
-contract STMSetup is TestStorage {
+contract MetaCoinTestSetup is TestStorage {
     MetaCoin public metaCoinContract;
 
-    function setUp() public virtual {
+    function setUp() public {
         vm.startPrank(owner);
         eigenPodManager = new MockEigenPodManager();
         strategyManager = new MockStrategyManager();

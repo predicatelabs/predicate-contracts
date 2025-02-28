@@ -1,10 +1,13 @@
 [profile.default]
 src = "src"
 out = "out"
+ffi = true
+build_info = true
+ast = true
+extra_output = ["storageLayout", "abi", "metadata", "devdoc", "userdoc"]
 libs = ["lib"]
 gas_reports = ["*"]
-# Override the Solidity version (this overrides `auto_detect_solc`)
-solc_version = '0.8.12'
+solc_version = '0.8.28'
 
 [fmt]
 bracket_spacing = false
@@ -14,6 +17,5 @@ multiline_func_header = "params_first"
 number_underscore = "thousands"
 quote_style = "double"
 tab_width = 4
-
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

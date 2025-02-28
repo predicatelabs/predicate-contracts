@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.12;
 
-import {IStrategy} from "./eigenlayer/interfaces/IStrategy.sol";
+import {IStrategy} from "../eigenlayer/interfaces/IStrategy.sol";
 
 contract MockEigenPodManager {
     function podOwnerShares(
