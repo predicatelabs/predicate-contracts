@@ -19,3 +19,8 @@ quote_style = "double"
 tab_width = 4
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[profile.fast]
+via_ir = false
+optimizer = false
+verbosity = 2

@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
-import "forge-std/Test.sol";
 
 contract OwnershipClientTest is ServiceManagerSetup {
     function test_OwnerIsOwnerByDefault() public {
