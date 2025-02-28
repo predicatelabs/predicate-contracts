@@ -37,7 +37,7 @@ contract MockAVSDirectory {
         bytes32 salt,
         uint256 expiry
     ) public view returns (bytes32) {
-        // calculate the struct hash
+        // Calculate the struct hash
         // Mock Implementation only
         bytes32 structHash = keccak256(abi.encode(operator, avs, salt, expiry));
         return structHash;

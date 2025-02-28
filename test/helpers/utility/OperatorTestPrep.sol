@@ -5,10 +5,11 @@ import {Test, console} from "forge-std/Test.sol";
 import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IPredicateManager.sol";
 import "./TestStorage.sol";
 
-contract TestPrep is TestStorage {
+contract OperatorTestPrep is TestStorage {
     modifier prepOperatorRegistration(
-        bool avsVerified
+        bool shouldRegisterWithEigenContracts
     ) {
+        // First Operator Registration
         vm.startPrank(operatorOne);
         IDelegationManager.OperatorDetails memory operatorDetails = IDelegationManager.OperatorDetails({
             earningsReceiver: operatorAddr,
@@ -29,11 +30,12 @@ contract TestPrep is TestStorage {
 
         (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
-        if (avsVerified) {
+        if (shouldRegisterWithEigenContracts) {
             serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
         }
         vm.stopPrank();
 
+        // Second Operator Registration
         vm.startPrank(operatorTwo);
         IDelegationManager.OperatorDetails memory operatorTwoDetails = IDelegationManager.OperatorDetails({
             earningsReceiver: operatorTwoAddr,
@@ -54,11 +56,12 @@ contract TestPrep is TestStorage {
         delegationManager.registerAsOperator(operatorTwoDetails, "metadata uri");
         (, status) = serviceManager.operators(operatorTwo);
         assertEq(uint256(status), 0);
-        if (avsVerified) {
-            vm.prank(operatorOne);
-            serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-        }
         vm.stopPrank();
+
+        if (shouldRegisterWithEigenContracts) {
+            vm.prank(operatorTwo);
+            serviceManager.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
+        }
 
         _;
     }

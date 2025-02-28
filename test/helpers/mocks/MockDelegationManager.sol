@@ -1,10 +1,11 @@
 // SPDX-License-Indetifier: MIT
+
 pragma solidity ^0.8.12;
 
-import {DelegationManager} from "./eigenlayer/DelegationManager.sol";
-import {IStrategyManager} from "./eigenlayer/interfaces/IStrategyManager.sol";
-import {ISlasher} from "./eigenlayer/interfaces/ISlasher.sol";
-import {IEigenPodManager} from "./eigenlayer/interfaces/IEigenPodManager.sol";
+import {DelegationManager} from "../eigenlayer/DelegationManager.sol";
+import {IStrategyManager} from "../eigenlayer/interfaces/IStrategyManager.sol";
+import {ISlasher} from "../eigenlayer/interfaces/ISlasher.sol";
+import {IEigenPodManager} from "../eigenlayer/interfaces/IEigenPodManager.sol";
 
 contract MockDelegationManager is DelegationManager {
     constructor(
