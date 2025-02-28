@@ -32,7 +32,7 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
 
     function test_RandomAccountCannotTransferOwnership() public {
         address randomAccount = makeAddr("random");
-        
+
         vm.startPrank(randomAccount);
         vm.expectRevert("Ownable: caller is not the owner");
         serviceManager.transferOwnership(randomAccount);
