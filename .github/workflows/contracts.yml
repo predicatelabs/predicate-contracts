@@ -1,0 +1,66 @@
+name: Lint and Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+            with:
+              submodules: recursive
+
+          - name: Install Foundry
+            uses: foundry-rs/foundry-toolchain@v1
+
+          - name: Print forge version
+            run: forge --version
+
+          - name: Build
+            working-directory: .
+            run: forge build
+    test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+            with:
+              submodules: recursive
+
+          - name: Install Foundry
+            uses: foundry-rs/foundry-toolchain@v1
+            with:
+              version: stable
+
+          - name: Print forge version
+            run: forge --version
+
+          - name: Run tests
+            working-directory: .
+            run: forge test -vvv
+
+    fmt:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+            with:
+              submodules: recursive
+
+          - name: Install Foundry
+            uses: foundry-rs/foundry-toolchain@v1
+
+          - name: Print forge version
+            run: forge --version
+
+          - name: Check formatting src
+            working-directory: src
+            run: forge fmt --check
+
+          - name: Check formatting test
+            working-directory: test
+            run: forge fmt --check
+
+
