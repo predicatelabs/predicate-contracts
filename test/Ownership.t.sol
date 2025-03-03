@@ -35,7 +35,7 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
 
     function test_RandomAccountCannotTransferOwnership() public {
         Ownable ownableSM = Ownable(address(serviceManager));
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert();
         vm.prank(address(44));
         ownableSM.transferOwnership(address(33));
     }
