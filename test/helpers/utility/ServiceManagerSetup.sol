@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import "./TestStorage.sol";
 
 contract ServiceManagerSetup is TestStorage {
-    function setUp() public {
+    function setUp() public virtual {
         vm.startPrank(owner);
         eigenPodManager = new MockEigenPodManager();
         strategyManager = new MockStrategyManager();

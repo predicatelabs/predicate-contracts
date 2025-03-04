@@ -8,7 +8,7 @@ import {MetaCoin} from "../../../src/examples/inheritance/MetaCoin.sol";
 contract MetaCoinTestSetup is TestStorage {
     MetaCoin public metaCoinContract;
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.startPrank(owner);
         eigenPodManager = new MockEigenPodManager();
         strategyManager = new MockStrategyManager();
