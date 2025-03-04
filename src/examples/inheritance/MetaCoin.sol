@@ -13,10 +13,9 @@ contract MetaCoin is PredicateClient, Ownable {
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address _owner, address _serviceManager, string memory _policyID) Ownable() {
+    constructor(address _owner, address _serviceManager, string memory _policyID) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
         _initPredicateClient(_serviceManager, _policyID);
-        transferOwnership(_owner);
     }
 
     function sendCoin(address _receiver, uint256 _amount, PredicateMessage calldata _message) external payable {
