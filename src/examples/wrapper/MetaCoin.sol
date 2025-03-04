@@ -11,7 +11,7 @@ contract MetaCoin is Ownable, PredicateProtected {
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address _owner, address _predicateWrapperAddress) Ownable() {
+    constructor(address _owner, address _predicateWrapperAddress) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
         _setPredicateWrapper(_predicateWrapperAddress);
         transferOwnership(_owner);

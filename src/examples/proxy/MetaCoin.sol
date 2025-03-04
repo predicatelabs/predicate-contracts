@@ -10,10 +10,9 @@ contract MetaCoin is Ownable, PredicateProtected {
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address _owner, address _predicateProxyAddress) Ownable() {
+    constructor(address _owner, address _predicateProxyAddress) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
         _setPredicateProxy(_predicateProxyAddress);
-        transferOwnership(_owner);
     }
 
     function sendCoin(address _sender, address _receiver, uint256 _amount) external payable onlyPredicateProxy {

@@ -10,9 +10,8 @@ contract MetaCoin is Ownable {
 
     constructor(
         address _owner
-    ) Ownable() {
+    ) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
-        transferOwnership(_owner);
     }
 
     function sendCoin(address _receiver, uint256 _amount) external payable {

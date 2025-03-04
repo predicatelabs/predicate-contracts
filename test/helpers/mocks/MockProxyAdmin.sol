@@ -7,5 +7,5 @@ import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.s
 contract MockProxyAdmin is ProxyAdmin {
     constructor(
         address _owner
-    ) ProxyAdmin() {}
+    ) ProxyAdmin(_owner) {}
 }
