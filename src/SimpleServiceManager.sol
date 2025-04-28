@@ -92,7 +92,11 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
      * @param _signingKeys Corresponding signing keys for the operators
      * @param _removeOperators Array of operator addresses to remove
      */
-    function syncOperators(address[] calldata _registrationKeys, address[] calldata _signingKeys, address[] calldata _removeOperators) external onlyOwner {
+    function syncOperators(
+        address[] calldata _registrationKeys,
+        address[] calldata _signingKeys,
+        address[] calldata _removeOperators
+    ) external onlyOwner {
         require(
             _registrationKeys.length == _signingKeys.length,
             "Predicate.syncOperators: registration and signing keys length mismatch"
@@ -113,29 +117,29 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
         }
 
         for (uint256 i = 0; i < _registrationKeys.length;) {
-                address registrationKey = _registrationKeys[i];
-                address signingKey = _signingKeys[i];
+            address registrationKey = _registrationKeys[i];
+            address signingKey = _signingKeys[i];
 
-                bool isExistingOperator = EnumerableSet.contains(registeredOperators, registrationKey);
+            bool isExistingOperator = EnumerableSet.contains(registeredOperators, registrationKey);
 
-                if (isExistingOperator) {
-                    if (operatorAddressToSigningKey[registrationKey] != signingKey) {
-                        operatorAddressToSigningKey[registrationKey] = signingKey;
-                        emit OperatorUpdated(registrationKey, signingKey);
-                    }
-                    unchecked {
-                        ++i;
-                    }
-                    continue;
+            if (isExistingOperator) {
+                if (operatorAddressToSigningKey[registrationKey] != signingKey) {
+                    operatorAddressToSigningKey[registrationKey] = signingKey;
+                    emit OperatorUpdated(registrationKey, signingKey);
                 }
-
-                EnumerableSet.add(registeredOperators, registrationKey);
-                signingKeyToOperatorAddress[signingKey] = registrationKey;
-                operatorAddressToSigningKey[registrationKey] = signingKey;
-                emit OperatorRegistered(registrationKey);
-
                 unchecked {
                     ++i;
+                }
+                continue;
+            }
+
+            EnumerableSet.add(registeredOperators, registrationKey);
+            signingKeyToOperatorAddress[signingKey] = registrationKey;
+            operatorAddressToSigningKey[registrationKey] = signingKey;
+            emit OperatorRegistered(registrationKey);
+
+            unchecked {
+                ++i;
             }
         }
     }
@@ -155,8 +159,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
      */
     function syncPolicies(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
         require(
-            policyIDs.length == thresholds.length,
-            "Predicate.syncPolicies: policy IDs and thresholds length mismatch"
+            policyIDs.length == thresholds.length, "Predicate.syncPolicies: policy IDs and thresholds length mismatch"
         );
 
         for (uint256 i = 0; i < policyIDs.length;) {
