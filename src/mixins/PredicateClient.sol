@@ -27,7 +27,7 @@ abstract contract PredicateClient is IPredicateClient {
     function _initPredicateClient(address _serviceManagerAddress, string memory _policyID) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         $.serviceManager = IPredicateManager(_serviceManagerAddress);
-        $.policyID = _policyID;
+        _setPolicy(_policyID);
     }
 
     function _setPolicy(
@@ -35,6 +35,7 @@ abstract contract PredicateClient is IPredicateClient {
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         $.policyID = _policyID;
+        $.serviceManager.setPolicy(_policyID);
     }
 
     function getPolicy() external view override returns (string memory) {
