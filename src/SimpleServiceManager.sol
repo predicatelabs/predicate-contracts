@@ -11,13 +11,39 @@ import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.s
 import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
 
 contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUpgradeable {
+    /**
+     * @notice Emitted when a policy is set for a client
+     */
     event SetPolicy(address indexed client, string indexed policyID);
+
+    /**
+     * @notice Emitted when a new policy is successfully synced
+     */
     event PolicySynced(string indexed policyID);
+
+    /**
+     * @notice Emitted when a policy sync is skipped due to existing registration
+     */
     event PolicySyncedSkipped(string indexed policyID);
+
+    /**
+     * @notice Emitted when a new operator is registered
+     */
     event OperatorRegistered(address indexed operator);
+
+    /**
+     * @notice Emitted when an operator is removed
+     */
     event OperatorRemoved(address indexed operator);
+
+    /**
+     * @notice Emitted when an operator's signing key is updated
+     */
     event OperatorUpdated(address indexed operator, address indexed signingKey);
 
+    /**
+     * @notice Emitted when a task is successfully validated
+     */
     event TaskValidated(
         address indexed msgSender,
         address indexed target,
@@ -29,15 +55,31 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
         address[] signerAddresses
     );
 
+    /// @dev Set of currently registered operator addresses
     EnumerableSet.AddressSet private registeredOperators;
+
+    /// @notice Maps a signing key to its associated operator address
     mapping(address => address) public signingKeyToOperatorAddress;
+
+    /// @notice Maps an operator address to its associated signing key
     mapping(address => address) public operatorAddressToSigningKey;
 
+    /// @notice Tracks spent task IDs to prevent replay attacks
     mapping(string => bool) public spentTaskIDs;
+
+    /// @notice Maps client contract addresses to their assigned policy ID
     mapping(address => string) public clientToPolicyID;
+
+    /// @notice Maps policy IDs to their configured quorum threshold
     mapping(string => uint256) public policyIDToThreshold;
+
+    /// @notice List of all deployed policy IDs
     string[] public deployedPolicyIDs;
 
+    /**
+     * @notice Initializes the contract and transfers ownership.
+     * @param _owner Address to set as the contract owner.
+     */
     function initialize(
         address _owner
     ) external initializer {
@@ -45,10 +87,10 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     }
 
     /**
-     * @notice Adds, deletes, or updates operator registration and signing keys
-     * @param _registrationKeys is an array of registration keys for operators
-     * @param _signingKeys is an array of signing keys corresponding to the registration keys
-     * @param _removeOperators is an array of operator addresses to be removed
+     * @notice Registers, updates, or removes operators and their signing keys
+     * @param _registrationKeys Array of operator addresses to register or update
+     * @param _signingKeys Corresponding signing keys for the operators
+     * @param _removeOperators Array of operator addresses to remove
      */
     function syncOperators(address[] calldata _registrationKeys, address[] calldata _signingKeys, address[] calldata _removeOperators) external onlyOwner {
         require(
@@ -99,8 +141,8 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     }
 
     /**
-     * @notice Gets array of deployed policies
-     * @return array of deployed policies
+     * @notice Returns all deployed policy IDs
+     * @return Array of deployed policy IDs
      */
     function getDeployedPolicyIDs() external view returns (string[] memory) {
         return deployedPolicyIDs;
@@ -108,9 +150,8 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
 
     /**
      * @notice Registers or updates policy IDs with their associated quorum thresholds
-     * @dev Adds policies to the deployedPolicyIDs array and sets their thresholds
-     * @param policyIDs Array of unique policy identifiers to register
-     * @param thresholds Array of quorum thresholds corresponding to each policy ID
+     * @param policyIDs Array of policy identifiers
+     * @param thresholds Corresponding quorum thresholds for each policy
      */
     function syncPolicies(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
         require(
