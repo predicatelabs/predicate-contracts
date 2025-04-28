@@ -38,6 +38,14 @@ struct SignatureWithSaltAndExpiry {
  */
 interface IPredicateManager {
     /**
+     * @notice Sets the metadata URI for the AVS
+     * @param _metadataURI is the metadata URI for the AVS
+     */
+    function setMetadataURI(
+        string memory _metadataURI
+    ) external;
+
+    /**
      * @notice Forwards a call to EigenLayer's DelegationManager contract to confirm operator registration with the AVS
      * @param operatorSigningKey The address of the operator's signing key.
      * @param operatorSignature The signature, salt, and expiry of the operator's signature.
@@ -54,6 +62,25 @@ interface IPredicateManager {
     function deregisterOperatorFromAVS(
         address operator
     ) external;
+
+    /**
+     * @notice Returns the list of strategies that the operator has potentially restaked on the AVS
+     * @param operator The address of the operator to get restaked strategies for
+     * @dev This function is intended to be called off-chain
+     * @dev No guarantee is made on whether the operator has shares for a strategy in a quorum or uniqueness
+     *      of each element in the returned array. The off-chain service should do that validation separately
+     */
+    function getOperatorRestakedStrategies(
+        address operator
+    ) external view returns (address[] memory);
+
+    /**
+     * @notice Returns the list of strategies that the AVS supports for restaking
+     * @dev This function is intended to be called off-chain
+     * @dev No guarantee is made on uniqueness of each element in the returned array.
+     *      The off-chain service should do that validation separately
+     */
+    function getRestakeableStrategies() external view returns (address[] memory);
 
     /**
      * @notice Sets a policy ID for the sender, defining execution rules or parameters for tasks
@@ -93,6 +120,28 @@ interface IPredicateManager {
         address[] memory signerAddresses,
         bytes[] memory signatures
     ) external returns (bool isVerified);
+
+    /**
+     * @notice Adds a new strategy to the Service Manager
+     * @dev Only callable by the contract owner. Adds a strategy that operators can stake on.
+     * @param _strategy The address of the strategy contract to add
+     * @param quorumNumber The quorum number associated with the strategy
+     * @param index The index of the strategy within the quorum
+     * @dev Emits a StrategyAdded event upon successful addition of the strategy
+     * @dev Reverts if the strategy does not exist or is already added
+     */
+    function addStrategy(address _strategy, uint8 quorumNumber, uint256 index) external;
+
+    /**
+     * @notice Removes an existing strategy from the Service Manager
+     * @dev Only callable by the contract owner. Removes a strategy that operators are currently able to stake on.
+     * @param _strategy The address of the strategy contract to remove
+     * @dev Emits a StrategyRemoved event upon successful removal of the strategy
+     * @dev Reverts if the strategy is not currently added or if the address is invalid
+     */
+    function removeStrategy(
+        address _strategy
+    ) external;
 
     /**
      * @notice Enables the rotation of Predicate Signing Key for an operator
