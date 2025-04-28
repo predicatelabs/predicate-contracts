@@ -12,9 +12,11 @@ import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
 
 contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUpgradeable {
     event SetPolicy(address indexed client, string indexed policyID);
-    event PolicyDeployed(string indexed policyID);
+    event PolicySynced(string indexed policyID);
+    event PolicySyncedSkipped(string indexed policyID);
     event OperatorRegistered(address indexed operator);
     event OperatorRemoved(address indexed operator);
+    event OperatorUpdated(address indexed operator, address indexed signingKey);
 
     event TaskValidated(
         address indexed msgSender,
@@ -75,8 +77,10 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
                 bool isExistingOperator = EnumerableSet.contains(registeredOperators, registrationKey);
 
                 if (isExistingOperator) {
-                    if (operatorAddressToSigningKey[registrationKey] != signingKey)
+                    if (operatorAddressToSigningKey[registrationKey] != signingKey) {
                         operatorAddressToSigningKey[registrationKey] = signingKey;
+                        emit OperatorUpdated(registrationKey, signingKey);
+                    }
                     unchecked {
                         ++i;
                     }
@@ -121,9 +125,10 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             if (policyIDToThreshold[policyIDs[i]] == 0) {
                 policyIDToThreshold[policyIDs[i]] = thresholds[i];
                 deployedPolicyIDs.push(policyIDs[i]);
-                emit PolicyDeployed(policyIDs[i]);
+                emit PolicySynced(policyIDs[i]);
             }
 
+            emit PolicySyncedSkipped(policyIDs[i]);
             unchecked {
                 ++i;
             }
