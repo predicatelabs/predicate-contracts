@@ -24,7 +24,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     /**
      * @notice Emitted when a policy sync is skipped due to existing registration
      */
-    event PolicySyncedSkipped(string indexed policyID);
+    event PolicySyncSkipped(string indexed policyID);
 
     /**
      * @notice Emitted when a new operator is registered
@@ -172,7 +172,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
                 emit PolicySynced(policyIDs[i]);
             }
 
-            emit PolicySyncedSkipped(policyIDs[i]);
+            emit PolicySyncSkipped(policyIDs[i]);
             unchecked {
                 ++i;
             }
