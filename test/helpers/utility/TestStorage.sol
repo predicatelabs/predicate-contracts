@@ -53,6 +53,8 @@ contract TestStorage is Test {
     address operatorTwoAddr = makeAddr("operatorTwoAddr");
     address slasher = makeAddr("slasher");
     address pauserRegistry = makeAddr("pauserRegistry");
+
+    //TODO change "Alias" semantic to "
     address operatorOne;
     address operatorOneAlias;
     address operatorTwo;

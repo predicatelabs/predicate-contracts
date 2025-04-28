@@ -32,57 +32,45 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
 
     mapping(address => OperatorInfo) public operators;
     mapping(address => address) public signingKeyToOperator;
-    mapping(address => mapping(string => bool)) public clientToPolicy;
+    mapping(address => mapping(string => bool)) public clientToPolicy; // DEPRECATED: use clientToPolicyID
     mapping(string => string) public idToPolicy;
     mapping(string => bool) public spentTaskIds;
-    mapping(string => string) public idToSocialGraph;
-
+    mapping(string => string) public idToSocialGraph; // DEPRECATED
     string[] public deployedPolicyIDs;
-    string[] public socialGraphIDs;
+    string[] public socialGraphIDs; // DEPRECATED
 
     address[] public strategies;
-    address public aggregator;
+    address public aggregator; // DEPRECATED
     address public delegationManager;
     address public stakeRegistry;
     address public avsDirectory;
     uint256 public thresholdStake;
 
-    mapping(string => uint256) policyIdToThreshold;
+    mapping(string => uint256) public policyIdToThreshold;
     mapping(address => bool) private permissionedOperators;
+    mapping(address => string) public clientToPolicyID;
 
     event SetPolicy(address indexed client, string indexed policyID);
     event DeployedPolicy(string indexed policyID, string policy);
-    event RemovedPolicy(address indexed client, string indexed policyID);
     event OperatorRegistered(address indexed operator);
     event OperatorRemoved(address indexed operator);
     event StrategyAdded(address indexed strategy);
     event StrategyRemoved(address indexed strategy);
-    event TaskExecuted(bytes32 indexed taskHash);
     event OperatorsStakesUpdated(address[][] indexed operatorsPerQuorum, bytes indexed quorumNumbers);
-    event NonCompliantTask(uint256 indexed taskID);
-    event AggregatorUpdated(address indexed aggregator);
     event AVSDirectoryUpdated(address indexed avsDirectory);
     event ThresholdStakeUpdated(uint256 indexed thresholdStake);
     event DelegationManagerUpdated(address indexed delegationManager);
     event StakeRegistryUpdated(address indexed stakeRegistry);
-    event SocialGraphDeployed(string indexed socialGraphID, string socialGraphConfig);
     event TaskValidated(
         address indexed msgSender,
         address indexed target,
         uint256 indexed value,
         string policyID,
         string taskId,
-        uint32 quorumThresholdCount,
+        uint256 quorumThresholdCount,
         uint256 expireByBlockNumber,
         address[] signerAddresses
     );
-
-    modifier onlyAggregator() {
-        if (msg.sender != aggregator) {
-            revert ServiceManager__Unauthorized();
-        }
-        _;
-    }
 
     modifier onlyPermissionedOperator() {
         if (!permissionedOperators[msg.sender]) {
@@ -100,7 +88,6 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         uint256 _thresholdStake
     ) external initializer {
         _transferOwnership(_owner);
-        aggregator = _aggregator;
         delegationManager = _delegationManager;
         stakeRegistry = _stakeRegistry;
         avsDirectory = _avsDirectory;
@@ -108,16 +95,249 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
     }
 
     /**
-     * @notice Sets the aggregator address on contracts
-     * @param _aggregator is the aggregator that can execute the callback
+     * @notice Adds permissioned operators to the set for the AVS
+     * @param _operators is the address[] to be permissioned for registration on the AVS
      * @dev only callable by the owner
      */
-    function setAggregator(
-        address _aggregator
+    function addPermissionedOperators(
+        address[] calldata _operators
     ) external onlyOwner {
-        aggregator = _aggregator;
-        emit AggregatorUpdated(aggregator);
+        for (uint256 i = 0; i < _operators.length; i++) {
+            permissionedOperators[_operators[i]] = true;
+        }
     }
+
+    /**
+     * @notice Removes permissioned operators from the set for the AVS
+     * @param _operators is the address[] to have permission revoked for registration on the AVS
+     * @dev only callable by the owner
+     */
+    function removePermissionedOperators(
+        address[] calldata _operators
+    ) external onlyOwner {
+        for (uint256 i = 0; i < _operators.length; i++) {
+            permissionedOperators[_operators[i]] = false;
+        }
+    }
+
+    /**
+     * @notice Enables the rotation of Predicate Signing Key for an operator
+     * @param _oldSigningKey address of the old signing key to remove
+     * @param _newSigningKey address of the new signing key to add
+     */
+    function rotatePredicateSigningKey(address _oldSigningKey, address _newSigningKey) external {
+        require(
+            operators[msg.sender].status == OperatorStatus.REGISTERED,
+            "Predicate.rotatePredicateSigningKey: operator is not registered"
+        );
+        require(
+            msg.sender == signingKeyToOperator[_oldSigningKey],
+            "Predicate.rotatePredicateSigningKey: operator can only change it's own signing key"
+        );
+        delete signingKeyToOperator[_oldSigningKey];
+        signingKeyToOperator[_newSigningKey] = msg.sender;
+    }
+
+    /**
+     * @notice Registers a new operator
+     * @param _operatorSigningKey address of the operator signing key
+     * @param _operatorSignature signature used for validation
+     */
+    function registerOperatorToAVS(
+        address _operatorSigningKey,
+        SignatureWithSaltAndExpiry memory _operatorSignature
+    ) external {
+        require(
+            signingKeyToOperator[_operatorSigningKey] == address(0),
+            "Predicate.registerOperatorToAVS: operator already registered"
+        );
+        uint256 totalStake;
+        for (uint256 i; i != strategies.length;) {
+            totalStake += IDelegationManager(delegationManager).operatorShares(msg.sender, IStrategy(strategies[i]));
+            unchecked {
+                ++i;
+            }
+        }
+
+        if (totalStake >= thresholdStake) {
+            operators[msg.sender] = OperatorInfo(totalStake, OperatorStatus.REGISTERED);
+            signingKeyToOperator[_operatorSigningKey] = msg.sender;
+            ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSig = ISignatureUtils.SignatureWithSaltAndExpiry(
+                _operatorSignature.signature, _operatorSignature.salt, _operatorSignature.expiry
+            );
+            IAVSDirectory(avsDirectory).registerOperatorToAVS(msg.sender, _operatorSig);
+            emit OperatorRegistered(msg.sender);
+        }
+    }
+
+    /**
+     * @notice Removes an operator
+     * @param _operator the address of the operator to be removed
+     */
+    function deregisterOperatorFromAVS(
+        address _operator
+    ) external onlyOwner {
+        require(
+            operators[_operator].status != OperatorStatus.NEVER_REGISTERED,
+            "Predicate.deregisterOperatorFromAVS: operator is not registered"
+        );
+        operators[_operator] = OperatorInfo(0, OperatorStatus.DEREGISTERED);
+        IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(_operator);
+        emit OperatorRemoved(_operator);
+    }
+
+    /**
+     * @notice Deploys a policy for which clients can use
+     * @param _policyID is a unique identifier
+     * @param _policy is set of formatted rules
+     * @param _quorumThreshold is the number of signatures required to validate a task
+     */
+    function deployPolicy(
+        string memory _policyID,
+        string memory _policy,
+        uint256 _quorumThreshold
+    ) external onlyOwner {
+        require(bytes(idToPolicy[_policyID]).length == 0, "Predicate.deployPolicy: policy exists");
+        require(_quorumThreshold > 0, "Predicate.deployPolicy: quorum threshold must be greater than zero");
+        idToPolicy[_policyID] = _policy;
+        policyIdToThreshold[_policyID] = _quorumThreshold;
+        deployedPolicyIDs.push(_policyID);
+        emit DeployedPolicy(_policyID, _policy);
+    }
+
+    /**
+     * @notice Gets array of deployed policies
+     * @return array of deployed policies
+     */
+    function getDeployedPolicies() external view returns (string[] memory) {
+        return deployedPolicyIDs;
+    }
+
+    /**
+     * @notice Sets a policy for the calling contract (msg.sender)
+     * @dev Associates a client contract with a specific policy ID. The policy must be previously registered.
+     * @param _policyID Identifier of a registered policy to associate with the caller
+     */
+    function setPolicy(
+        string memory _policyID
+    ) external {
+        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
+        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
+        clientToPolicyID[msg.sender] = _policyID;
+        emit SetPolicy(msg.sender, _policyID);
+    }
+
+    /**
+     * @notice Overrides the policy for a specific client address
+     * @param _policyID is the unique identifier for the policy
+     * @param _clientAddress is the address of the client for which the policy is being overridden
+     */
+    function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner {
+        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
+        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
+        clientToPolicyID[_clientAddress] = _policyID;
+        emit SetPolicy(_clientAddress, _policyID);
+    }
+
+    /**
+     * @notice Performs the hashing of an STM task
+     * @param _task parameters of the task
+     * @return the keccak256 digest of the task
+     */
+    function hashTaskWithExpiry(
+        Task calldata _task
+    ) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _task.taskId,
+                _task.msgSender,
+                _task.target,
+                _task.value,
+                _task.encodedSigAndArgs,
+                _task.policyID,
+                _task.quorumThresholdCount,
+                _task.expireByBlockNumber
+            )
+        );
+    }
+
+    /**
+     * @notice Computes a secure task hash with validation-time context
+     * @param _task The task parameters to hash
+     * @return bytes32 The keccak256 digest including validation context
+     */
+    function hashTaskSafe(
+        Task calldata _task
+    ) public view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _task.taskId,
+                _task.msgSender,
+                msg.sender,
+                _task.value,
+                _task.encodedSigAndArgs,
+                _task.policyID,
+                _task.quorumThresholdCount,
+                _task.expireByBlockNumber
+            )
+        );
+    }
+
+    /**
+     * @notice Validates signatures using the OpenZeppelin ECDSA library for the Predicate Single Transaction Model
+     * @param _task the params of the task
+     * @param  signerAddresses the addresses of the operators
+     * @param  signatures the signatures of the operators
+     */
+    function validateSignatures(
+        Task calldata _task,
+        address[] memory signerAddresses,
+        bytes[] memory signatures
+    ) external returns (bool isVerified) {
+        require(_task.quorumThresholdCount != 0, "Predicate.validateSignatures: quorum threshold count cannot be zero");
+        require(
+            signerAddresses.length == signatures.length,
+            "Predicate.validateSignatures: Mismatch between signers and signatures"
+        );
+        require(block.number <= _task.expireByBlockNumber, "Predicate.validateSignatures: transaction expired");
+        require(!spentTaskIds[_task.taskId], "Predicate.validateSignatures: task ID already spent");
+
+        uint256 numSignaturesRequired = policyIdToThreshold[_task.policyID];
+        require(
+            numSignaturesRequired != 0 && _task.quorumThresholdCount == numSignaturesRequired,
+            "Predicate.PredicateVerified: deployed policy quorum threshold differs from task quorum threshold"
+        );
+
+        bytes32 messageHash = hashTaskSafe(_task);
+        for (uint256 i = 0; i < numSignaturesRequired;) {
+            if (i > 0 && uint160(signerAddresses[i]) <= uint160(signerAddresses[i - 1])) {
+                revert("Predicate.validateSignatures: Signer addresses must be unique and sorted");
+            }
+            address recoveredSigner = ECDSA.recover(messageHash, signatures[i]);
+            require(recoveredSigner == signerAddresses[i], "Predicate.validateSignatures: Invalid signature");
+            address operator = signingKeyToOperator[recoveredSigner];
+            require(operators[operator].status == OperatorStatus.REGISTERED, "Signer is not a registered operator");
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit TaskValidated(
+            _task.msgSender,
+            _task.target,
+            _task.value,
+            _task.policyID,
+            _task.taskId,
+            _task.quorumThresholdCount,
+            _task.expireByBlockNumber,
+            signerAddresses
+        );
+
+        spentTaskIds[_task.taskId] = true;
+        return true;
+    }
+
+    // ============ EigenLayer ============ //
 
     /**
      * @notice Sets the delegationManager contract address
@@ -176,221 +396,6 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         string memory _metadataURI
     ) external onlyOwner {
         IAVSDirectory(avsDirectory).updateAVSMetadataURI(_metadataURI);
-    }
-
-    /**
-     * @notice Adds permissioned operators to the set for the AVS
-     * @param _operators is the address[] to be permissioned for registration on the AVS
-     * @dev only callable by the owner
-     */
-    function addPermissionedOperators(
-        address[] calldata _operators
-    ) external onlyOwner {
-        for (uint256 i = 0; i < _operators.length; i++) {
-            permissionedOperators[_operators[i]] = true;
-        }
-    }
-
-    /**
-     * @notice Removes permissioned operators from the set for the AVS
-     * @param _operators is the address[] to have permission revoked for registration on the AVS
-     * @dev only callable by the owner
-     */
-    function removePermissionedOperators(
-        address[] calldata _operators
-    ) external onlyOwner {
-        for (uint256 i = 0; i < _operators.length; i++) {
-            permissionedOperators[_operators[i]] = false;
-        }
-    }
-
-    /**
-     * @notice Enables the rotation of Predicate Signing Key for an operator
-     * @param _oldSigningKey address of the old signing key to remove
-     * @param _newSigningKey address of the new signing key to add
-     */
-    function rotatePredicateSigningKey(address _oldSigningKey, address _newSigningKey) external {
-        require(
-            operators[msg.sender].status == OperatorStatus.REGISTERED,
-            "ServiceManager.rotatePredicateSigningKey: operator is not registered"
-        );
-        require(
-            msg.sender == signingKeyToOperator[_oldSigningKey],
-            "ServiceManager.rotatePredicateSigningKey: operator can only change it's own signing key"
-        );
-        delete signingKeyToOperator[_oldSigningKey];
-        signingKeyToOperator[_newSigningKey] = msg.sender;
-    }
-
-    /**
-     * @notice Registers a new operator
-     * @param _operatorSigningKey address of the operator signing key
-     * @param _operatorSignature signature used for validation
-     */
-    function registerOperatorToAVS(
-        address _operatorSigningKey,
-        SignatureWithSaltAndExpiry memory _operatorSignature
-    ) external {
-        require(
-            signingKeyToOperator[_operatorSigningKey] == address(0),
-            "ServiceManager.registerOperatorToAVS: operator already registered"
-        );
-        uint256 totalStake;
-        for (uint256 i; i != strategies.length;) {
-            totalStake += IDelegationManager(delegationManager).operatorShares(msg.sender, IStrategy(strategies[i]));
-            unchecked {
-                ++i;
-            }
-        }
-
-        if (totalStake >= thresholdStake) {
-            operators[msg.sender] = OperatorInfo(totalStake, OperatorStatus.REGISTERED);
-            signingKeyToOperator[_operatorSigningKey] = msg.sender;
-            ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSig = ISignatureUtils.SignatureWithSaltAndExpiry(
-                _operatorSignature.signature, _operatorSignature.salt, _operatorSignature.expiry
-            );
-            IAVSDirectory(avsDirectory).registerOperatorToAVS(msg.sender, _operatorSig);
-            emit OperatorRegistered(msg.sender);
-        }
-    }
-
-    /**
-     * @notice Removes an operator
-     * @param _operator the address of the operator to be removed
-     */
-    function deregisterOperatorFromAVS(
-        address _operator
-    ) external onlyOwner {
-        require(
-            operators[_operator].status != OperatorStatus.NEVER_REGISTERED,
-            "ServiceManager.deregisterOperatorFromAVS: operator is not registered"
-        );
-        operators[_operator] = OperatorInfo(0, OperatorStatus.DEREGISTERED);
-        IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(_operator);
-        emit OperatorRemoved(_operator);
-    }
-
-    /**
-     * @notice Deploys a policy for which clients can use
-     * @param _policyID is a unique identifier
-     * @param _policy is set of formatted rules
-     * @param _quorumThreshold is the number of signatures required to validate a task
-     */
-    function deployPolicy(
-        string memory _policyID,
-        string memory _policy,
-        uint256 _quorumThreshold
-    ) external onlyOwner {
-        require(bytes(idToPolicy[_policyID]).length == 0, "ServiceManager.deployPolicy: policy exists");
-        idToPolicy[_policyID] = _policy;
-        policyIdToThreshold[_policyID] = _quorumThreshold;
-        deployedPolicyIDs.push(_policyID);
-        emit DeployedPolicy(_policyID, _policy);
-    }
-
-    /**
-     * @notice Deploys a social graph which clients can use in policy
-     * @param _socialGraphID is a unique identifier
-     * @param _socialGraphConfig is the config for the social graph
-     */
-    function deploySocialGraph(string memory _socialGraphID, string memory _socialGraphConfig) external onlyOwner {
-        require(
-            bytes(idToSocialGraph[_socialGraphID]).length == 0, "ServiceManager.deploySocialGraph: social graph exists"
-        );
-        idToSocialGraph[_socialGraphID] = _socialGraphConfig;
-        socialGraphIDs.push(_socialGraphID);
-        emit SocialGraphDeployed(_socialGraphID, _socialGraphConfig);
-    }
-
-    /**
-     * @notice Gets array of deployed policies
-     * @return array of deployed policies
-     */
-    function getDeployedPolicies() external view returns (string[] memory) {
-        return deployedPolicyIDs;
-    }
-
-    /**
-     * @notice Gets array of social graph IDs
-     * @return array of social graph IDs
-     */
-    function getSocialGraphIDs() external view returns (string[] memory) {
-        return socialGraphIDs;
-    }
-
-    /**
-     * @notice Sets a policy for a client
-     * @param _policyID address of the Pod
-     */
-    function setPolicy(
-        string memory _policyID
-    ) external {
-        clientToPolicy[msg.sender][_policyID] = true;
-        emit SetPolicy(msg.sender, _policyID);
-    }
-
-    /**
-     * @notice Removes a policy for a client
-     * @param _policyID address of the Pod
-     */
-    function removePolicy(
-        string memory _policyID
-    ) external {
-        clientToPolicy[msg.sender][_policyID] = false;
-        emit RemovedPolicy(msg.sender, _policyID);
-    }
-
-    /**
-     * @notice Validates signatures using the OpenZeppelin ECDSA library for the Predicate Single Transaction Model
-     * @param _task the params of the task
-     * @param  signerAddresses the addresses of the operators
-     * @param  signatures the signatures of the operators
-     */
-    function validateSignatures(
-        Task calldata _task,
-        address[] memory signerAddresses,
-        bytes[] memory signatures
-    ) external returns (bool isVerified) {
-        require(
-            _task.quorumThresholdCount != 0, "ServiceManager.PredicateVerified: quorum threshold count cannot be zero"
-        );
-        require(signerAddresses.length == signatures.length, "Mismatch between signers and signatures");
-        require(block.number <= _task.expireByBlockNumber, "ServiceManager.PredicateVerified: transaction expired");
-        require(!spentTaskIds[_task.taskId], "ServiceManager.PredicateVerified: task ID already spent");
-
-        uint256 quorumThreshold = policyIdToThreshold[_task.policyID];
-        require(
-            quorumThreshold != 0 && _task.quorumThresholdCount == quorumThreshold,
-            "ServiceManager.PredicateVerified: deployed policy quorum threshold differs from task quorum threshold"
-        );
-
-        bytes32 messageHash = hashTaskWithExpiry(_task);
-        for (uint256 i = 0; i < _task.quorumThresholdCount;) {
-            if (i > 0 && uint160(signerAddresses[i]) <= uint160(signerAddresses[i - 1])) {
-                revert("Signer addresses must be unique and sorted");
-            }
-            address recoveredSigner = ECDSA.recover(messageHash, signatures[i]);
-            require(recoveredSigner == signerAddresses[i], "Invalid signature");
-            address operator = signingKeyToOperator[recoveredSigner];
-            require(operators[operator].status == OperatorStatus.REGISTERED, "Signer is not a registered operator");
-            unchecked {
-                ++i;
-            }
-        }
-
-        emit TaskValidated(
-            _task.msgSender,
-            _task.target,
-            _task.value,
-            _task.policyID,
-            _task.taskId,
-            _task.quorumThresholdCount,
-            _task.expireByBlockNumber,
-            signerAddresses
-        );
-
-        spentTaskIds[_task.taskId] = true;
-        return true;
     }
 
     /**
@@ -506,27 +511,5 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             }
         }
         emit OperatorsStakesUpdated(operatorsPerQuorum, quorumNumbers);
-    }
-
-    /**
-     * @notice Performs the hashing of an STM task
-     * @param _task parameters of the task
-     * @return the keccak256 digest of the task
-     */
-    function hashTaskWithExpiry(
-        Task calldata _task
-    ) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                _task.taskId,
-                _task.msgSender,
-                _task.target,
-                _task.value,
-                _task.encodedSigAndArgs,
-                _task.policyID,
-                _task.quorumThresholdCount,
-                _task.expireByBlockNumber
-            )
-        );
     }
 }

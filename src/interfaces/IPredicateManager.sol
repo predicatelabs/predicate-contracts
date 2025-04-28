@@ -93,16 +93,6 @@ interface IPredicateManager {
     ) external;
 
     /**
-     * @notice Removes a policy ID for the sender, removing execution rules or parameters for tasks
-     * @param policyID string pointing to the policy details
-     * @dev Only callable by client contracts or EOAs to disassociate a policy with their address
-     * @dev Emits a RemovedPolicy event upon successful association
-     */
-    function removePolicy(
-        string memory policyID
-    ) external;
-
-    /**
      * @notice Deploys a policy with ID with execution rules or parameters for tasks
      * @param _policyID string pointing to the policy details
      * @param _policy string containing the policy details
@@ -116,20 +106,6 @@ interface IPredicateManager {
      * @notice Gets array of deployed policies
      */
     function getDeployedPolicies() external view returns (string[] memory);
-
-    /**
-     * @notice Deploys a social graph which clients can use in policy
-     * @param _socialGraphID is a unique identifier
-     * @param _socialGraphConfig is the config for the social graph
-     * @dev Only callable by service manager deployer
-     * @dev Emits a SocialGraphDeployed event upon successful deployment
-     */
-    function deploySocialGraph(string memory _socialGraphID, string memory _socialGraphConfig) external;
-
-    /**
-     * @notice Returns the list of social graph IDs that the AVS supports
-     */
-    function getSocialGraphIDs() external view returns (string[] memory);
 
     /**
      * @notice Verifies if a task is authorized by the required number of operators

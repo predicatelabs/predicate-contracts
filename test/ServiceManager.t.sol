@@ -31,22 +31,10 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         _;
     }
 
-    function testCanDeploySocialGraph() public {
-        serviceManager.deploySocialGraph("sg_2", "sampleConfig");
-        string memory socialGraphConfig = serviceManager.idToSocialGraph("sg_2");
-        assertEq(socialGraphConfig, "sampleConfig");
-    }
-
     function testCanDeployPolicy() public {
         serviceManager.deployPolicy("sg-policy-2", "samplePolicy", 1);
         string memory policyConfig = serviceManager.idToPolicy("sg-policy-2");
         assertEq(policyConfig, "samplePolicy");
-    }
-
-    function testNoDuplicateSocialGraphDeploy() public {
-        serviceManager.deploySocialGraph("sg_2", "sampleConfig");
-        vm.expectRevert();
-        serviceManager.deploySocialGraph("sg_2", "sampleConfig");
     }
 
     function testNoDuplicatePolicyDeploy() public {
@@ -266,10 +254,10 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),
-            target: address(this),
+            target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: "testPolicy",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByBlockNumber: block.number + 100
         });
@@ -290,6 +278,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
 
+        vm.prank(address(client));
         bool result = serviceManager.validateSignatures(task, signers, signatures);
         assertTrue(result, "First execution should succeed");
 
@@ -308,30 +297,26 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         });
 
         vm.expectRevert();
+        vm.prank(address(client));
         serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
-    function testCannotReplaySignatures() public permissionedOperators prepOperatorRegistration(false) {
+    function testCannotReplaySignatures() public permissionedOperators prepOperatorRegistration(true) {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),
-            target: address(this),
+            target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: "testPolicy",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByBlockNumber: block.number + 100
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
-        bytes memory signature;
-
-        vm.prank(operatorOne);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
-        signature = abi.encodePacked(r, s, v);
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         address[] memory signers = new address[](1);
         signers[0] = operatorOneAlias;
@@ -339,16 +324,18 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
 
+        vm.prank(address(client));
         bool result = serviceManager.validateSignatures(task, signers, signatures);
         assertTrue(result, "First execution is expected to succeed");
 
         vm.expectRevert();
+        vm.prank(address(client));
         serviceManager.validateSignatures(task, signers, signatures);
 
         Task memory newTask = Task({
             taskId: "newTaskId",
             msgSender: address(this),
-            target: address(this),
+            target: address(client),
             value: 0,
             encodedSigAndArgs: "",
             policyID: "testPolicy",
@@ -357,6 +344,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         });
 
         vm.expectRevert();
+        vm.prank(address(client));
         serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
@@ -368,7 +356,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),
-            target: address(this),
+            target: address(client),
             value: 0,
             encodedSigAndArgs: "",
             policyID: "testPolicy",
@@ -406,6 +394,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         assertTrue(serviceManager.hashTaskWithExpiry(newTask) != taskDigest);
 
         vm.expectRevert();
+        vm.prank(address(client));
         serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
@@ -413,10 +402,10 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),
-            target: address(this),
+            target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: "testPolicy",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByBlockNumber: block.number + 100
         });
@@ -450,6 +439,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             signatures[1] = signatureOne;
         }
 
+        vm.prank(address(client));
         bool result = serviceManager.validateSignatures(task, signers, signatures);
         assertTrue(result, "First execution should succeed");
 
@@ -462,6 +452,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         signers[1] = tmpAddr;
 
         vm.expectRevert();
+        vm.prank(address(client));
         serviceManager.validateSignatures(task, signers, signatures);
     }
 
@@ -473,10 +464,10 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),
-            target: address(this),
+            target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: "testPolicy",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByBlockNumber: block.number + 100
         });
@@ -509,7 +500,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             signatures[0] = signatureTwo;
             signatures[1] = signatureOne;
         }
-
+        vm.prank(address(client));
         serviceManager.validateSignatures(task, signers, signatures);
 
         bytes memory tmpSig = signatures[0];
@@ -521,6 +512,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         signers[1] = tmpAddr;
 
         vm.expectRevert();
+        vm.prank(address(client));
         serviceManager.validateSignatures(task, signers, signatures);
     }
 
@@ -538,7 +530,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         );
 
         vm.prank(operatorTwo);
-        vm.expectRevert("ServiceManager.registerOperatorToAVS: operator already registered");
+        vm.expectRevert("Predicate.registerOperatorToAVS: operator already registered");
         serviceManager.registerOperatorToAVS(operatorOneAlias, operatorTwoSignature);
 
         (stake, status) = serviceManager.operators(operatorTwo);
@@ -561,12 +553,6 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             uint256(status), uint256(ServiceManager.OperatorStatus.REGISTERED), "Operator one should be registered"
         );
     }
-
-    // function testNonPermissionedOperatorCannotRegister() public prepOperatorRegistration(false) {
-    //     vm.expectRevert();
-    //     vm.prank(operatorOne);
-    //     serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-    // }
 
     fallback() external payable {}
 

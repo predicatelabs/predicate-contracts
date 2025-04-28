@@ -35,14 +35,15 @@ contract ServiceManagerSetup is TestStorage {
 
         vm.startPrank(address(this));
         serviceManager.deployPolicy(
-            "testPolicy",
+            policyID,
             '{"version":"1.0.0","name":"testPolicy","rules":[{"id":"membership-check-sg-1","effect":"deny", "predicate_id":"membership", "predicate_params":{"social_graph_id": "sg_1"}}],"consensus": {"broadcast": "all", "threshold": "1"}}',
             1
         );
         vm.stopPrank();
 
-        client = new MockClient(owner, address(serviceManager), "testPolicy");
+        client = new MockClient(owner, address(serviceManager), policyID);
         ownableClientInterface = Ownable(address(client));
+
         (operatorOne, operatorOnePk) = makeAddrAndKey("operatorOne");
         (operatorOneAlias, operatorOneAliasPk) = makeAddrAndKey("operatorOneAlias");
         (operatorTwo, operatorTwoPk) = makeAddrAndKey("operatorTwo");
