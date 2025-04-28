@@ -44,9 +44,6 @@ contract ServiceManagerSetup is TestStorage {
         client = new MockClient(owner, address(serviceManager), policyID);
         ownableClientInterface = Ownable(address(client));
 
-        console.log("client address: %s", address(client));
-        console.log("Policy for client: %s", serviceManager.clientToPolicyID(address(client)));
-
         (operatorOne, operatorOnePk) = makeAddrAndKey("operatorOne");
         (operatorOneAlias, operatorOneAliasPk) = makeAddrAndKey("operatorOneAlias");
         (operatorTwo, operatorTwoPk) = makeAddrAndKey("operatorTwo");
