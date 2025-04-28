@@ -12,7 +12,7 @@ import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
 
 contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUpgradeable {
     event SetPolicy(address indexed client, string indexed policyID);
-    event PolicyDeployed(string indexed policyID, string policy);
+    event PolicyDeployed(string indexed policyID);
     event OperatorRegistered(address indexed operator);
     event OperatorRemoved(address indexed operator);
 
@@ -43,49 +43,53 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     }
 
     /**
-     * @notice Updates the operator registration and signing keys by adding or removing operators and updating signing keys.
+     * @notice Adds, deletes, or updates operator registration and signing keys
      * @param _registrationKeys is an array of registration keys for operators
      * @param _signingKeys is an array of signing keys corresponding to the registration keys
+     * @param _removeOperators is an array of operator addresses to be removed
      */
-    function syncOperators(address[] calldata _registrationKeys, address[] calldata _signingKeys) external onlyOwner {
+    function syncOperators(address[] calldata _registrationKeys, address[] calldata _signingKeys, address[] calldata _removeOperators) external onlyOwner {
         require(
             _registrationKeys.length == _signingKeys.length,
-            "SimpleServiceManager.syncOperators: registration and signing keys length mismatch"
+            "Predicate.syncOperators: registration and signing keys length mismatch"
         );
 
-        uint256 operatorCount = EnumerableSet.length(registeredOperators);
-        for (uint256 i = 0; i < operatorCount;) {
-            address operator = EnumerableSet.at(registeredOperators, 0);
-            address signingKey = operatorAddressToSigningKey[operator];
-
-            delete operatorAddressToSigningKey[operator];
-            delete signingKeyToOperatorAddress[signingKey];
-
-            EnumerableSet.remove(registeredOperators, operator);
-            emit OperatorRemoved(operator);
-
+        for (uint256 i = 0; i < _removeOperators.length;) {
+            address operatorToRemove = _removeOperators[i];
+            if (EnumerableSet.contains(registeredOperators, operatorToRemove)) {
+                EnumerableSet.remove(registeredOperators, operatorToRemove);
+                address signingKey = operatorAddressToSigningKey[operatorToRemove];
+                delete signingKeyToOperatorAddress[signingKey];
+                delete operatorAddressToSigningKey[operatorToRemove];
+                emit OperatorRemoved(operatorToRemove);
+            }
             unchecked {
                 ++i;
             }
         }
 
         for (uint256 i = 0; i < _registrationKeys.length;) {
-            address registrationKey = _registrationKeys[i];
-            address signingKey = _signingKeys[i];
+                address registrationKey = _registrationKeys[i];
+                address signingKey = _signingKeys[i];
 
-            require(
-                signingKeyToOperatorAddress[signingKey] == address(0),
-                "SimpleServiceManager.syncOperators: signing key already associated with an operator"
-            );
+                bool isExistingOperator = EnumerableSet.contains(registeredOperators, registrationKey);
 
-            signingKeyToOperatorAddress[signingKey] = registrationKey;
-            operatorAddressToSigningKey[registrationKey] = signingKey;
+                if (isExistingOperator) {
+                    if (operatorAddressToSigningKey[registrationKey] != signingKey)
+                        operatorAddressToSigningKey[registrationKey] = signingKey;
+                    unchecked {
+                        ++i;
+                    }
+                    continue;
+                }
 
-            EnumerableSet.add(registeredOperators, registrationKey);
-            emit OperatorRegistered(registrationKey);
+                EnumerableSet.add(registeredOperators, registrationKey);
+                signingKeyToOperatorAddress[signingKey] = registrationKey;
+                operatorAddressToSigningKey[registrationKey] = signingKey;
+                emit OperatorRegistered(registrationKey);
 
-            unchecked {
-                ++i;
+                unchecked {
+                    ++i;
             }
         }
     }
@@ -107,17 +111,18 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     function syncPolicies(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
         require(
             policyIDs.length == thresholds.length,
-            "SimpleServiceManager.syncPolicies: policy IDs and thresholds length mismatch"
+            "Predicate.syncPolicies: policy IDs and thresholds length mismatch"
         );
 
         for (uint256 i = 0; i < policyIDs.length;) {
-            require(bytes(policyIDs[i]).length > 0, "SimpleServiceManager.syncPolicies: policy ID cannot be empty");
+            require(bytes(policyIDs[i]).length > 0, "Predicate.syncPolicies: policy ID cannot be empty");
+            require(thresholds[i] > 0, "Predicate.syncPolicies: threshold must be greater than zero");
 
-            require(thresholds[i] > 0, "SimpleServiceManager.syncPolicies: threshold must be greater than zero");
-
-            policyIDToThreshold[policyIDs[i]] = thresholds[i];
-            deployedPolicyIDs.push(policyIDs[i]);
-            emit PolicyDeployed(policyIDs[i], "");
+            if (policyIDToThreshold[policyIDs[i]] == 0) {
+                policyIDToThreshold[policyIDs[i]] = thresholds[i];
+                deployedPolicyIDs.push(policyIDs[i]);
+                emit PolicyDeployed(policyIDs[i]);
+            }
 
             unchecked {
                 ++i;
@@ -133,8 +138,8 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     function setPolicy(
         string memory _policyID
     ) external {
-        require(bytes(_policyID).length > 0, "SimpleServiceManager.setPolicy: policy ID cannot be empty");
-        require(policyIDToThreshold[_policyID] > 0, "SimpleServiceManager.setPolicy: policy ID not registered");
+        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
+        require(policyIDToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
         clientToPolicyID[msg.sender] = _policyID;
         emit SetPolicy(msg.sender, _policyID);
     }
@@ -145,7 +150,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
      * @param _clientAddress is the address of the client for which the policy is being overridden
      */
     function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner {
-        require(bytes(_policyID).length > 0, "SimpleServiceManager.setPolicy: policy ID cannot be empty");
+        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
         clientToPolicyID[_clientAddress] = _policyID;
         emit SetPolicy(_clientAddress, _policyID);
     }

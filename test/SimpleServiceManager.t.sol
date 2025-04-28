@@ -83,22 +83,16 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         signingKeys[0] = operatorOneAlias;
         signingKeys[1] = operatorTwoAlias;
 
-        // Expect two operators to be registered
-        vm.expectEmit(true, true, true, true);
-        emit OperatorRegistered(operatorOne);
-        vm.expectEmit(true, true, true, true);
-        emit OperatorRegistered(operatorTwo);
-
         vm.prank(owner);
-        simpleServiceManager.syncOperators(registrationKeys, signingKeys);
+        simpleServiceManager.syncOperators(registrationKeys, signingKeys, new address[](0));
 
         // Verify signing key to operator mappings
         assertEq(simpleServiceManager.signingKeyToOperatorAddress(signingKeys[0]), registrationKeys[0]);
         assertEq(simpleServiceManager.signingKeyToOperatorAddress(signingKeys[1]), registrationKeys[1]);
 
         //////////////// Test removing an operator and adding a new one ////////////////
-        (address operatorThree, uint256 operatorThreePk) = makeAddrAndKey("operatorFour");
-        (address operatorThreeAlias, uint256 operatorThreeAliasPk) = makeAddrAndKey("operatorFourAlias");
+        (address operatorThree, uint256 operatorThreePk) = makeAddrAndKey("operatorThree");
+        (address operatorThreeAlias, uint256 operatorThreeAliasPk) = makeAddrAndKey("operatorThreeAlias");
 
         address[] memory newRegistrationKeys = new address[](2);
         address[] memory newSigningKeys = new address[](2);
@@ -123,7 +117,7 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         // Sync operators again
         vm.prank(owner);
-        simpleServiceManager.syncOperators(newRegistrationKeys, newSigningKeys);
+        simpleServiceManager.syncOperators(newRegistrationKeys, newSigningKeys, registrationKeys);
 
         // Verify correct signing key mappings
         assertEq(simpleServiceManager.signingKeyToOperatorAddress(newSigningKeys[0]), newRegistrationKeys[0]);

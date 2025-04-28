@@ -41,7 +41,7 @@ contract SimpleServiceManagerSetup is TestStorage {
         signingKeys[0] = operatorOneAlias;
         signingKeys[1] = operatorTwoAlias;
 
-        simpleServiceManager.syncOperators(registrationKeys, signingKeys);
+        simpleServiceManager.syncOperators(registrationKeys, signingKeys, new address[](0));
         vm.stopPrank();
     }
 }

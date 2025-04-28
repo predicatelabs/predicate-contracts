@@ -198,6 +198,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         uint256 _quorumThreshold
     ) external onlyOwner {
         require(bytes(idToPolicy[_policyID]).length == 0, "Predicate.deployPolicy: policy exists");
+        require(_quorumThreshold > 0, "Predicate.deployPolicy: quorum threshold must be greater than zero");
         idToPolicy[_policyID] = _policy;
         policyIdToThreshold[_policyID] = _quorumThreshold;
         deployedPolicyIDs.push(_policyID);
@@ -220,6 +221,8 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
     function setPolicy(
         string memory _policyID
     ) external {
+        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
+        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
         clientToPolicyID[msg.sender] = _policyID;
         emit SetPolicy(msg.sender, _policyID);
     }
@@ -230,7 +233,8 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
      * @param _clientAddress is the address of the client for which the policy is being overridden
      */
     function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner {
-        require(bytes(_policyID).length > 0, "SimplePredicate.setPolicy: policy ID cannot be empty");
+        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
+        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
         clientToPolicyID[_clientAddress] = _policyID;
         emit SetPolicy(_clientAddress, _policyID);
     }

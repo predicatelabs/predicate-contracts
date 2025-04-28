@@ -13,8 +13,8 @@ contract MockClientTest is ServiceManagerSetup {
 
     function testOwnerCanSetPolicy() public {
         vm.prank(owner);
-        client.setPolicy("testpolicy99");
-        assertEq(client.getPolicy(), "testpolicy99");
+        client.setPolicy(policyID);
+        assertEq(client.getPolicy(), policyID);
     }
 
     function testRandomAccountCannotSetPolicy() public {
