@@ -146,7 +146,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
     function registerOperatorToAVS(
         address _operatorSigningKey,
         SignatureWithSaltAndExpiry memory _operatorSignature
-    ) external {
+    ) external onlyPermissionedOperator {
         require(
             signingKeyToOperator[_operatorSigningKey] == address(0),
             "Predicate.registerOperatorToAVS: operator already registered"
