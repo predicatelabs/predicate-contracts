@@ -378,9 +378,9 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
     }
 
     function cannotSupplySignaturesToTaskWithDifferentDigest()
-    public
-    permissionedOperators
-    prepOperatorRegistration(true)
+        public
+        permissionedOperators
+        prepOperatorRegistration(true)
     {
         Task memory task = Task({
             taskId: "taskId",
@@ -528,9 +528,9 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
     }
 
     function testOperatorCannotRegisterWithOtherOperatorAlias()
-    public
-    permissionedOperators
-    prepOperatorRegistration(false)
+        public
+        permissionedOperators
+        prepOperatorRegistration(false)
     {
         vm.prank(operatorOne);
         serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
@@ -555,7 +555,11 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         assertEq(registeredOperator, operatorOne, "OperatorOneAlias should still be associated with operatorOne");
     }
 
-    function testDeregisteredOperatorCannotValidateSignatures() public permissionedOperators prepOperatorRegistration(true) {
+    function testDeregisteredOperatorCannotValidateSignatures()
+        public
+        permissionedOperators
+        prepOperatorRegistration(true)
+    {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),

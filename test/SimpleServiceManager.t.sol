@@ -248,19 +248,16 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         // Deregister operator one
         vm.prank(owner);
-        simpleServiceManager.syncOperators(
-            new address[](1),
-            new address[](1),
-            removeOperators
-        );
+        simpleServiceManager.syncOperators(new address[](1), new address[](1), removeOperators);
 
         vm.prank(address(client));
         vm.expectRevert("Predicate.validateSignatures: Signer is not a registered operator");
         simpleServiceManager.validateSignatures(task, signerAddresses, signatures);
     }
+
     function testSyncPoliciesRevertsOnEmptyPolicyID() public {
-        string [] memory policyIDs = new string[](1);
-        uint32 [] memory thresholds = new uint32[](1);
+        string[] memory policyIDs = new string[](1);
+        uint32[] memory thresholds = new uint32[](1);
 
         policyIDs[0] = "";
         thresholds[0] = 1;
@@ -271,8 +268,8 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
     }
 
     function testSyncPoliciesRevertsOnZeroThreshold() public {
-        string [] memory policyIDs = new string[](1);
-        uint32 [] memory thresholds = new uint32[](1);
+        string[] memory policyIDs = new string[](1);
+        uint32[] memory thresholds = new uint32[](1);
 
         policyIDs[0] = "VALID";
         thresholds[0] = 0;

@@ -326,7 +326,10 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             address recoveredSigner = ECDSA.recover(messageHash, signatures[i]);
             require(recoveredSigner == signerAddresses[i], "Predicate.validateSignatures: Invalid signature");
             address operator = signingKeyToOperator[recoveredSigner];
-            require(operators[operator].status == OperatorStatus.REGISTERED, "Predicate.validateSignatures: Signer is not a registered operator");
+            require(
+                operators[operator].status == OperatorStatus.REGISTERED,
+                "Predicate.validateSignatures: Signer is not a registered operator"
+            );
             unchecked {
                 ++i;
             }
