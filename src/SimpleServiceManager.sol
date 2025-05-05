@@ -51,7 +51,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
         string policyID,
         string taskId,
         uint256 quorumThresholdCount,
-        uint256 expireByBlockNumber,
+        uint256 expireByTime,
         address[] signerAddresses
     );
 
