@@ -155,7 +155,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     }
 
     /**
-     * @notice Registers or updates policy IDs with their associated quorum thresholds
+     * @notice Registers policy IDs with their associated quorum thresholds
      * @param policyIDs Array of policy identifiers
      * @param thresholds Corresponding quorum thresholds for each policy
      */
