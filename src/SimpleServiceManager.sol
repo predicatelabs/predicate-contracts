@@ -155,7 +155,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     }
 
     /**
-     * @notice Registers or updates policy IDs with their associated quorum thresholds
+     * @notice Registers policy IDs with their associated quorum thresholds
      * @param policyIDs Array of policy identifiers
      * @param thresholds Corresponding quorum thresholds for each policy
      */
@@ -167,6 +167,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
         for (uint256 i = 0; i < policyIDs.length;) {
             require(bytes(policyIDs[i]).length > 0, "Predicate.syncPolicies: policy ID cannot be empty");
             require(thresholds[i] > 0, "Predicate.syncPolicies: threshold must be greater than zero");
+            require(bytes(policyIDs[i]).length > 0, "Predicate.syncPolicies: policyID cannot be empty");
 
             if (policyIDToThreshold[policyIDs[i]] == 0) {
                 policyIDToThreshold[policyIDs[i]] = thresholds[i];

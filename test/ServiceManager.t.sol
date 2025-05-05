@@ -380,7 +380,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
     function cannotSupplySignaturesToTaskWithDifferentDigest()
         public
         permissionedOperators
-        prepOperatorRegistration(false)
+        prepOperatorRegistration(true)
     {
         Task memory task = Task({
             taskId: "taskId",
@@ -396,10 +396,6 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
         bytes memory signature;
-
-        vm.prank(operatorOne);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         signature = abi.encodePacked(r, s, v);
 
@@ -427,7 +423,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
-    function testSignaturesCannotBeRearranged() public permissionedOperators prepOperatorRegistration(false) {
+    function testSignaturesCannotBeRearranged() public permissionedOperators prepOperatorRegistration(true) {
         Task memory task = Task({
             taskId: "taskId",
             msgSender: address(this),
@@ -440,13 +436,6 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
-
-        vm.prank(operatorOne);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-
-        vm.prank(operatorTwo);
-        serviceManager.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
-
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signatureOne = abi.encodePacked(r, s, v);
 
@@ -488,7 +477,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
     function testSignaturesGreaterThanQuorumThresholdCannotBeRearranged()
         public
         permissionedOperators
-        prepOperatorRegistration(false)
+        prepOperatorRegistration(true)
     {
         Task memory task = Task({
             taskId: "taskId",
@@ -502,13 +491,6 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
-
-        vm.prank(operatorOne);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-
-        vm.prank(operatorTwo);
-        serviceManager.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
-
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signatureOne = abi.encodePacked(r, s, v);
 
@@ -573,6 +555,41 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         assertEq(registeredOperator, operatorOne, "OperatorOneAlias should still be associated with operatorOne");
     }
 
+    function testDeregisteredOperatorCannotValidateSignatures()
+        public
+        permissionedOperators
+        prepOperatorRegistration(true)
+    {
+        Task memory task = Task({
+            taskId: "taskId",
+            msgSender: address(this),
+            target: address(client),
+            value: 0,
+            encodedSigAndArgs: "",
+            policyID: policyID,
+            quorumThresholdCount: 1,
+            expireByTime: block.timestamp + 100
+        });
+
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        address[] memory signers = new address[](1);
+        signers[0] = operatorOneAlias;
+
+        bytes[] memory signatures = new bytes[](1);
+        signatures[0] = signature;
+
+        // Deregister operator
+        serviceManager.deregisterOperatorFromAVS(operatorOne);
+
+        vm.prank(address(client));
+        vm.expectRevert("Predicate.validateSignatures: Signer is not a registered operator");
+        serviceManager.validateSignatures(task, signers, signatures);
+    }
+
     function testPermissionedOperatorCanRegister() public permissionedOperators prepOperatorRegistration(false) {
         vm.prank(operatorOne);
         serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
@@ -581,6 +598,14 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         assertEq(
             uint256(status), uint256(ServiceManager.OperatorStatus.REGISTERED), "Operator one should be registered"
         );
+    }
+
+    function testCannotDeployEmptyPolicyString() public {
+        string memory policyID = "valid-policy-id";
+        string memory emptyPolicy = "";
+
+        vm.expectRevert("Predicate.deployPolicy: policy string cannot be empty");
+        serviceManager.deployPolicy(policyID, emptyPolicy, 1);
     }
 
     fallback() external payable {}

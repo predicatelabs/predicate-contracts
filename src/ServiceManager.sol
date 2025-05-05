@@ -208,6 +208,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
     ) external onlyOwner {
         require(bytes(idToPolicy[_policyID]).length == 0, "Predicate.deployPolicy: policy exists");
         require(_quorumThreshold > 0, "Predicate.deployPolicy: quorum threshold must be greater than zero");
+        require(bytes(_policy).length > 0, "Predicate.deployPolicy: policy string cannot be empty");
         idToPolicy[_policyID] = _policy;
         policyIdToThreshold[_policyID] = _quorumThreshold;
         deployedPolicyIDs.push(_policyID);
@@ -325,7 +326,10 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             address recoveredSigner = ECDSA.recover(messageHash, signatures[i]);
             require(recoveredSigner == signerAddresses[i], "Predicate.validateSignatures: Invalid signature");
             address operator = signingKeyToOperator[recoveredSigner];
-            require(operators[operator].status == OperatorStatus.REGISTERED, "Signer is not a registered operator");
+            require(
+                operators[operator].status == OperatorStatus.REGISTERED,
+                "Predicate.validateSignatures: Signer is not a registered operator"
+            );
             unchecked {
                 ++i;
             }

@@ -220,4 +220,62 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         // operatorTwo should know longer be registered
         assertEq(simpleServiceManager.signingKeyToOperatorAddress(signingKeys[1]), address(0));
     }
+
+    function testDeregisteredOperatorCannotValidateSignatures() public {
+        Task memory task = Task({
+            taskId: TASK_ID,
+            msgSender: address(this),
+            target: address(client),
+            value: 0,
+            encodedSigAndArgs: "",
+            policyID: policyID,
+            quorumThresholdCount: QUORUM_THRESHOLD,
+            expireByTime: block.timestamp + 100
+        });
+
+        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(task);
+
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
+        bytes memory signature1 = abi.encodePacked(r1, s1, v1);
+
+        address[] memory signerAddresses = new address[](1);
+        bytes[] memory signatures = new bytes[](1);
+        signerAddresses[0] = operatorOneAlias;
+        signatures[0] = signature1;
+
+        address[] memory removeOperators = new address[](1);
+        removeOperators[0] = operatorOne;
+
+        // Deregister operator one
+        vm.prank(owner);
+        simpleServiceManager.syncOperators(new address[](1), new address[](1), removeOperators);
+
+        vm.prank(address(client));
+        vm.expectRevert("Predicate.validateSignatures: Signer is not a registered operator");
+        simpleServiceManager.validateSignatures(task, signerAddresses, signatures);
+    }
+
+    function testSyncPoliciesRevertsOnEmptyPolicyID() public {
+        string[] memory policyIDs = new string[](1);
+        uint32[] memory thresholds = new uint32[](1);
+
+        policyIDs[0] = "";
+        thresholds[0] = 1;
+
+        vm.prank(owner);
+        vm.expectRevert("Predicate.syncPolicies: policy ID cannot be empty");
+        simpleServiceManager.syncPolicies(policyIDs, thresholds);
+    }
+
+    function testSyncPoliciesRevertsOnZeroThreshold() public {
+        string[] memory policyIDs = new string[](1);
+        uint32[] memory thresholds = new uint32[](1);
+
+        policyIDs[0] = "VALID";
+        thresholds[0] = 0;
+
+        vm.prank(owner);
+        vm.expectRevert("Predicate.syncPolicies: threshold must be greater than zero");
+        simpleServiceManager.syncPolicies(policyIDs, thresholds);
+    }
 }
