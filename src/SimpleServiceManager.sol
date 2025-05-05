@@ -124,6 +124,8 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
 
             if (isExistingOperator) {
                 if (operatorAddressToSigningKey[registrationKey] != signingKey) {
+                    delete signingKeyToOperatorAddress[registrationKey];
+                    signingKeyToOperatorAddress[signingKey] = registrationKey;
                     operatorAddressToSigningKey[registrationKey] = signingKey;
                     emit OperatorUpdated(registrationKey, signingKey);
                 }

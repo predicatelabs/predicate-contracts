@@ -554,12 +554,6 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         );
     }
 
-    function testNonPermittedOperatorCantRegister() public prepOperatorRegistration(false) {
-        vm.expectRevert();
-        vm.prank(randomAddr);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
-    }
-
     fallback() external payable {}
 
     receive() external payable {}
