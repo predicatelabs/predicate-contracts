@@ -371,7 +371,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
 
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
-        
+
         vm.expectRevert("Predicate.validateSignatures: transaction expired");
         vm.prank(address(client));
         serviceManager.validateSignatures(task, signers, signatures);

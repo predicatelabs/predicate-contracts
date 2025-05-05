@@ -139,7 +139,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             "Predicate.rotatePredicateSigningKey: new signing key already registered"
         );
 
-    delete signingKeyToOperator[_oldSigningKey];
+        delete signingKeyToOperator[_oldSigningKey];
         signingKeyToOperator[_newSigningKey] = msg.sender;
     }
 

@@ -140,7 +140,10 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         vm.prank(owner);
         simpleServiceManager.syncOperators(registrationKeys, signingKeys, new address[](0));
-        assertTrue(simpleServiceManager.signingKeyToOperatorAddress(newSigningKey) == operatorOne, "New signing key should map to operator one");
+        assertTrue(
+            simpleServiceManager.signingKeyToOperatorAddress(newSigningKey) == operatorOne,
+            "New signing key should map to operator one"
+        );
 
         newTask = Task({
             taskId: "new-task",
@@ -155,8 +158,8 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         taskHash = new ServiceManager().hashTaskWithExpiry(newTask);
 
-        (v1,r1,s1) = vm.sign(newSigningKeyPk, taskHash);
-        bytes memory newSignature  = abi.encodePacked(r1, s1, v1);
+        (v1, r1, s1) = vm.sign(newSigningKeyPk, taskHash);
+        bytes memory newSignature = abi.encodePacked(r1, s1, v1);
 
         signerAddresses[0] = newSigningKey;
         signatures[0] = newSignature;
