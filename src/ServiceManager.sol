@@ -68,7 +68,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         string policyID,
         string taskId,
         uint256 quorumThresholdCount,
-        uint256 expireByBlockNumber,
+        uint256 expireByTime,
         address[] signerAddresses
     );
 
@@ -134,6 +134,11 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             msg.sender == signingKeyToOperator[_oldSigningKey],
             "Predicate.rotatePredicateSigningKey: operator can only change it's own signing key"
         );
+        require(
+            signingKeyToOperator[_newSigningKey] == address(0),
+            "Predicate.rotatePredicateSigningKey: new signing key already registered"
+        );
+
         delete signingKeyToOperator[_oldSigningKey];
         signingKeyToOperator[_newSigningKey] = msg.sender;
     }
@@ -150,6 +155,10 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         require(
             signingKeyToOperator[_operatorSigningKey] == address(0),
             "Predicate.registerOperatorToAVS: operator already registered"
+        );
+        require(
+            signingKeyToOperator[_operatorSigningKey] == address(0),
+            "Predicate.rotatePredicateSigningKey: new signing key already registered"
         );
         uint256 totalStake;
         for (uint256 i; i != strategies.length;) {
@@ -256,7 +265,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
                 _task.encodedSigAndArgs,
                 _task.policyID,
                 _task.quorumThresholdCount,
-                _task.expireByBlockNumber
+                _task.expireByTime
             )
         );
     }
@@ -278,7 +287,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
                 _task.encodedSigAndArgs,
                 _task.policyID,
                 _task.quorumThresholdCount,
-                _task.expireByBlockNumber
+                _task.expireByTime
             )
         );
     }
@@ -299,7 +308,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             signerAddresses.length == signatures.length,
             "Predicate.validateSignatures: Mismatch between signers and signatures"
         );
-        require(block.number <= _task.expireByBlockNumber, "Predicate.validateSignatures: transaction expired");
+        require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIds[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
         uint256 numSignaturesRequired = policyIdToThreshold[_task.policyID];
@@ -329,7 +338,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             _task.policyID,
             _task.taskId,
             _task.quorumThresholdCount,
-            _task.expireByBlockNumber,
+            _task.expireByTime,
             signerAddresses
         );
 

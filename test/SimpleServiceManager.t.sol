@@ -35,7 +35,7 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: policyID,
             quorumThresholdCount: QUORUM_THRESHOLD,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(task);
@@ -51,6 +51,35 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         vm.prank(address(client));
         bool isVerified = simpleServiceManager.validateSignatures(task, signerAddresses, signatures);
         assertTrue(isVerified, "Signature validation should pass");
+    }
+
+    function testRevertOnExpiredTask() public {
+        uint256 expireByTime = block.timestamp - 1;
+
+        Task memory task = Task({
+            taskId: TASK_ID,
+            msgSender: address(this),
+            target: address(client),
+            value: 0,
+            encodedSigAndArgs: "",
+            policyID: policyID,
+            quorumThresholdCount: QUORUM_THRESHOLD,
+            expireByTime: expireByTime
+        });
+
+        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(task);
+
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
+        bytes memory signature1 = abi.encodePacked(r1, s1, v1);
+
+        address[] memory signerAddresses = new address[](1);
+        bytes[] memory signatures = new bytes[](1);
+        signerAddresses[0] = operatorOneAlias;
+        signatures[0] = signature1;
+
+        vm.expectRevert("Predicate.validateSignatures: transaction expired");
+        vm.prank(address(client));
+        simpleServiceManager.validateSignatures(task, signerAddresses, signatures);
     }
 
     function testSyncPolicies() public {
@@ -73,6 +102,71 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         // note: a policy was already deployed in the simple service manager setup
         assertEq(simpleServiceManager.deployedPolicyIDs(1), policyIDs[0]);
         assertEq(simpleServiceManager.deployedPolicyIDs(2), policyIDs[1]);
+    }
+
+    function testValidateSignaturesAfterSigningKeyUpdate() public {
+        Task memory newTask = Task({
+            taskId: TASK_ID,
+            msgSender: address(this),
+            target: address(client),
+            value: 0,
+            encodedSigAndArgs: "",
+            policyID: policyID,
+            quorumThresholdCount: QUORUM_THRESHOLD,
+            expireByTime: block.timestamp + 100
+        });
+
+        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(newTask);
+
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
+        bytes memory signature1 = abi.encodePacked(r1, s1, v1);
+
+        address[] memory signerAddresses = new address[](1);
+        bytes[] memory signatures = new bytes[](1);
+        signerAddresses[0] = operatorOneAlias;
+        signatures[0] = signature1;
+
+        vm.prank(address(client));
+        bool isVerified = simpleServiceManager.validateSignatures(newTask, signerAddresses, signatures);
+        assertTrue(isVerified, "Signature validation should pass");
+
+        (address newSigningKey, uint256 newSigningKeyPk) = makeAddrAndKey("newOperatorOneSigningKey");
+
+        address[] memory registrationKeys = new address[](1);
+        registrationKeys[0] = operatorOne;
+
+        address[] memory signingKeys = new address[](1);
+        signingKeys[0] = newSigningKey;
+
+        vm.prank(owner);
+        simpleServiceManager.syncOperators(registrationKeys, signingKeys, new address[](0));
+        assertTrue(
+            simpleServiceManager.signingKeyToOperatorAddress(newSigningKey) == operatorOne,
+            "New signing key should map to operator one"
+        );
+
+        newTask = Task({
+            taskId: "new-task",
+            msgSender: address(this),
+            target: address(client),
+            value: 0,
+            encodedSigAndArgs: "",
+            policyID: policyID,
+            quorumThresholdCount: QUORUM_THRESHOLD,
+            expireByTime: block.timestamp + 100
+        });
+
+        taskHash = new ServiceManager().hashTaskWithExpiry(newTask);
+
+        (v1, r1, s1) = vm.sign(newSigningKeyPk, taskHash);
+        bytes memory newSignature = abi.encodePacked(r1, s1, v1);
+
+        signerAddresses[0] = newSigningKey;
+        signatures[0] = newSignature;
+
+        vm.prank(address(client));
+        isVerified = simpleServiceManager.validateSignatures(newTask, signerAddresses, signatures);
+        assertTrue(isVerified, "Signature validation should pass");
     }
 
     function testSyncOperators() public {

@@ -87,7 +87,7 @@ abstract contract PredicateClient is IPredicateClient {
             policyID: $.policyID,
             quorumThresholdCount: uint32(_predicateMessage.signerAddresses.length),
             taskId: _predicateMessage.taskId,
-            expireByBlockNumber: _predicateMessage.expireByBlockNumber
+            expireByTime: _predicateMessage.expireByTime
         });
         return
             $.serviceManager.validateSignatures(task, _predicateMessage.signerAddresses, _predicateMessage.signatures);

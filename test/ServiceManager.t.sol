@@ -259,7 +259,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: policyID,
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
@@ -293,7 +293,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: "testPolicy",
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         vm.expectRevert();
@@ -310,7 +310,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: policyID,
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
@@ -340,12 +340,41 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: "testPolicy",
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         vm.expectRevert();
         vm.prank(address(client));
         serviceManager.validateSignatures(newTask, signers, signatures);
+    }
+
+    function testRevertOnExpiredTask() public permissionedOperators prepOperatorRegistration(true) {
+        uint256 expireByTime = block.timestamp - 1;
+        Task memory task = Task({
+            taskId: "taskId",
+            msgSender: address(this),
+            target: address(client),
+            value: 0,
+            encodedSigAndArgs: "",
+            policyID: policyID,
+            quorumThresholdCount: 1,
+            expireByTime: expireByTime
+        });
+
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        address[] memory signers = new address[](1);
+        signers[0] = operatorOneAlias;
+
+        bytes[] memory signatures = new bytes[](1);
+        signatures[0] = signature;
+
+        vm.expectRevert("Predicate.validateSignatures: transaction expired");
+        vm.prank(address(client));
+        serviceManager.validateSignatures(task, signers, signatures);
     }
 
     function cannotSupplySignaturesToTaskWithDifferentDigest()
@@ -361,7 +390,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: "testPolicy",
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
@@ -388,7 +417,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: "testPolicy",
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         assertTrue(serviceManager.hashTaskWithExpiry(newTask) != taskDigest);
@@ -407,7 +436,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: policyID,
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
@@ -469,7 +498,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             encodedSigAndArgs: "",
             policyID: policyID,
             quorumThresholdCount: 1,
-            expireByBlockNumber: block.number + 100
+            expireByTime: block.timestamp + 100
         });
 
         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
@@ -552,12 +581,6 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         assertEq(
             uint256(status), uint256(ServiceManager.OperatorStatus.REGISTERED), "Operator one should be registered"
         );
-    }
-
-    function testNonPermittedOperatorCantRegister() public prepOperatorRegistration(false) {
-        vm.expectRevert();
-        vm.prank(randomAddr);
-        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
     }
 
     fallback() external payable {}

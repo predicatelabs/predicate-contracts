@@ -8,8 +8,8 @@ import {IPredicateManager} from "../interfaces/IPredicateManager.sol";
 struct PredicateMessage {
     // the unique identifier for the task
     string taskId;
-    // the expiration block number for the task
-    uint256 expireByBlockNumber;
+    // the Timestamp expiry for the task
+    uint256 expireByTime;
     // the operators that have signed the task
     address[] signerAddresses;
     // the signatures of the operators that have signed the task

@@ -23,6 +23,7 @@ contract TestStorage is Test {
     event RemovePolicy(address indexed client, string indexed policy);
     event OperatorRegistered(address indexed operator);
     event OperatorRemoved(address indexed operator);
+    event OperatorUpdated(address indexed operator, address indexed signingKey);
     event OperatorsStakesUpdated(address[][] indexed operatorsPerQuorum, bytes indexed quorumNumbers);
     event StrategyAdded(address indexed strategy);
     event StrategyRemoved(address indexed strategy);
