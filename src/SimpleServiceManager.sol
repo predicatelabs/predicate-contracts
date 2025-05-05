@@ -244,7 +244,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             signerAddresses.length == signatures.length,
             "Predicate.validateSignatures: Mismatch between signers and signatures"
         );
-        require(block.number <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
+        require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
         uint256 numSignaturesRequired = policyIDToThreshold[_task.policyID];

@@ -308,7 +308,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
             signerAddresses.length == signatures.length,
             "Predicate.validateSignatures: Mismatch between signers and signatures"
         );
-        require(block.number <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
+        require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIds[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
         uint256 numSignaturesRequired = policyIdToThreshold[_task.policyID];
