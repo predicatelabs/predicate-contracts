@@ -43,7 +43,7 @@ library TestUtils {
                 task.encodedSigAndArgs,
                 task.policyID,
                 task.quorumThresholdCount,
-                task.expireByBlockNumber
+                task.expireByTime
             )
         );
     }

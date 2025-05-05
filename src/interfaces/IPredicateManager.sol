@@ -18,8 +18,8 @@ struct Task {
     string policyID;
     // the number of signatures required to authorize the task
     uint32 quorumThresholdCount;
-    // the block number by which the task must be executed
-    uint256 expireByBlockNumber;
+    // the timestamp by which the task must be executed
+    uint256 expireByTime;
 }
 
 /// @notice Struct that bundles together a signature, a salt for uniqueness, and an expiration time for the signature. Used primarily for stack management.

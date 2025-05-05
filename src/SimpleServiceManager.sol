@@ -223,7 +223,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
                 _task.encodedSigAndArgs,
                 _task.policyID,
                 _task.quorumThresholdCount,
-                _task.expireByBlockNumber
+                _task.expireByTime
             )
         );
     }
@@ -244,7 +244,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             signerAddresses.length == signatures.length,
             "Predicate.validateSignatures: Mismatch between signers and signatures"
         );
-        require(block.number <= _task.expireByBlockNumber, "Predicate.validateSignatures: transaction expired");
+        require(block.number <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
         uint256 numSignaturesRequired = policyIDToThreshold[_task.policyID];
@@ -276,7 +276,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             _task.policyID,
             _task.taskId,
             _task.quorumThresholdCount,
-            _task.expireByBlockNumber,
+            _task.expireByTime,
             signerAddresses
         );
 
