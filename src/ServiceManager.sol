@@ -68,7 +68,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         string policyID,
         string taskId,
         uint256 quorumThresholdCount,
-        uint256 expireByBlockNumber,
+        uint256 expireByTime,
         address[] signerAddresses
     );
 

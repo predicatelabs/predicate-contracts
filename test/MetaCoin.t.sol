@@ -19,7 +19,7 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
     }
 
     function testMetaCoinTransferWithPredicateMessage() public permissionedOperators prepOperatorRegistration(true) {
-        uint256 expireByBlock = block.timestamp + 100;
+        uint256 expireByTime = block.timestamp + 100;
         string memory taskId = "unique-identifier";
         uint256 amount = 10;
 
@@ -32,7 +32,7 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
                 encodedSigAndArgs: abi.encodeWithSignature("_sendCoin(address,uint256)", testReceiver, amount),
                 policyID: "testPolicy",
                 quorumThresholdCount: 1,
-                expireByTime: expireByBlock
+                expireByTime: expireByTime
             })
         );
 
@@ -46,7 +46,7 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
         operatorSignatures[0] = signature;
         PredicateMessage memory message = PredicateMessage({
             taskId: taskId,
-            expireByTime: expireByBlock,
+            expireByTime: expireByTime,
             signerAddresses: signerAddresses,
             signatures: operatorSignatures
         });
