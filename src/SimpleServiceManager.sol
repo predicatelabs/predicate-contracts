@@ -127,6 +127,8 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             // if the operator is already registered, update the signing key and emit an event
             if (isExistingOperator) {
                 if (registrationKeyToSigningKey[operator] != signingKey) {
+                    address oldSigningKey = registrationKeyToSigningKey[operator];
+                    delete signingKeyToRegistrationKey[oldSigningKey];
                     signingKeyToRegistrationKey[signingKey] = operator;
                     registrationKeyToSigningKey[operator] = signingKey;
                     emit OperatorUpdated(operator, signingKey);
