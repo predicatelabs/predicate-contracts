@@ -42,7 +42,7 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
     }
 
     function test_OwnerCanTransferOwnership() public {
-        (address newOwner, ) = makeAddrAndKey("newOwner");
+        (address newOwner,) = makeAddrAndKey("newOwner");
         Ownable2StepUpgradeable ownableSM = Ownable2StepUpgradeable(address(serviceManager));
         vm.prank(ownableSM.owner());
         ownableSM.transferOwnership(newOwner);
