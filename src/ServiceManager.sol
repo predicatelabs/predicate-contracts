@@ -61,6 +61,11 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
     event ThresholdStakeUpdated(uint256 indexed thresholdStake);
     event DelegationManagerUpdated(address indexed delegationManager);
     event StakeRegistryUpdated(address indexed stakeRegistry);
+    event OperatorSigningKeyRotated(
+        address indexed operator, address indexed oldSigningKey, address indexed newSigningKey
+    );
+    event PermissionedOperatorsAdded(address[] operators);
+    event PermissionedOperatorsRemoved(address[] operators);
     event TaskValidated(
         address indexed msgSender,
         address indexed target,
@@ -105,6 +110,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         for (uint256 i = 0; i < _operators.length; i++) {
             permissionedOperators[_operators[i]] = true;
         }
+        emit PermissionedOperatorsAdded(_operators);
     }
 
     /**
@@ -118,6 +124,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
         for (uint256 i = 0; i < _operators.length; i++) {
             permissionedOperators[_operators[i]] = false;
         }
+        emit PermissionedOperatorsRemoved(_operators);
     }
 
     /**
@@ -141,6 +148,7 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
 
         delete signingKeyToOperator[_oldSigningKey];
         signingKeyToOperator[_newSigningKey] = msg.sender;
+        emit OperatorSigningKeyRotated(msg.sender, _oldSigningKey, _newSigningKey);
     }
 
     /**
