@@ -141,7 +141,7 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         vm.prank(owner);
         simpleServiceManager.syncOperators(registrationKeys, signingKeys, new address[](0));
         assertTrue(
-            simpleServiceManager.signingKeyToOperatorAddress(newSigningKey) == operatorOne,
+            simpleServiceManager.signingKeyToRegistrationKey(newSigningKey) == operatorOne,
             "New signing key should map to operator one"
         );
 
@@ -181,8 +181,8 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         simpleServiceManager.syncOperators(registrationKeys, signingKeys, new address[](0));
 
         // Verify signing key to operator mappings
-        assertEq(simpleServiceManager.signingKeyToOperatorAddress(signingKeys[0]), registrationKeys[0]);
-        assertEq(simpleServiceManager.signingKeyToOperatorAddress(signingKeys[1]), registrationKeys[1]);
+        assertEq(simpleServiceManager.signingKeyToRegistrationKey(signingKeys[0]), registrationKeys[0]);
+        assertEq(simpleServiceManager.signingKeyToRegistrationKey(signingKeys[1]), registrationKeys[1]);
 
         //////////////// Test removing an operator and adding a new one ////////////////
         (address operatorThree, uint256 operatorThreePk) = makeAddrAndKey("operatorThree");
@@ -214,11 +214,11 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         simpleServiceManager.syncOperators(newRegistrationKeys, newSigningKeys, registrationKeys);
 
         // Verify correct signing key mappings
-        assertEq(simpleServiceManager.signingKeyToOperatorAddress(newSigningKeys[0]), newRegistrationKeys[0]);
-        assertEq(simpleServiceManager.signingKeyToOperatorAddress(newSigningKeys[1]), newRegistrationKeys[1]);
+        assertEq(simpleServiceManager.signingKeyToRegistrationKey(newSigningKeys[0]), newRegistrationKeys[0]);
+        assertEq(simpleServiceManager.signingKeyToRegistrationKey(newSigningKeys[1]), newRegistrationKeys[1]);
 
         // operatorTwo should know longer be registered
-        assertEq(simpleServiceManager.signingKeyToOperatorAddress(signingKeys[1]), address(0));
+        assertEq(simpleServiceManager.signingKeyToRegistrationKey(signingKeys[1]), address(0));
     }
 
     function testDeregisteredOperatorCannotValidateSignatures() public {

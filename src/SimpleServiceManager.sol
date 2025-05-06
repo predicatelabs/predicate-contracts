@@ -265,7 +265,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             address recoveredSigner = ECDSA.recover(messageHash, signatures[i]);
             require(recoveredSigner == signerAddresses[i], "Predicate.validateSignatures: Invalid signature");
             require(
-                signingKeyToOperatorAddress[recoveredSigner] != address(0),
+                signingKeyToRegistrationKey[recoveredSigner] != address(0),
                 "Predicate.validateSignatures: Signer is not a registered operator"
             );
             unchecked {
