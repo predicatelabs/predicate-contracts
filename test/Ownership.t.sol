@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
 import "./helpers/utility/ServiceManagerSetup.sol";
+import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 contract OwnershipClientTest is ServiceManagerSetup {
     function test_OwnerIsOwnerByDefault() public {
@@ -38,5 +39,15 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
         vm.expectRevert();
         vm.prank(address(44));
         ownableSM.transferOwnership(address(33));
+    }
+
+    function test_OwnerCanTransferOwnership() public {
+        (address newOwner, ) = makeAddrAndKey("newOwner");
+        Ownable2StepUpgradeable ownableSM = Ownable2StepUpgradeable(address(serviceManager));
+        vm.prank(ownableSM.owner());
+        ownableSM.transferOwnership(newOwner);
+        vm.prank(newOwner);
+        ownableSM.acceptOwnership();
+        assertTrue(newOwner == ownableSM.owner());
     }
 }
