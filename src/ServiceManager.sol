@@ -61,7 +61,9 @@ contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable 
     event ThresholdStakeUpdated(uint256 indexed thresholdStake);
     event DelegationManagerUpdated(address indexed delegationManager);
     event StakeRegistryUpdated(address indexed stakeRegistry);
-    event OperatorSigningKeyRotated(address indexed operator, address indexed oldSigningKey, address indexed newSigningKey);
+    event OperatorSigningKeyRotated(
+        address indexed operator, address indexed oldSigningKey, address indexed newSigningKey
+    );
     event PermissionedOperatorsAdded(address[] operators);
     event PermissionedOperatorsRemoved(address[] operators);
     event TaskValidated(
