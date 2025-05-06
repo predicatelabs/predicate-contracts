@@ -58,11 +58,11 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
     /// @dev Set of currently registered operator addresses
     EnumerableSet.AddressSet private registeredOperators;
 
-    /// @notice Maps a signing key to its associated operator address
-    mapping(address => address) public signingKeyToOperatorAddress;
+    /// @notice Maps a signing key to its associated registration key (operator address)
+    mapping(address => address) public signingKeyToRegistrationKey;
 
-    /// @notice Maps an operator address to its associated signing key
-    mapping(address => address) public operatorAddressToSigningKey;
+    /// @notice Maps a registration key (operator address) to its associated signing key
+    mapping(address => address) public registrationKeyToSigningKey;
 
     /// @notice Tracks spent task IDs to prevent replay attacks
     mapping(string => bool) public spentTaskIDs;
@@ -102,32 +102,34 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
             "Predicate.syncOperators: registration and signing keys length mismatch"
         );
 
+        // remove operators
         for (uint256 i = 0; i < _removeOperators.length;) {
-            address operatorToRemove = _removeOperators[i];
-            if (EnumerableSet.contains(registeredOperators, operatorToRemove)) {
-                EnumerableSet.remove(registeredOperators, operatorToRemove);
-                address signingKey = operatorAddressToSigningKey[operatorToRemove];
-                delete signingKeyToOperatorAddress[signingKey];
-                delete operatorAddressToSigningKey[operatorToRemove];
-                emit OperatorRemoved(operatorToRemove);
+            address operator = _removeOperators[i];
+            if (EnumerableSet.contains(registeredOperators, operator)) {
+                EnumerableSet.remove(registeredOperators, operator);
+                address signingKey = registrationKeyToSigningKey[operator]; // get the signing key for the operator
+                delete signingKeyToRegistrationKey[signingKey];
+                delete registrationKeyToSigningKey[operator];
+                emit OperatorRemoved(operator);
             }
             unchecked {
                 ++i;
             }
         }
 
+        // add or update operators
         for (uint256 i = 0; i < _registrationKeys.length;) {
-            address registrationKey = _registrationKeys[i];
+            address operator = _registrationKeys[i];
             address signingKey = _signingKeys[i];
 
-            bool isExistingOperator = EnumerableSet.contains(registeredOperators, registrationKey);
+            bool isExistingOperator = EnumerableSet.contains(registeredOperators, operator);
 
+            // if the operator is already registered, update the signing key and emit an event
             if (isExistingOperator) {
-                if (operatorAddressToSigningKey[registrationKey] != signingKey) {
-                    delete signingKeyToOperatorAddress[registrationKey];
-                    signingKeyToOperatorAddress[signingKey] = registrationKey;
-                    operatorAddressToSigningKey[registrationKey] = signingKey;
-                    emit OperatorUpdated(registrationKey, signingKey);
+                if (registrationKeyToSigningKey[operator] != signingKey) {
+                    signingKeyToRegistrationKey[signingKey] = operator;
+                    registrationKeyToSigningKey[operator] = signingKey;
+                    emit OperatorUpdated(operator, signingKey);
                 }
                 unchecked {
                     ++i;
@@ -135,10 +137,11 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUp
                 continue;
             }
 
-            EnumerableSet.add(registeredOperators, registrationKey);
-            signingKeyToOperatorAddress[signingKey] = registrationKey;
-            operatorAddressToSigningKey[registrationKey] = signingKey;
-            emit OperatorRegistered(registrationKey);
+            // if the operator is not registered, add it to the set and emit an event
+            EnumerableSet.add(registeredOperators, operator);
+            signingKeyToRegistrationKey[signingKey] = operator;
+            registrationKeyToSigningKey[operator] = signingKey;
+            emit OperatorRegistered(operator);
 
             unchecked {
                 ++i;
