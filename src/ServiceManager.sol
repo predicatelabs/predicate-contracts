@@ -92,6 +92,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
         address _avsDirectory,
         uint256 _thresholdStake
     ) external initializer {
+        __Ownable2Step_init();
         _transferOwnership(_owner);
         delegationManager = _delegationManager;
         stakeRegistry = _stakeRegistry;
