@@ -59,11 +59,12 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
         ownableSM.acceptOwnership();
         assertEq(ownableSM.owner(), newOwner);
     }
+
     function test_OwnershipCancellation() public {
         vm.startPrank(ownableSM.owner());
         ownableSM.transferOwnership(newOwner);
         ownableSM.transferOwnership(address(0));
-        vm.stopPrank();        
+        vm.stopPrank();
         vm.prank(newOwner);
         vm.expectRevert();
         ownableSM.acceptOwnership();
