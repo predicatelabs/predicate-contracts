@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 
 import {IDelegationManager} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
@@ -13,7 +13,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 import {IPredicateManager, Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.sol";
 
-contract ServiceManager is IPredicateManager, Initializable, OwnableUpgradeable {
+contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgradeable {
     error ServiceManager__Unauthorized();
     error ServiceManager__InvalidOperator();
     error ServiceManager__InvalidStrategy();

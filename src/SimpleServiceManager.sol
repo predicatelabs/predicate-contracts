@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -10,7 +10,7 @@ import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.sol";
 import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
 
-contract SimpleServiceManager is ISimpleServiceManager, Initializable, OwnableUpgradeable {
+contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2StepUpgradeable {
     /**
      * @notice Emitted when a policy is set for a client
      */
