@@ -9,9 +9,6 @@ import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2S
 
 contract OwnershipClientTest is ServiceManagerSetup {
     function test_OwnerIsOwnerByDefault() public {
-        console.log(address(owner));
-        console.log(address(ownableClientInterface));
-        console.log(address(this));
         assertTrue(address(owner) == ownableClientInterface.owner());
     }
 
@@ -23,31 +20,65 @@ contract OwnershipClientTest is ServiceManagerSetup {
 }
 
 contract OwnershipServiceManagerTest is ServiceManagerSetup {
+    Ownable2StepUpgradeable ownableSM;
+    address newOwner;
+    address randomAddress;
+
+    function setUp() public override {
+        super.setUp();
+        ownableSM = Ownable2StepUpgradeable(address(serviceManager));
+        (newOwner,) = makeAddrAndKey("newOwner");
+        (randomAddress,) = makeAddrAndKey("random");
+    }
+
     function test_OwnerIsUninitializedFromConstructor() public {
         ServiceManager scopedServiceManager = new ServiceManager();
-        Ownable ownableSM = Ownable(address(scopedServiceManager));
-        assertTrue(address(0) == ownableSM.owner());
+        assertEq(Ownable(address(scopedServiceManager)).owner(), address(0));
     }
 
     function test_OwnerIsChangedDuringSetup() public {
-        Ownable ownableSM = Ownable(address(serviceManager));
-        assertTrue(address(this) == ownableSM.owner());
+        assertEq(ownableSM.owner(), address(this));
     }
 
     function test_RandomAccountCannotTransferOwnership() public {
-        Ownable ownableSM = Ownable(address(serviceManager));
         vm.expectRevert();
-        vm.prank(address(44));
-        ownableSM.transferOwnership(address(33));
+        vm.prank(randomAddress);
+        ownableSM.transferOwnership(newOwner);
     }
 
-    function test_OwnerCanTransferOwnership() public {
-        (address newOwner,) = makeAddrAndKey("newOwner");
-        Ownable2StepUpgradeable ownableSM = Ownable2StepUpgradeable(address(serviceManager));
+    function test_OwnershipTransfer() public {
         vm.prank(ownableSM.owner());
         ownableSM.transferOwnership(newOwner);
+        assertEq(ownableSM.owner(), ownableSM.owner());
+        assertEq(ownableSM.pendingOwner(), newOwner);
+
+        vm.prank(randomAddress);
+        vm.expectRevert();
+        ownableSM.acceptOwnership();
         vm.prank(newOwner);
         ownableSM.acceptOwnership();
-        assertTrue(newOwner == ownableSM.owner());
+        assertEq(ownableSM.owner(), newOwner);
+    }
+
+    function test_OwnershipCancellation() public {
+        vm.startPrank(ownableSM.owner());
+        ownableSM.transferOwnership(newOwner);
+        ownableSM.transferOwnership(address(0));
+        vm.stopPrank();        
+        vm.prank(newOwner);
+        vm.expectRevert();
+        ownableSM.acceptOwnership();
+    }
+
+    function test_RenounceOwnership() public {
+        vm.startPrank(ownableSM.owner());
+        ownableSM.transferOwnership(newOwner);
+        ownableSM.renounceOwnership();
+        vm.stopPrank();
+        assertEq(ownableSM.owner(), address(0));
+        assertEq(ownableSM.pendingOwner(), address(0));
+        vm.prank(newOwner);
+        vm.expectRevert();
+        ownableSM.acceptOwnership();
     }
 }
