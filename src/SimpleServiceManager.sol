@@ -83,7 +83,8 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
     function initialize(
         address _owner
     ) external initializer {
-        _transferOwnership(_owner);
+        __Ownable2Step_init();
+        __Ownable_init(_owner);
     }
 
     /**
