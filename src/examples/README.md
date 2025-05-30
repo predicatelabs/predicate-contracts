@@ -4,7 +4,6 @@ This directory contains example implementations demonstrating different patterns
 
 ## Integration Patterns Diagram
 
-<!-- Save the diagram image shared with you to src/examples/images/integration-patterns.png -->
 ![Integration Patterns](./integration-patterns.png)
 
 The diagram above illustrates the three integration patterns and their interaction flows:
