@@ -53,18 +53,8 @@ clean:
 	rm -rf node_modules
 
 # Help target to display available commands
+.PHONY: help
+
+# Help target to display available commands
 help:
-	@echo "Available targets:"
-	@echo "  all             - Initialize, build, and test"
-	@echo "  init            - Initialize git submodules"
-	@echo "  build           - Build the project"
-	@echo "  test            - Run tests"
-	@echo "  format          - Format code"
-	@echo "  snapshot        - Generate gas snapshots"
-	@echo "  anvil           - Start Anvil local testnet"
-	@echo "  cast            - Run Cast commands (usage: make cast ARGS='<subcommand>')"
-	@echo "  install-foundry - Install Foundry"
-	@echo "  install-npm     - Install via npm"
-	@echo "  install         - Install Foundry and npm dependencies"
-	@echo "  clean           - Remove build artifacts and cache files"
-	@echo "  help            - Display this help message" 
+    @awk '/^#/{c=substr($$0,3);next}c&&/^[[:alpha:]][[:alnum:]_-]+:/{print substr($$1,1,index($$1,":")),c}1{c=0}' $(MAKEFILE_LIST) | column -s: -t
