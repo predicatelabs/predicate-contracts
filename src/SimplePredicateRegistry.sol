@@ -7,10 +7,10 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
-import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.sol";
-import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
+import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateRegistry.sol";
+import {ISimplePredicateRegistry} from "./interfaces/ISimplePredicateRegistry.sol";
 
-contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2StepUpgradeable {
+contract SimplePredicateRegistry is ISimplePredicateRegistry, Initializable, Ownable2StepUpgradeable {
     /**
      * @notice Emitted when a policy is set for a client
      */
@@ -179,9 +179,10 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
                 policyIDToThreshold[policyIDs[i]] = thresholds[i];
                 deployedPolicyIDs.push(policyIDs[i]);
                 emit PolicySynced(policyIDs[i]);
+            } else {
+                emit PolicySyncSkipped(policyIDs[i]);
             }
 
-            emit PolicySyncSkipped(policyIDs[i]);
             unchecked {
                 ++i;
             }
@@ -228,7 +229,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
                 msg.sender,
                 _task.value,
                 _task.encodedSigAndArgs,
-                _task.policyID,
+                clientToPolicyID[msg.sender],
                 _task.quorumThresholdCount,
                 _task.expireByTime
             )
@@ -254,7 +255,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
         require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
-        uint256 numSignaturesRequired = policyIDToThreshold[_task.policyID];
+        uint256 numSignaturesRequired = policyIDToThreshold[clientToPolicyID[msg.sender]];
         require(
             numSignaturesRequired != 0 && _task.quorumThresholdCount == numSignaturesRequired,
             "Predicate.PredicateVerified: deployed policy quorum threshold differs from task quorum threshold"
@@ -280,7 +281,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
             _task.msgSender,
             _task.target,
             _task.value,
-            _task.policyID,
+            clientToPolicyID[msg.sender],
             _task.taskId,
             _task.quorumThresholdCount,
             _task.expireByTime,

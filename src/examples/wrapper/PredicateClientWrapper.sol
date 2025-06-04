@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
 import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateManager} from "../../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry} from "../../interfaces/IPredicateRegistry.sol";
 
 contract PredicateClientWrapper is PredicateClient {
     constructor(address _serviceManager, string memory _policyID) {
@@ -22,7 +22,7 @@ contract PredicateClientWrapper is PredicateClient {
         // ...
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
-            _authorizeTransaction(_message, encodedSigAndArgs, _sender, _value),
+            _isUserAuthorized(_message, encodedSigAndArgs, _sender, _value),
             "PredicateClientWrapper: unauthorized transaction"
         );
     }

@@ -13,7 +13,7 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
         address[] memory operators = new address[](2);
         operators[0] = operatorOne;
         operators[1] = operatorTwo;
-        serviceManager.addPermissionedOperators(operators);
+        predicateRegistry.addPermissionedOperators(operators);
         vm.stopPrank();
         _;
     }
@@ -23,17 +23,18 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
         string memory taskId = "unique-identifier";
         uint256 amount = 10;
 
-        bytes32 messageHash = TestUtils.hashTaskSTM(
+
+        bytes32 messageHash = predicateRegistry.hashTaskWithExpiry(
             Task({
                 taskId: taskId,
                 msgSender: testSender,
                 target: address(metaCoinContract),
                 value: 0,
                 encodedSigAndArgs: abi.encodeWithSignature("_sendCoin(address,uint256)", testReceiver, amount),
-                policyID: "testPolicy",
                 quorumThresholdCount: 1,
                 expireByTime: expireByTime
-            })
+            }),
+            policyID
         );
 
         bytes memory signature;

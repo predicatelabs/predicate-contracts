@@ -2,14 +2,14 @@
 
 pragma solidity ^0.8.12;
 
-import {IPredicateManager, Task} from "../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry, Task} from "../interfaces/IPredicateRegistry.sol";
 import "../interfaces/IPredicateClient.sol";
 
 abstract contract PredicateClient is IPredicateClient {
     /// @notice Struct to contain stateful values for PredicateClient-type contracts
     /// @custom:storage-location erc7201:predicate.storage.PredicateClient
     struct PredicateClientStorage {
-        IPredicateManager serviceManager;
+        IPredicateRegistry serviceManager;
         string policyID;
     }
 
@@ -26,7 +26,7 @@ abstract contract PredicateClient is IPredicateClient {
 
     function _initPredicateClient(address _serviceManagerAddress, string memory _policyID) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.serviceManager = IPredicateManager(_serviceManagerAddress);
+        $.serviceManager = IPredicateRegistry(_serviceManagerAddress);
         _setPolicy(_policyID);
     }
 
@@ -50,7 +50,7 @@ abstract contract PredicateClient is IPredicateClient {
         address _predicateManager
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.serviceManager = IPredicateManager(_predicateManager);
+        $.serviceManager = IPredicateRegistry(_predicateManager);
     }
 
     function getPredicateManager() external view override returns (address) {
@@ -72,7 +72,7 @@ abstract contract PredicateClient is IPredicateClient {
      *
      * @notice Validates the transaction by checking the signatures of the operators.
      */
-    function _authorizeTransaction(
+    function _isUserAuthorized(
         PredicateMessage memory _predicateMessage,
         bytes memory _encodedSigAndArgs,
         address _msgSender,
@@ -84,7 +84,6 @@ abstract contract PredicateClient is IPredicateClient {
             target: address(this),
             value: _value,
             encodedSigAndArgs: _encodedSigAndArgs,
-            policyID: $.policyID,
             quorumThresholdCount: uint32(_predicateMessage.signerAddresses.length),
             taskId: _predicateMessage.taskId,
             expireByTime: _predicateMessage.expireByTime

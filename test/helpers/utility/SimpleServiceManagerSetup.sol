@@ -3,18 +3,18 @@ pragma solidity ^0.8.12;
 
 import {Test, console} from "forge-std/Test.sol";
 import "./TestStorage.sol";
-import {SimpleServiceManager} from "../../../src/SimpleServiceManager.sol";
+import {SimplePredicateRegistry} from "../../../src/SimplePredicateRegistry.sol";
 
 contract SimpleServiceManagerSetup is TestStorage {
-    SimpleServiceManager public simpleServiceManagerImpl;
-    SimpleServiceManager public simpleServiceManager;
+    SimplePredicateRegistry public simpleServiceManagerImpl;
+    SimplePredicateRegistry public simpleServiceManager;
     MockProxyAdmin public simpleServiceManagerAdmin;
 
     function setUp() public virtual {
         vm.startPrank(owner);
         simpleServiceManagerAdmin = new MockProxyAdmin(owner);
-        simpleServiceManagerImpl = new SimpleServiceManager();
-        simpleServiceManager = SimpleServiceManager(
+        simpleServiceManagerImpl = new SimplePredicateRegistry();
+        simpleServiceManager = SimplePredicateRegistry(
             address(new MockProxy(address(simpleServiceManagerImpl), address(simpleServiceManagerAdmin)))
         );
         simpleServiceManager.initialize(owner);

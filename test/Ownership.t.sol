@@ -26,13 +26,13 @@ contract OwnershipServiceManagerTest is ServiceManagerSetup {
 
     function setUp() public override {
         super.setUp();
-        ownableSM = Ownable2StepUpgradeable(address(serviceManager));
+        ownableSM = Ownable2StepUpgradeable(address(predicateRegistry));
         (newOwner,) = makeAddrAndKey("newOwner");
         (randomAddress,) = makeAddrAndKey("random");
     }
 
     function test_OwnerIsUninitializedFromConstructor() public {
-        ServiceManager scopedServiceManager = new ServiceManager();
+        PredicateRegistry scopedServiceManager = new PredicateRegistry();
         assertEq(Ownable(address(scopedServiceManager)).owner(), address(0));
     }
 

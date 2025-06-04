@@ -5,8 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
 
-import {ServiceManager} from "../src/ServiceManager.sol";
-import {Task} from "../src/interfaces/IPredicateManager.sol";
+import {PredicateRegistry} from "../src/PredicateRegistry.sol";
+import {Task} from "../src/interfaces/IPredicateRegistry.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
 import {MockProxy} from "./helpers/mocks/MockProxy.sol";
 import {MockProxyAdmin} from "./helpers/mocks/MockProxyAdmin.sol";
@@ -33,12 +33,11 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: policyID,
             quorumThresholdCount: QUORUM_THRESHOLD,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(task);
+        bytes32 taskHash = new PredicateRegistry().hashTaskWithExpiry(task, policyID);
 
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
         bytes memory signature1 = abi.encodePacked(r1, s1, v1);
@@ -62,12 +61,11 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: policyID,
             quorumThresholdCount: QUORUM_THRESHOLD,
             expireByTime: expireByTime
         });
 
-        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(task);
+        bytes32 taskHash = new PredicateRegistry().hashTaskWithExpiry(task, policyID);
 
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
         bytes memory signature1 = abi.encodePacked(r1, s1, v1);
@@ -111,12 +109,11 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: policyID,
             quorumThresholdCount: QUORUM_THRESHOLD,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(newTask);
+        bytes32 taskHash = new PredicateRegistry().hashTaskWithExpiry(newTask, policyID);
 
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
         bytes memory signature1 = abi.encodePacked(r1, s1, v1);
@@ -151,12 +148,11 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: policyID,
             quorumThresholdCount: QUORUM_THRESHOLD,
             expireByTime: block.timestamp + 100
         });
 
-        taskHash = new ServiceManager().hashTaskWithExpiry(newTask);
+        taskHash = new PredicateRegistry().hashTaskWithExpiry(newTask, policyID);
 
         (v1, r1, s1) = vm.sign(newSigningKeyPk, taskHash);
         bytes memory newSignature = abi.encodePacked(r1, s1, v1);
@@ -228,12 +224,11 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
-            policyID: policyID,
             quorumThresholdCount: QUORUM_THRESHOLD,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskHash = new ServiceManager().hashTaskWithExpiry(task);
+        bytes32 taskHash = new PredicateRegistry().hashTaskWithExpiry(task, policyID);
 
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(operatorOneAliasPk, taskHash);
         bytes memory signature1 = abi.encodePacked(r1, s1, v1);

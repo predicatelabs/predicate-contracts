@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
 import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateManager} from "../../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry} from "../../interfaces/IPredicateRegistry.sol";
 
 import {MetaCoin} from "./MetaCoin.sol";
 
@@ -19,7 +19,7 @@ contract PredicateClientProxy is PredicateClient {
     function proxySendCoin(address _receiver, uint256 _amount, PredicateMessage calldata _message) external payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
-            _authorizeTransaction(_message, encodedSigAndArgs, msg.sender, msg.value),
+            _isUserAuthorized(_message, encodedSigAndArgs, msg.sender, msg.value),
             "MetaCoin: unauthorized transaction"
         );
 
