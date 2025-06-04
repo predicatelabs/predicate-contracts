@@ -72,7 +72,7 @@ abstract contract PredicateClient is IPredicateClient {
      *
      * @notice Validates the transaction by checking the signatures of the operators.
      */
-    function _isUserAuthorized(
+    function _authorizeTransaction(
         PredicateMessage memory _predicateMessage,
         bytes memory _encodedSigAndArgs,
         address _msgSender,

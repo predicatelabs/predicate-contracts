@@ -259,10 +259,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
      * @param _task parameters of the task
      * @return the keccak256 digest of the task
      */
-    function hashTaskWithExpiry(
-        Task calldata _task,
-        string memory _policyID
-    ) public pure returns (bytes32) {
+    function hashTaskWithExpiry(Task calldata _task, string memory _policyID) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 _task.taskId,

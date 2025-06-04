@@ -19,7 +19,7 @@ contract PredicateClientProxy is PredicateClient {
     function proxySendCoin(address _receiver, uint256 _amount, PredicateMessage calldata _message) external payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
-            _isUserAuthorized(_message, encodedSigAndArgs, msg.sender, msg.value),
+            _authorizeTransaction(_message, encodedSigAndArgs, msg.sender, msg.value),
             "MetaCoin: unauthorized transaction"
         );
 

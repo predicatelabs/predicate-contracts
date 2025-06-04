@@ -23,7 +23,6 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
         string memory taskId = "unique-identifier";
         uint256 amount = 10;
 
-
         bytes32 messageHash = predicateRegistry.hashTaskWithExpiry(
             Task({
                 taskId: taskId,

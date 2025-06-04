@@ -22,7 +22,7 @@ contract PredicateClientWrapper is PredicateClient {
         // ...
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
-            _isUserAuthorized(_message, encodedSigAndArgs, _sender, _value),
+            _authorizeTransaction(_message, encodedSigAndArgs, _sender, _value),
             "PredicateClientWrapper: unauthorized transaction"
         );
     }

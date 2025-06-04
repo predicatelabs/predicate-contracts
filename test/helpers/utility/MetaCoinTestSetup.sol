@@ -24,8 +24,9 @@ contract MetaCoinTestSetup is TestStorage {
         stakeRegistry = new MockStakeRegistry();
         predicateRegistryAdmin = new MockProxyAdmin(owner);
         predicateRegistryImplementation = new PredicateRegistry();
-        predicateRegistry =
-            PredicateRegistry(address(new MockProxy(address(predicateRegistryImplementation), address(predicateRegistryAdmin))));
+        predicateRegistry = PredicateRegistry(
+            address(new MockProxy(address(predicateRegistryImplementation), address(predicateRegistryAdmin)))
+        );
         predicateRegistry.initialize(
             address(this),
             aggregator,
