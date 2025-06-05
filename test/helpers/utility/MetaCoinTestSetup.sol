@@ -22,11 +22,12 @@ contract MetaCoinTestSetup is TestStorage {
         delegationManager.initialize(address(this), IPauserRegistry(pauserRegistry), 0, 0);
 
         stakeRegistry = new MockStakeRegistry();
-        serviceManagerAdmin = new MockProxyAdmin(owner);
-        serviceManagerImplementation = new ServiceManager();
-        serviceManager =
-            ServiceManager(address(new MockProxy(address(serviceManagerImplementation), address(serviceManagerAdmin))));
-        serviceManager.initialize(
+        predicateRegistryAdmin = new MockProxyAdmin(owner);
+        predicateRegistryImplementation = new PredicateRegistry();
+        predicateRegistry = PredicateRegistry(
+            address(new MockProxy(address(predicateRegistryImplementation), address(predicateRegistryAdmin)))
+        );
+        predicateRegistry.initialize(
             address(this),
             aggregator,
             address(delegationManager),
@@ -37,9 +38,9 @@ contract MetaCoinTestSetup is TestStorage {
         vm.stopPrank();
 
         vm.startPrank(address(this));
-        serviceManager.deployPolicy(
-            "testPolicy",
-            '{"version":"1.0.0","name":"testPolicy","rules":[{"id":"membership-check-sg-1","effect":"deny", "predicate_id":"membership", "predicate_params":{"social_graph_id": "sg_1"}}],"consensus": {"broadcast": "all", "threshold": "1"}}',
+        predicateRegistry.deployPolicy(
+            policyID,
+            '{"version":"1.0.0","name":"test-policy","rules":[{"id":"membership-check-sg-1","effect":"deny", "predicate_id":"membership", "predicate_params":{"social_graph_id": "sg_1"}}],"consensus": {"broadcast": "all", "threshold": "1"}}',
             1
         );
         vm.stopPrank();
@@ -53,7 +54,7 @@ contract MetaCoinTestSetup is TestStorage {
         (testReceiver, testReceiverPk) = makeAddrAndKey("testReceiver");
 
         vm.startPrank(testSender);
-        metaCoinContract = new MetaCoin(testSender, address(serviceManager), "testPolicy");
+        metaCoinContract = new MetaCoin(testSender, address(predicateRegistry), policyID);
         ownableClientInterface = Ownable(address(metaCoinContract));
         vm.stopPrank();
     }
