@@ -33,7 +33,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     mapping(address => OperatorInfo) public operators;
     mapping(address => address) public signingKeyToRegistrationKey;
     mapping(string => string) public policyIDToPolicy;
-    mapping(string => bool) public spentTaskIds;
+    mapping(string => bool) public spentTaskIDs;
     string[] public deployedPolicyIDs;
 
     address[] public strategies;
@@ -313,7 +313,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
             "Predicate.validateSignatures: Mismatch between signers and signatures"
         );
         require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
-        require(!spentTaskIds[_task.taskId], "Predicate.validateSignatures: task ID already spent");
+        require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
         uint256 numSignaturesRequired = policyIDToThreshold[clientToPolicyID[msg.sender]];
         require(
@@ -349,7 +349,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
             signerAddresses
         );
 
-        spentTaskIds[_task.taskId] = true;
+        spentTaskIDs[_task.taskId] = true;
         return true;
     }
 

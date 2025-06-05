@@ -33,7 +33,7 @@ contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
                 quorumThresholdCount: 1,
                 expireByTime: expireByTime
             }),
-            policyID
+        policyID
         );
 
         bytes memory signature;

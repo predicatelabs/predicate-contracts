@@ -39,8 +39,8 @@ contract MetaCoinTestSetup is TestStorage {
 
         vm.startPrank(address(this));
         predicateRegistry.deployPolicy(
-            "testPolicy",
-            '{"version":"1.0.0","name":"testPolicy","rules":[{"id":"membership-check-sg-1","effect":"deny", "predicate_id":"membership", "predicate_params":{"social_graph_id": "sg_1"}}],"consensus": {"broadcast": "all", "threshold": "1"}}',
+            policyID,
+            '{"version":"1.0.0","name":"test-policy","rules":[{"id":"membership-check-sg-1","effect":"deny", "predicate_id":"membership", "predicate_params":{"social_graph_id": "sg_1"}}],"consensus": {"broadcast": "all", "threshold": "1"}}',
             1
         );
         vm.stopPrank();
@@ -54,7 +54,7 @@ contract MetaCoinTestSetup is TestStorage {
         (testReceiver, testReceiverPk) = makeAddrAndKey("testReceiver");
 
         vm.startPrank(testSender);
-        metaCoinContract = new MetaCoin(testSender, address(predicateRegistry), "testPolicy");
+        metaCoinContract = new MetaCoin(testSender, address(predicateRegistry), policyID);
         ownableClientInterface = Ownable(address(metaCoinContract));
         vm.stopPrank();
     }
