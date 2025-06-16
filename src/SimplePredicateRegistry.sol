@@ -231,7 +231,8 @@ contract SimplePredicateRegistry is ISimplePredicateRegistry, Initializable, Own
                 _task.encodedSigAndArgs,
                 clientToPolicyID[msg.sender],
                 _task.quorumThresholdCount,
-                _task.expireByTime
+                _task.expireByTime,
+                block.chainid
             )
         );
     }
