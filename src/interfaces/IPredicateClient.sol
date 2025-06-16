@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.12;
 
-import {IPredicateManager} from "../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry} from "../interfaces/IPredicateRegistry.sol";
 
 /// @notice Struct that bundles together a task's parameters for validation
 struct PredicateMessage {

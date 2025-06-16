@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
 import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateManager} from "../../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry} from "../../interfaces/IPredicateRegistry.sol";
 
 contract MetaCoin is PredicateClient, Ownable {
     mapping(address => uint256) public balances;

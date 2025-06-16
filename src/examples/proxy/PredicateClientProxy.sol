@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
 import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateManager} from "../../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry} from "../../interfaces/IPredicateRegistry.sol";
 
 import {MetaCoin} from "./MetaCoin.sol";
 
