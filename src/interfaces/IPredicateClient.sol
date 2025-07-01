@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.12;
 
-import {IPredicateRegistry} from "../interfaces/IPredicateRegistry.sol";
+import {IServiceManager} from "../interfaces/IServiceManager.sol";
 
 /// @notice Struct that bundles together a task's parameters for validation
 struct PredicateMessage {
@@ -39,15 +39,15 @@ interface IPredicateClient {
 
     /**
      * @notice Function for setting the Predicate ServiceManager
-     * @param _predicateManager address of the service manager
+     * @param _serviceManager address of the service manager
      */
-    function setPredicateManager(
-        address _predicateManager
+    function setServiceManager(
+        address _serviceManager
     ) external;
 
     /**
      * @notice Function for getting the Predicate ServiceManager
      * @return address of the service manager
      */
-    function getPredicateManager() external view returns (address);
+    function getServiceManager() external view returns (address);
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.12;
 
 import {Test, console} from "forge-std/Test.sol";
-import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IPredicateRegistry.sol";
+import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IServiceManager.sol";
 import "./TestStorage.sol";
 
 contract OperatorTestPrep is TestStorage {
@@ -18,7 +18,7 @@ contract OperatorTestPrep is TestStorage {
         });
 
         bytes32 messageHash = delegationManager.calculateOperatorAVSRegistrationDigestHash(
-            operatorOne, address(predicateRegistry), keccak256("abc"), 10_000_000_000_000
+            operatorOne, address(serviceManager), keccak256("abc"), 10_000_000_000_000
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOnePk, messageHash);
@@ -28,10 +28,10 @@ contract OperatorTestPrep is TestStorage {
             SignatureWithSaltAndExpiry({signature: signature, salt: keccak256("abc"), expiry: 10_000_000_000_000});
         delegationManager.registerAsOperator(operatorDetails, "metadata uri");
 
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
         if (shouldRegisterWithEigenContracts) {
-            predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+            serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
         }
         vm.stopPrank();
 
@@ -44,7 +44,7 @@ contract OperatorTestPrep is TestStorage {
         });
 
         bytes32 messageHashTwo = delegationManager.calculateOperatorAVSRegistrationDigestHash(
-            operatorTwo, address(predicateRegistry), keccak256("abc"), 10_000_000_000_000
+            operatorTwo, address(serviceManager), keccak256("abc"), 10_000_000_000_000
         );
 
         (v, r, s) = vm.sign(operatorTwoPk, messageHashTwo);
@@ -54,13 +54,13 @@ contract OperatorTestPrep is TestStorage {
             SignatureWithSaltAndExpiry({signature: signature, salt: keccak256("abc"), expiry: 10_000_000_000_000});
 
         delegationManager.registerAsOperator(operatorTwoDetails, "metadata uri");
-        (, status) = predicateRegistry.operators(operatorTwo);
+        (, status) = serviceManager.operators(operatorTwo);
         assertEq(uint256(status), 0);
         vm.stopPrank();
 
         if (shouldRegisterWithEigenContracts) {
             vm.prank(operatorTwo);
-            predicateRegistry.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
+            serviceManager.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
         }
 
         _;

@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
 import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateRegistry} from "../../interfaces/IPredicateRegistry.sol";
+import {IServiceManager} from "../../interfaces/IServiceManager.sol";
 
 import {MetaCoin} from "./MetaCoin.sol";
 
@@ -32,9 +32,9 @@ contract PredicateClientProxy is PredicateClient {
         _setPolicy(_policyID);
     }
 
-    function setPredicateManager(
-        address _predicateManager
+    function setServiceManager(
+        address _serviceManager
     ) public {
-        _setPredicateManager(_predicateManager);
+        _setServiceManager(_serviceManager);
     }
 }

@@ -7,10 +7,10 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
-import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateRegistry.sol";
-import {ISimplePredicateRegistry} from "./interfaces/ISimplePredicateRegistry.sol";
+import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IServiceManager.sol";
+import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
 
-contract SimplePredicateRegistry is ISimplePredicateRegistry, Initializable, Ownable2StepUpgradeable {
+contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2StepUpgradeable {
     /**
      * @notice Emitted when a policy is set for a client
      */
@@ -229,7 +229,7 @@ contract SimplePredicateRegistry is ISimplePredicateRegistry, Initializable, Own
                 msg.sender,
                 _task.value,
                 _task.encodedSigAndArgs,
-                clientToPolicyID[msg.sender],
+                _task.policyID,
                 _task.quorumThresholdCount,
                 _task.expireByTime,
                 block.chainid
@@ -256,7 +256,7 @@ contract SimplePredicateRegistry is ISimplePredicateRegistry, Initializable, Own
         require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
-        uint256 numSignaturesRequired = policyIDToThreshold[clientToPolicyID[msg.sender]];
+        uint256 numSignaturesRequired = policyIDToThreshold[_task.policyID];
         require(
             numSignaturesRequired != 0 && _task.quorumThresholdCount == numSignaturesRequired,
             "Predicate.PredicateVerified: deployed policy quorum threshold differs from task quorum threshold"
@@ -282,7 +282,7 @@ contract SimplePredicateRegistry is ISimplePredicateRegistry, Initializable, Own
             _task.msgSender,
             _task.target,
             _task.value,
-            clientToPolicyID[msg.sender],
+            _task.policyID,
             _task.taskId,
             _task.quorumThresholdCount,
             _task.expireByTime,

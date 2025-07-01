@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {Task} from "../../../src/interfaces/IPredicateRegistry.sol";
+import {Task} from "../../../src/interfaces/IServiceManager.sol";
 
 library TestUtils {
     function bytes32ToString(
@@ -29,5 +29,22 @@ library TestUtils {
         } else {
             return bytes1(_uint8 + 87);
         }
+    }
+
+    function hashTaskSTM(
+        Task memory task
+    ) public pure returns (bytes32 _messageHash) {
+        _messageHash = keccak256(
+            abi.encode(
+                task.taskId,
+                task.msgSender,
+                task.target,
+                task.value,
+                task.encodedSigAndArgs,
+                task.policyID,
+                task.quorumThresholdCount,
+                task.expireByTime
+            )
+        );
     }
 }

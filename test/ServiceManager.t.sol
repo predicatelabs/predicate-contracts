@@ -5,8 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
 
-import {PredicateRegistry} from "../src/PredicateRegistry.sol";
-import {Task} from "../src/interfaces/IPredicateRegistry.sol";
+import {ServiceManager} from "../src/ServiceManager.sol";
+import {Task} from "../src/interfaces/IServiceManager.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
 import {MockProxy} from "./helpers/mocks/MockProxy.sol";
 import {MockProxyAdmin} from "./helpers/mocks/MockProxyAdmin.sol";
@@ -26,185 +26,185 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         address[] memory operators = new address[](2);
         operators[0] = operatorOne;
         operators[1] = operatorTwo;
-        predicateRegistry.addPermissionedOperators(operators);
+        serviceManager.addPermissionedOperators(operators);
         vm.stopPrank();
         _;
     }
 
     function testCanDeployPolicy() public {
-        predicateRegistry.deployPolicy("sg-policy-2", "samplePolicy", 1);
-        string memory policyConfig = predicateRegistry.policyIDToPolicy("sg-policy-2");
+        serviceManager.deployPolicy("sg-policy-2", "samplePolicy", 1);
+        string memory policyConfig = serviceManager.policyIDToPolicy("sg-policy-2");
         assertEq(policyConfig, "samplePolicy");
     }
 
     function testNoDuplicatePolicyDeploy() public {
-        predicateRegistry.deployPolicy("sg-policy-2", "samplePolicy", 1);
+        serviceManager.deployPolicy("sg-policy-2", "samplePolicy", 1);
         vm.expectRevert();
-        predicateRegistry.deployPolicy("sg-policy-2", "samplePolicy", 1);
+        serviceManager.deployPolicy("sg-policy-2", "samplePolicy", 1);
     }
 
     function testOperatorCanRegisterOperator() public permissionedOperators prepOperatorRegistration(false) {
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 0);
+        serviceManager.addStrategy(strategyAddrOne, 0, 0);
 
         vm.expectEmit(true, true, true, true);
         emit OperatorRegistered(operatorOne);
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
     }
 
     function testOwnerCanRemoveOperator() public permissionedOperators prepOperatorRegistration(false) {
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
 
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, status) = predicateRegistry.operators(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
         vm.expectEmit(true, true, true, true);
         emit OperatorRemoved(operatorOne);
 
-        predicateRegistry.deregisterOperatorFromAVS(operatorOne);
-        (, status) = predicateRegistry.operators(operatorOne);
+        serviceManager.deregisterOperatorFromAVS(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 2);
     }
 
     function testRandomAddrCannotRemoveOperator() public permissionedOperators prepOperatorRegistration(false) {
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
 
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, status) = predicateRegistry.operators(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
         vm.expectRevert();
         vm.prank(randomAddr);
-        predicateRegistry.deregisterOperatorFromAVS(operatorOne);
+        serviceManager.deregisterOperatorFromAVS(operatorOne);
     }
 
     function testOperatorCanChangeAlias() public permissionedOperators prepOperatorRegistration(false) {
         vm.startPrank(operatorOne);
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
 
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, status) = predicateRegistry.operators(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
-        address operatorRegistrationAddress = predicateRegistry.signingKeyToRegistrationKey(operatorOneAlias);
+        address operatorRegistrationAddress = serviceManager.signingKeyToRegistrationKey(operatorOneAlias);
         assertEq(operatorRegistrationAddress, operatorOne);
 
-        predicateRegistry.rotatePredicateSigningKey(operatorOneAlias, newAlias);
+        serviceManager.rotatePredicateSigningKey(operatorOneAlias, newAlias);
 
-        address newOperatorRegistrationAddress = predicateRegistry.signingKeyToRegistrationKey(newAlias);
+        address newOperatorRegistrationAddress = serviceManager.signingKeyToRegistrationKey(newAlias);
         assertEq(newOperatorRegistrationAddress, operatorOne);
         vm.stopPrank();
     }
 
     function testRandomAddrCanNotChangeAlias() public permissionedOperators prepOperatorRegistration(false) {
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
 
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, status) = predicateRegistry.operators(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
-        address operatorRegistrationAddress = predicateRegistry.signingKeyToRegistrationKey(operatorOneAlias);
+        address operatorRegistrationAddress = serviceManager.signingKeyToRegistrationKey(operatorOneAlias);
         assertEq(operatorRegistrationAddress, operatorOne);
 
         vm.expectRevert();
         vm.prank(randomAddr);
 
-        predicateRegistry.rotatePredicateSigningKey(operatorOneAlias, newAlias);
+        serviceManager.rotatePredicateSigningKey(operatorOneAlias, newAlias);
     }
 
     function testOperatorCanNotChangeOtherAlias() public permissionedOperators prepOperatorRegistration(false) {
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
         vm.prank(operatorTwo);
-        predicateRegistry.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
+        serviceManager.registerOperatorToAVS(operatorTwoAlias, operatorTwoSignature);
 
-        (, PredicateRegistry.OperatorStatus statusTwo) = predicateRegistry.operators(operatorTwo);
+        (, ServiceManager.OperatorStatus statusTwo) = serviceManager.operators(operatorTwo);
         assertEq(uint256(statusTwo), 1);
 
         vm.expectRevert();
         vm.prank(operatorTwo);
 
-        predicateRegistry.rotatePredicateSigningKey(operatorOneAlias, newAlias);
+        serviceManager.rotatePredicateSigningKey(operatorOneAlias, newAlias);
     }
 
     function testOwnerCanAddStrategy() public {
         vm.expectEmit(true, true, true, true);
         emit StrategyAdded(strategyAddrOne);
 
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 0);
-        address strategyRetrieved = predicateRegistry.strategies(0);
+        serviceManager.addStrategy(strategyAddrOne, 0, 0);
+        address strategyRetrieved = serviceManager.strategies(0);
         assertEq(strategyRetrieved, strategyAddrOne);
     }
 
     function testRandomAddrCanNotAddStrategy() public {
         vm.expectRevert();
         vm.prank(randomAddr);
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 0);
+        serviceManager.addStrategy(strategyAddrOne, 0, 0);
     }
 
     function testCanNotAddInvalidStrategy() public {
         vm.expectRevert();
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 100);
+        serviceManager.addStrategy(strategyAddrOne, 0, 100);
     }
 
     function testOwnerCanRemoveStrategy() public {
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 0);
-        predicateRegistry.addStrategy(strategyAddrTwo, 0, 1);
+        serviceManager.addStrategy(strategyAddrOne, 0, 0);
+        serviceManager.addStrategy(strategyAddrTwo, 0, 1);
 
-        address strategyRetrieved = predicateRegistry.strategies(1);
+        address strategyRetrieved = serviceManager.strategies(1);
         assertEq(strategyRetrieved, strategyAddrTwo);
 
         vm.expectEmit(true, true, true, true);
         emit StrategyRemoved(strategyAddrTwo);
 
-        predicateRegistry.removeStrategy(strategyAddrTwo);
+        serviceManager.removeStrategy(strategyAddrTwo);
 
         vm.expectRevert();
-        strategyRetrieved = predicateRegistry.strategies(1);
+        strategyRetrieved = serviceManager.strategies(1);
     }
 
     function testRandomAddrCanNotRemoveStrategy() public {
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 0);
-        predicateRegistry.addStrategy(strategyAddrTwo, 0, 1);
+        serviceManager.addStrategy(strategyAddrOne, 0, 0);
+        serviceManager.addStrategy(strategyAddrTwo, 0, 1);
 
-        address strategyRetrieved = predicateRegistry.strategies(1);
+        address strategyRetrieved = serviceManager.strategies(1);
         assertEq(strategyRetrieved, strategyAddrTwo);
 
         vm.expectRevert();
         vm.prank(randomAddr);
-        predicateRegistry.removeStrategy(strategyAddrTwo);
+        serviceManager.removeStrategy(strategyAddrTwo);
     }
 
     function testUpdateOperatorsForQuorumZeroStake() public permissionedOperators prepOperatorRegistration(false) {
-        (, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 0);
 
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (, status) = predicateRegistry.operators(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
-        predicateRegistry.addStrategy(strategyAddrOne, 0, 0);
+        serviceManager.addStrategy(strategyAddrOne, 0, 0);
 
         address[][] memory operatorsPerQuorum = new address[][](1);
         address[] memory addresses = new address[](1);
@@ -217,9 +217,9 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         vm.expectEmit(true, true, true, true);
         emit OperatorsStakesUpdated(operatorsPerQuorum, quorumNumbers);
 
-        predicateRegistry.updateOperatorsForQuorum(operatorsPerQuorum, quorumNumbers);
+        serviceManager.updateOperatorsForQuorum(operatorsPerQuorum, quorumNumbers);
 
-        (, status) = predicateRegistry.operators(operatorOne);
+        (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
     }
 
@@ -233,7 +233,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         quorumNumbers[0] = bytes1(abi.encodePacked(num));
 
         vm.expectRevert();
-        predicateRegistry.updateOperatorsForQuorum(operatorsPerQuorum, quorumNumbers);
+        serviceManager.updateOperatorsForQuorum(operatorsPerQuorum, quorumNumbers);
     }
 
     function testCanNotUpdateQuorumWithInvalidArray() public {
@@ -247,7 +247,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         quorumNumbers[0] = bytes1(abi.encodePacked(num));
 
         vm.expectRevert();
-        predicateRegistry.updateOperatorsForQuorum(operatorsPerQuorum, quorumNumbers);
+        serviceManager.updateOperatorsForQuorum(operatorsPerQuorum, quorumNumbers);
     }
 
     function testCannotUseSpentTask() public permissionedOperators prepOperatorRegistration(false) {
@@ -257,16 +257,17 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
         bytes memory signature;
 
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         signature = abi.encodePacked(r, s, v);
@@ -278,11 +279,11 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         signatures[0] = signature;
 
         vm.prank(address(client));
-        bool result = predicateRegistry.validateSignatures(task, signers, signatures);
+        bool result = serviceManager.validateSignatures(task, signers, signatures);
         assertTrue(result, "First execution should succeed");
 
         vm.expectRevert();
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
 
         Task memory newTask = Task({
             taskId: "newTaskId",
@@ -290,13 +291,14 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(this),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: "testPolicy",
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
         vm.expectRevert();
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(newTask, signers, signatures);
+        serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
     function testCannotReplaySignatures() public permissionedOperators prepOperatorRegistration(true) {
@@ -306,11 +308,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -322,12 +325,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         signatures[0] = signature;
 
         vm.prank(address(client));
-        bool result = predicateRegistry.validateSignatures(task, signers, signatures);
+        bool result = serviceManager.validateSignatures(task, signers, signatures);
         assertTrue(result, "First execution is expected to succeed");
 
         vm.expectRevert();
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
 
         Task memory newTask = Task({
             taskId: "newTaskId",
@@ -335,13 +338,14 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: "testPolicy",
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
         vm.expectRevert();
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(newTask, signers, signatures);
+        serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
     function testRevertOnExpiredTask() public permissionedOperators prepOperatorRegistration(true) {
@@ -352,11 +356,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByTime: expireByTime
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -369,7 +374,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
 
         vm.expectRevert("Predicate.validateSignatures: transaction expired");
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
     }
 
     function cannotSupplySignaturesToTaskWithDifferentDigest()
@@ -383,11 +388,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: "testPolicy",
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
         bytes memory signature;
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
@@ -405,15 +411,16 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(this),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: "testPolicy",
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        assertTrue(predicateRegistry.hashTaskWithExpiry(newTask, policyID) != taskDigest);
+        assertTrue(serviceManager.hashTaskWithExpiry(newTask) != taskDigest);
 
         vm.expectRevert();
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(newTask, signers, signatures);
+        serviceManager.validateSignatures(newTask, signers, signatures);
     }
 
     function testSignaturesCannotBeRearranged() public permissionedOperators prepOperatorRegistration(true) {
@@ -423,11 +430,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signatureOne = abi.encodePacked(r, s, v);
 
@@ -450,7 +458,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         }
 
         vm.prank(address(client));
-        bool result = predicateRegistry.validateSignatures(task, signers, signatures);
+        bool result = serviceManager.validateSignatures(task, signers, signatures);
         assertTrue(result, "First execution should succeed");
 
         bytes memory tmpSig = signatures[0];
@@ -463,7 +471,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
 
         vm.expectRevert();
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
     }
 
     function testSignaturesGreaterThanQuorumThresholdCannotBeRearranged()
@@ -477,11 +485,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signatureOne = abi.encodePacked(r, s, v);
 
@@ -503,7 +512,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             signatures[1] = signatureOne;
         }
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
 
         bytes memory tmpSig = signatures[0];
         signatures[0] = signatures[1];
@@ -515,7 +524,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
 
         vm.expectRevert();
         vm.prank(address(client));
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
     }
 
     function testOperatorCannotRegisterWithOtherOperatorAlias()
@@ -524,25 +533,25 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         prepOperatorRegistration(false)
     {
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (uint256 stake, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (uint256 stake, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(
-            uint256(status), uint256(PredicateRegistry.OperatorStatus.REGISTERED), "Operator one should be registered"
+            uint256(status), uint256(ServiceManager.OperatorStatus.REGISTERED), "Operator one should be registered"
         );
 
         vm.prank(operatorTwo);
         vm.expectRevert("Predicate.registerOperatorToAVS: operator already registered");
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorTwoSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorTwoSignature);
 
-        (stake, status) = predicateRegistry.operators(operatorTwo);
+        (stake, status) = serviceManager.operators(operatorTwo);
         assertEq(
             uint256(status),
-            uint256(PredicateRegistry.OperatorStatus.NEVER_REGISTERED),
+            uint256(ServiceManager.OperatorStatus.NEVER_REGISTERED),
             "Operator two should not be registered"
         );
 
-        address registeredOperator = predicateRegistry.signingKeyToRegistrationKey(operatorOneAlias);
+        address registeredOperator = serviceManager.signingKeyToRegistrationKey(operatorOneAlias);
         assertEq(registeredOperator, operatorOne, "OperatorOneAlias should still be associated with operatorOne");
     }
 
@@ -557,11 +566,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             target: address(client),
             value: 0,
             encodedSigAndArgs: "",
+            policyID: policyID,
             quorumThresholdCount: 1,
             expireByTime: block.timestamp + 100
         });
 
-        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task, policyID);
+        bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -573,20 +583,20 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         signatures[0] = signature;
 
         // Deregister operator
-        predicateRegistry.deregisterOperatorFromAVS(operatorOne);
+        serviceManager.deregisterOperatorFromAVS(operatorOne);
 
         vm.prank(address(client));
         vm.expectRevert("Predicate.validateSignatures: Signer is not a registered operator");
-        predicateRegistry.validateSignatures(task, signers, signatures);
+        serviceManager.validateSignatures(task, signers, signatures);
     }
 
     function testPermissionedOperatorCanRegister() public permissionedOperators prepOperatorRegistration(false) {
         vm.prank(operatorOne);
-        predicateRegistry.registerOperatorToAVS(operatorOneAlias, operatorSignature);
+        serviceManager.registerOperatorToAVS(operatorOneAlias, operatorSignature);
 
-        (uint256 stake, PredicateRegistry.OperatorStatus status) = predicateRegistry.operators(operatorOne);
+        (uint256 stake, ServiceManager.OperatorStatus status) = serviceManager.operators(operatorOne);
         assertEq(
-            uint256(status), uint256(PredicateRegistry.OperatorStatus.REGISTERED), "Operator one should be registered"
+            uint256(status), uint256(ServiceManager.OperatorStatus.REGISTERED), "Operator one should be registered"
         );
     }
 
@@ -595,7 +605,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         string memory emptyPolicy = "";
 
         vm.expectRevert("Predicate.deployPolicy: policy string cannot be empty");
-        predicateRegistry.deployPolicy(policyID, emptyPolicy, 1);
+        serviceManager.deployPolicy(policyID, emptyPolicy, 1);
     }
 
     fallback() external payable {}

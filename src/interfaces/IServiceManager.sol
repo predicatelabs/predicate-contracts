@@ -14,6 +14,8 @@ struct Task {
     uint256 value;
     // the encoded signature and arguments for the task
     bytes encodedSigAndArgs;
+    // the policy ID associated with the task
+    string policyID;
     // the number of signatures required to authorize the task
     uint32 quorumThresholdCount;
     // the timestamp by which the task must be executed
@@ -34,7 +36,7 @@ struct SignatureWithSaltAndExpiry {
  * @title Minimal interface for a ServiceManager-type contract that forms the single point for an AVS to push updates to EigenLayer
  * @author Predicate Labs, Inc
  */
-interface IPredicateRegistry {
+interface IServiceManager {
     /**
      * @notice Sets the metadata URI for the AVS
      * @param _metadataURI is the metadata URI for the AVS

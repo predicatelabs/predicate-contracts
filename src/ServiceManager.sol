@@ -11,13 +11,13 @@ import {IStrategy} from "eigenlayer-contracts/src/contracts/interfaces/IStrategy
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
-import {IPredicateRegistry, Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateRegistry.sol";
+import {IServiceManager, Task, SignatureWithSaltAndExpiry} from "./interfaces/IServiceManager.sol";
 
-contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpgradeable {
-    error PredicateRegistry__Unauthorized();
-    error PredicateRegistry__InvalidOperator();
-    error PredicateRegistry__InvalidStrategy();
-    error PredicateRegistry__ArrayLengthMismatch();
+contract ServiceManager is IServiceManager, Initializable, Ownable2StepUpgradeable {
+    error ServiceManager__Unauthorized();
+    error ServiceManager__InvalidOperator();
+    error ServiceManager__InvalidStrategy();
+    error ServiceManager__ArrayLengthMismatch();
 
     enum OperatorStatus {
         NEVER_REGISTERED, // default is NEVER_REGISTERED
@@ -75,7 +75,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
 
     modifier onlyPermissionedOperator() {
         if (!permissionedOperators[msg.sender]) {
-            revert PredicateRegistry__Unauthorized();
+            revert ServiceManager__Unauthorized();
         }
         _;
     }
@@ -259,7 +259,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
      * @param _task parameters of the task
      * @return the keccak256 digest of the task
      */
-    function hashTaskWithExpiry(Task calldata _task, string memory _policyID) public view returns (bytes32) {
+    function hashTaskWithExpiry(Task calldata _task) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 _task.taskId,
@@ -267,7 +267,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 _task.target,
                 _task.value,
                 _task.encodedSigAndArgs,
-                _policyID,
+                _task.policyID,
                 _task.quorumThresholdCount,
                 _task.expireByTime,
                 block.chainid
@@ -290,7 +290,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 msg.sender,
                 _task.value,
                 _task.encodedSigAndArgs,
-                clientToPolicyID[msg.sender],
+                _task.policyID,
                 _task.quorumThresholdCount,
                 _task.expireByTime,
                 block.chainid
@@ -317,7 +317,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
         require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
-        uint256 numSignaturesRequired = policyIDToThreshold[clientToPolicyID[msg.sender]];
+        uint256 numSignaturesRequired = policyIDToThreshold[_task.policyID];
         require(
             numSignaturesRequired != 0 && _task.quorumThresholdCount == numSignaturesRequired,
             "Predicate.PredicateVerified: deployed policy quorum threshold differs from task quorum threshold"
@@ -344,7 +344,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
             _task.msgSender,
             _task.target,
             _task.value,
-            clientToPolicyID[msg.sender],
+        _task.policyID,
             _task.taskId,
             _task.quorumThresholdCount,
             _task.expireByTime,
@@ -426,7 +426,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         IStakeRegistry.StrategyParams memory strategyParams =
             IStakeRegistry(stakeRegistry).strategyParamsByIndex(quorumNumber, index);
         if (address(strategyParams.strategy) != _strategy) {
-            revert PredicateRegistry__InvalidStrategy();
+            revert ServiceManager__InvalidStrategy();
         }
         strategies.push(_strategy);
         emit StrategyAdded(_strategy);
@@ -495,7 +495,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
      */
     function updateOperatorsForQuorum(address[][] calldata operatorsPerQuorum, bytes calldata quorumNumbers) external {
         if (operatorsPerQuorum.length != quorumNumbers.length) {
-            revert PredicateRegistry__ArrayLengthMismatch();
+            revert ServiceManager__ArrayLengthMismatch();
         }
         address[] memory currQuorumOperators;
         address currOperatorAddress;
@@ -506,7 +506,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 currOperatorAddress = currQuorumOperators[j];
                 currOperator = operators[currOperatorAddress];
                 if (currOperator.status == OperatorStatus.NEVER_REGISTERED) {
-                    revert PredicateRegistry__InvalidOperator();
+                    revert ServiceManager__InvalidOperator();
                 }
                 uint256 totalStake;
                 for (uint256 k; k != strategies.length;) {

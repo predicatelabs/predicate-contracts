@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
 import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateRegistry} from "../../interfaces/IPredicateRegistry.sol";
+import {IServiceManager} from "../../interfaces/IServiceManager.sol";
 
 contract MetaCoin is PredicateClient, Ownable {
     mapping(address => uint256) public balances;
@@ -35,10 +35,10 @@ contract MetaCoin is PredicateClient, Ownable {
         _setPolicy(_policyID);
     }
 
-    function setPredicateManager(
-        address _predicateManager
+    function setServiceManager(
+        address _serviceManager
     ) public onlyOwner {
-        _setPredicateManager(_predicateManager);
+        _setServiceManager(_serviceManager);
     }
 
     function _sendCoin(address _receiver, uint256 _amount) internal {

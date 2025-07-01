@@ -4,8 +4,8 @@ pragma solidity ^0.8.12;
 import {Test, console} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {PredicateRegistry} from "../../../src/PredicateRegistry.sol";
-import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IPredicateRegistry.sol";
+import {ServiceManager} from "../../../src/ServiceManager.sol";
+import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IServiceManager.sol";
 import {PredicateClient} from "../../../src/mixins/PredicateClient.sol";
 import {MockClient} from "../mocks/MockClient.sol";
 import {MockProxy} from "../mocks/MockProxy.sol";
@@ -33,9 +33,9 @@ contract TestStorage is Test {
     MockProxyAdmin delegationManagerAdmin;
     MockDelegationManager delegationManager;
     MockDelegationManager delegationManagerImplementation;
-    MockProxyAdmin predicateRegistryAdmin;
-    PredicateRegistry predicateRegistry;
-    PredicateRegistry predicateRegistryImplementation;
+    MockProxyAdmin serviceManagerAdmin;
+    ServiceManager serviceManager;
+    ServiceManager serviceManagerImplementation;
     MockClient client;
     MockStakeRegistry stakeRegistry;
     MockStrategyManager strategyManager;
