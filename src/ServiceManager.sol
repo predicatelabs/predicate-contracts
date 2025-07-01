@@ -259,7 +259,9 @@ contract ServiceManager is IServiceManager, Initializable, Ownable2StepUpgradeab
      * @param _task parameters of the task
      * @return the keccak256 digest of the task
      */
-    function hashTaskWithExpiry(Task calldata _task) public view returns (bytes32) {
+    function hashTaskWithExpiry(
+        Task calldata _task
+    ) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 _task.taskId,
@@ -342,7 +344,7 @@ contract ServiceManager is IServiceManager, Initializable, Ownable2StepUpgradeab
             _task.msgSender,
             _task.target,
             _task.value,
-        _task.policyID,
+            _task.policyID,
             _task.taskId,
             _task.quorumThresholdCount,
             _task.expireByTime,
