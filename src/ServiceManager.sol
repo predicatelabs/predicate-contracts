@@ -269,8 +269,7 @@ contract ServiceManager is IServiceManager, Initializable, Ownable2StepUpgradeab
                 _task.encodedSigAndArgs,
                 _task.policyID,
                 _task.quorumThresholdCount,
-                _task.expireByTime,
-                block.chainid
+                _task.expireByTime
             )
         );
     }
@@ -292,8 +291,7 @@ contract ServiceManager is IServiceManager, Initializable, Ownable2StepUpgradeab
                 _task.encodedSigAndArgs,
                 _task.policyID,
                 _task.quorumThresholdCount,
-                _task.expireByTime,
-                block.chainid
+                _task.expireByTime
             )
         );
     }

@@ -231,8 +231,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
                 _task.encodedSigAndArgs,
                 _task.policyID,
                 _task.quorumThresholdCount,
-                _task.expireByTime,
-                block.chainid
+                _task.expireByTime
             )
         );
     }
