@@ -92,7 +92,7 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
         thresholds[1] = 3;
 
         vm.prank(owner);
-        simpleServiceManager.syncPolicies(policyIDs, thresholds);
+        simpleServiceManager.syncPolicyIDs(policyIDs, thresholds);
 
         // Verify thresholds were set correctly
         assertEq(simpleServiceManager.policyIDToThreshold(policyIDs[0]), 2);
@@ -100,8 +100,9 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         // Verify policy IDs were added to deployedPolicyIDs array
         // note: a policy was already deployed in the simple service manager setup
-        assertEq(simpleServiceManager.deployedPolicyIDs(1), policyIDs[0]);
-        assertEq(simpleServiceManager.deployedPolicyIDs(2), policyIDs[1]);
+        string[] memory deployedPolicyIDs = simpleServiceManager.getDeployedPolicyIDs();
+        assertEq(deployedPolicyIDs[1], policyIDs[0]);
+        assertEq(deployedPolicyIDs[2], policyIDs[1]);
     }
 
     function testValidateSignaturesAfterSigningKeyUpdate() public {
@@ -264,7 +265,7 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         vm.prank(owner);
         vm.expectRevert("Predicate.syncPolicies: policy ID cannot be empty");
-        simpleServiceManager.syncPolicies(policyIDs, thresholds);
+        simpleServiceManager.syncPolicyIDs(policyIDs, thresholds);
     }
 
     function testSyncPoliciesRevertsOnZeroThreshold() public {
@@ -276,6 +277,6 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         vm.prank(owner);
         vm.expectRevert("Predicate.syncPolicies: threshold must be greater than zero");
-        simpleServiceManager.syncPolicies(policyIDs, thresholds);
+        simpleServiceManager.syncPolicyIDs(policyIDs, thresholds);
     }
 }
