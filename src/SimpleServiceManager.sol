@@ -7,7 +7,7 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
-import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.sol";
+import {Task, SignatureWithSaltAndExpiry} from "./interfaces/IServiceManager.sol";
 import {ISimpleServiceManager} from "./interfaces/ISimpleServiceManager.sol";
 
 contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2StepUpgradeable {
@@ -74,7 +74,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
     mapping(string => uint256) public policyIDToThreshold;
 
     /// @notice List of all deployed policy IDs
-    string[] public deployedPolicyIDs;
+    string[] private deployedPolicyIDs;
 
     /**
      * @notice Initializes the contract and transfers ownership.
@@ -165,7 +165,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
      * @param policyIDs Array of policy identifiers
      * @param thresholds Corresponding quorum thresholds for each policy
      */
-    function syncPolicies(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
+    function syncPolicyIDs(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
         require(
             policyIDs.length == thresholds.length, "Predicate.syncPolicies: policy IDs and thresholds length mismatch"
         );
@@ -179,9 +179,10 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
                 policyIDToThreshold[policyIDs[i]] = thresholds[i];
                 deployedPolicyIDs.push(policyIDs[i]);
                 emit PolicySynced(policyIDs[i]);
+            } else {
+                emit PolicySyncSkipped(policyIDs[i]);
             }
 
-            emit PolicySyncSkipped(policyIDs[i]);
             unchecked {
                 ++i;
             }

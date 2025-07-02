@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.12;
 
-import {Task} from "./IPredicateManager.sol";
+import {Task} from "./IServiceManager.sol";
 
 /**
  * @title Minimal interface for a ServiceManager-type contract that forms the single point for an AVS to push updates to EigenLayer

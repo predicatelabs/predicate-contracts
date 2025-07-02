@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {ServiceManager} from "../../../src/ServiceManager.sol";
-import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IPredicateManager.sol";
+import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IServiceManager.sol";
 import {PredicateClient} from "../../../src/mixins/PredicateClient.sol";
 import {MockClient} from "../mocks/MockClient.sol";
 import {MockProxy} from "../mocks/MockProxy.sol";

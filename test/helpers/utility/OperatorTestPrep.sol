@@ -2,7 +2,7 @@
 pragma solidity ^0.8.12;
 
 import {Test, console} from "forge-std/Test.sol";
-import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IPredicateManager.sol";
+import {SignatureWithSaltAndExpiry} from "../../../src/interfaces/IServiceManager.sol";
 import "./TestStorage.sol";
 
 contract OperatorTestPrep is TestStorage {

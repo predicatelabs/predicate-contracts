@@ -25,7 +25,7 @@ contract SimpleServiceManagerSetup is TestStorage {
         uint32[] memory thresholds = new uint32[](1);
         thresholds[0] = 1;
 
-        simpleServiceManager.syncPolicies(policies, thresholds);
+        simpleServiceManager.syncPolicyIDs(policies, thresholds);
 
         client = new MockClient(owner, address(simpleServiceManager), policyID);
 

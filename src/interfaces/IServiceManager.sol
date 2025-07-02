@@ -36,7 +36,7 @@ struct SignatureWithSaltAndExpiry {
  * @title Minimal interface for a ServiceManager-type contract that forms the single point for an AVS to push updates to EigenLayer
  * @author Predicate Labs, Inc
  */
-interface IPredicateManager {
+interface IServiceManager {
     /**
      * @notice Sets the metadata URI for the AVS
      * @param _metadataURI is the metadata URI for the AVS

@@ -2,14 +2,14 @@
 
 pragma solidity ^0.8.12;
 
-import {IPredicateManager, Task} from "../interfaces/IPredicateManager.sol";
+import {IServiceManager, Task} from "../interfaces/IServiceManager.sol";
 import "../interfaces/IPredicateClient.sol";
 
 abstract contract PredicateClient is IPredicateClient {
     /// @notice Struct to contain stateful values for PredicateClient-type contracts
     /// @custom:storage-location erc7201:predicate.storage.PredicateClient
     struct PredicateClientStorage {
-        IPredicateManager serviceManager;
+        IServiceManager serviceManager;
         string policyID;
     }
 
@@ -26,7 +26,7 @@ abstract contract PredicateClient is IPredicateClient {
 
     function _initPredicateClient(address _serviceManagerAddress, string memory _policyID) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.serviceManager = IPredicateManager(_serviceManagerAddress);
+        $.serviceManager = IServiceManager(_serviceManagerAddress);
         _setPolicy(_policyID);
     }
 
@@ -46,18 +46,18 @@ abstract contract PredicateClient is IPredicateClient {
         return _getPredicateClientStorage().policyID;
     }
 
-    function _setPredicateManager(
-        address _predicateManager
+    function _setServiceManager(
+        address _serviceManager
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.serviceManager = IPredicateManager(_predicateManager);
+        $.serviceManager = IServiceManager(_serviceManager);
     }
 
-    function getPredicateManager() external view override returns (address) {
-        return _getPredicateManager();
+    function getServiceManager() external view override returns (address) {
+        return _getServiceManager();
     }
 
-    function _getPredicateManager() internal view returns (address) {
+    function _getServiceManager() internal view returns (address) {
         return address(_getPredicateClientStorage().serviceManager);
     }
 
