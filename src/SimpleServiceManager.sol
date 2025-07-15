@@ -175,11 +175,11 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
             require(thresholds[i] > 0, "Predicate.syncPolicies: threshold must be greater than zero");
             require(bytes(policyIDs[i]).length > 0, "Predicate.syncPolicies: policyID cannot be empty");
 
-            if (policyIDToThreshold[policyIDs[i]] == 0) { // if the policy ID is not registered, register it
+            if (policyIDToThreshold[policyIDs[i]] == 0) { 
                 policyIDToThreshold[policyIDs[i]] = thresholds[i];
                 deployedPolicyIDs.push(policyIDs[i]);
                 emit PolicySynced(policyIDs[i]);
-            } else { // if the policy ID is already registered, skip it
+            } else {
                 emit PolicySyncSkipped(policyIDs[i]);
             }
 
