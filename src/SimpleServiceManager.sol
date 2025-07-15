@@ -165,7 +165,7 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
      * @param policyIDs Array of policy identifiers
      * @param thresholds Corresponding quorum thresholds for each policy
      */
-    function syncPolicies(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
+    function syncPolicyIDs(string[] calldata policyIDs, uint32[] calldata thresholds) external onlyOwner {
         require(
             policyIDs.length == thresholds.length, "Predicate.syncPolicies: policy IDs and thresholds length mismatch"
         );
@@ -179,9 +179,10 @@ contract SimpleServiceManager is ISimpleServiceManager, Initializable, Ownable2S
                 policyIDToThreshold[policyIDs[i]] = thresholds[i];
                 deployedPolicyIDs.push(policyIDs[i]);
                 emit PolicySynced(policyIDs[i]);
+            } else {
+                emit PolicySyncSkipped(policyIDs[i]);
             }
 
-            emit PolicySyncSkipped(policyIDs[i]);
             unchecked {
                 ++i;
             }
