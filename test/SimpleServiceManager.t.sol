@@ -6,7 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
 
 import {ServiceManager} from "../src/ServiceManager.sol";
-import {Task} from "../src/interfaces/IPredicateManager.sol";
+import {Task} from "../src/interfaces/IServiceManager.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
 import {MockProxy} from "./helpers/mocks/MockProxy.sol";
 import {MockProxyAdmin} from "./helpers/mocks/MockProxyAdmin.sol";
@@ -100,8 +100,9 @@ contract SimpleServiceManager is SimpleServiceManagerSetup {
 
         // Verify policy IDs were added to deployedPolicyIDs array
         // note: a policy was already deployed in the simple service manager setup
-        assertEq(simpleServiceManager.deployedPolicyIDs(1), policyIDs[0]);
-        assertEq(simpleServiceManager.deployedPolicyIDs(2), policyIDs[1]);
+        string[] memory deployedPolicyIDs = simpleServiceManager.getDeployedPolicyIDs();
+        assertEq(deployedPolicyIDs[1], policyIDs[0]);
+        assertEq(deployedPolicyIDs[2], policyIDs[1]);
     }
 
     function testValidateSignaturesAfterSigningKeyUpdate() public {

@@ -11,9 +11,9 @@ import {IStrategy} from "eigenlayer-contracts/src/contracts/interfaces/IStrategy
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
-import {IPredicateManager, Task, SignatureWithSaltAndExpiry} from "./interfaces/IPredicateManager.sol";
+import {IServiceManager, Task, SignatureWithSaltAndExpiry} from "./interfaces/IServiceManager.sol";
 
-contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgradeable {
+contract ServiceManager is IServiceManager, Initializable, Ownable2StepUpgradeable {
     error ServiceManager__Unauthorized();
     error ServiceManager__InvalidOperator();
     error ServiceManager__InvalidStrategy();
@@ -31,22 +31,18 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
     }
 
     mapping(address => OperatorInfo) public operators;
-    mapping(address => address) public signingKeyToOperator;
-    mapping(address => mapping(string => bool)) public clientToPolicy; // DEPRECATED: use clientToPolicyID
-    mapping(string => string) public idToPolicy;
-    mapping(string => bool) public spentTaskIds;
-    mapping(string => string) public idToSocialGraph; // DEPRECATED
+    mapping(address => address) public signingKeyToRegistrationKey;
+    mapping(string => string) public policyIDToPolicy;
+    mapping(string => bool) public spentTaskIDs;
     string[] public deployedPolicyIDs;
-    string[] public socialGraphIDs; // DEPRECATED
 
     address[] public strategies;
-    address public aggregator; // DEPRECATED
     address public delegationManager;
     address public stakeRegistry;
     address public avsDirectory;
     uint256 public thresholdStake;
 
-    mapping(string => uint256) public policyIdToThreshold;
+    mapping(string => uint256) public policyIDToThreshold;
     mapping(address => bool) private permissionedOperators;
     mapping(address => string) public clientToPolicyID;
 
@@ -139,16 +135,16 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
             "Predicate.rotatePredicateSigningKey: operator is not registered"
         );
         require(
-            msg.sender == signingKeyToOperator[_oldSigningKey],
+            msg.sender == signingKeyToRegistrationKey[_oldSigningKey],
             "Predicate.rotatePredicateSigningKey: operator can only change it's own signing key"
         );
         require(
-            signingKeyToOperator[_newSigningKey] == address(0),
+            signingKeyToRegistrationKey[_newSigningKey] == address(0),
             "Predicate.rotatePredicateSigningKey: new signing key already registered"
         );
 
-        delete signingKeyToOperator[_oldSigningKey];
-        signingKeyToOperator[_newSigningKey] = msg.sender;
+        delete signingKeyToRegistrationKey[_oldSigningKey];
+        signingKeyToRegistrationKey[_newSigningKey] = msg.sender;
         emit OperatorSigningKeyRotated(msg.sender, _oldSigningKey, _newSigningKey);
     }
 
@@ -162,11 +158,11 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
         SignatureWithSaltAndExpiry memory _operatorSignature
     ) external onlyPermissionedOperator {
         require(
-            signingKeyToOperator[_operatorSigningKey] == address(0),
+            signingKeyToRegistrationKey[_operatorSigningKey] == address(0),
             "Predicate.registerOperatorToAVS: operator already registered"
         );
         require(
-            signingKeyToOperator[_operatorSigningKey] == address(0),
+            signingKeyToRegistrationKey[_operatorSigningKey] == address(0),
             "Predicate.rotatePredicateSigningKey: new signing key already registered"
         );
         uint256 totalStake;
@@ -179,7 +175,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
 
         if (totalStake >= thresholdStake) {
             operators[msg.sender] = OperatorInfo(totalStake, OperatorStatus.REGISTERED);
-            signingKeyToOperator[_operatorSigningKey] = msg.sender;
+            signingKeyToRegistrationKey[_operatorSigningKey] = msg.sender;
             ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSig = ISignatureUtils.SignatureWithSaltAndExpiry(
                 _operatorSignature.signature, _operatorSignature.salt, _operatorSignature.expiry
             );
@@ -215,11 +211,11 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
         string memory _policy,
         uint256 _quorumThreshold
     ) external onlyOwner {
-        require(bytes(idToPolicy[_policyID]).length == 0, "Predicate.deployPolicy: policy exists");
+        require(bytes(policyIDToPolicy[_policyID]).length == 0, "Predicate.deployPolicy: policy exists");
         require(_quorumThreshold > 0, "Predicate.deployPolicy: quorum threshold must be greater than zero");
         require(bytes(_policy).length > 0, "Predicate.deployPolicy: policy string cannot be empty");
-        idToPolicy[_policyID] = _policy;
-        policyIdToThreshold[_policyID] = _quorumThreshold;
+        policyIDToPolicy[_policyID] = _policy;
+        policyIDToThreshold[_policyID] = _quorumThreshold;
         deployedPolicyIDs.push(_policyID);
         emit DeployedPolicy(_policyID, _policy);
     }
@@ -241,7 +237,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
         string memory _policyID
     ) external {
         require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
-        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
+        require(policyIDToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
         clientToPolicyID[msg.sender] = _policyID;
         emit SetPolicy(msg.sender, _policyID);
     }
@@ -253,7 +249,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
      */
     function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner {
         require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
-        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
+        require(policyIDToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
         clientToPolicyID[_clientAddress] = _policyID;
         emit SetPolicy(_clientAddress, _policyID);
     }
@@ -265,7 +261,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
      */
     function hashTaskWithExpiry(
         Task calldata _task
-    ) public pure returns (bytes32) {
+    ) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 _task.taskId,
@@ -319,9 +315,9 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
             "Predicate.validateSignatures: Mismatch between signers and signatures"
         );
         require(block.timestamp <= _task.expireByTime, "Predicate.validateSignatures: transaction expired");
-        require(!spentTaskIds[_task.taskId], "Predicate.validateSignatures: task ID already spent");
+        require(!spentTaskIDs[_task.taskId], "Predicate.validateSignatures: task ID already spent");
 
-        uint256 numSignaturesRequired = policyIdToThreshold[_task.policyID];
+        uint256 numSignaturesRequired = policyIDToThreshold[_task.policyID];
         require(
             numSignaturesRequired != 0 && _task.quorumThresholdCount == numSignaturesRequired,
             "Predicate.PredicateVerified: deployed policy quorum threshold differs from task quorum threshold"
@@ -334,7 +330,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
             }
             address recoveredSigner = ECDSA.recover(messageHash, signatures[i]);
             require(recoveredSigner == signerAddresses[i], "Predicate.validateSignatures: Invalid signature");
-            address operator = signingKeyToOperator[recoveredSigner];
+            address operator = signingKeyToRegistrationKey[recoveredSigner];
             require(
                 operators[operator].status == OperatorStatus.REGISTERED,
                 "Predicate.validateSignatures: Signer is not a registered operator"
@@ -355,7 +351,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
             signerAddresses
         );
 
-        spentTaskIds[_task.taskId] = true;
+        spentTaskIDs[_task.taskId] = true;
         return true;
     }
 

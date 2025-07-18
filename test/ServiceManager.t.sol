@@ -6,7 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ISignatureUtils} from "eigenlayer-contracts/src/contracts/interfaces/IDelegationManager.sol";
 
 import {ServiceManager} from "../src/ServiceManager.sol";
-import {Task} from "../src/interfaces/IPredicateManager.sol";
+import {Task} from "../src/interfaces/IServiceManager.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
 import {MockProxy} from "./helpers/mocks/MockProxy.sol";
 import {MockProxyAdmin} from "./helpers/mocks/MockProxyAdmin.sol";
@@ -33,7 +33,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
 
     function testCanDeployPolicy() public {
         serviceManager.deployPolicy("sg-policy-2", "samplePolicy", 1);
-        string memory policyConfig = serviceManager.idToPolicy("sg-policy-2");
+        string memory policyConfig = serviceManager.policyIDToPolicy("sg-policy-2");
         assertEq(policyConfig, "samplePolicy");
     }
 
@@ -98,12 +98,12 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
-        address operatorRegistrationAddress = serviceManager.signingKeyToOperator(operatorOneAlias);
+        address operatorRegistrationAddress = serviceManager.signingKeyToRegistrationKey(operatorOneAlias);
         assertEq(operatorRegistrationAddress, operatorOne);
 
         serviceManager.rotatePredicateSigningKey(operatorOneAlias, newAlias);
 
-        address newOperatorRegistrationAddress = serviceManager.signingKeyToOperator(newAlias);
+        address newOperatorRegistrationAddress = serviceManager.signingKeyToRegistrationKey(newAlias);
         assertEq(newOperatorRegistrationAddress, operatorOne);
         vm.stopPrank();
     }
@@ -118,7 +118,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
         (, status) = serviceManager.operators(operatorOne);
         assertEq(uint256(status), 1);
 
-        address operatorRegistrationAddress = serviceManager.signingKeyToOperator(operatorOneAlias);
+        address operatorRegistrationAddress = serviceManager.signingKeyToRegistrationKey(operatorOneAlias);
         assertEq(operatorRegistrationAddress, operatorOne);
 
         vm.expectRevert();
@@ -551,7 +551,7 @@ contract ServiceManagerTest is OperatorTestPrep, ServiceManagerSetup {
             "Operator two should not be registered"
         );
 
-        address registeredOperator = serviceManager.signingKeyToOperator(operatorOneAlias);
+        address registeredOperator = serviceManager.signingKeyToRegistrationKey(operatorOneAlias);
         assertEq(registeredOperator, operatorOne, "OperatorOneAlias should still be associated with operatorOne");
     }
 
