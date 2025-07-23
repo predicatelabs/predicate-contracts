@@ -11,7 +11,8 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     error PredicateRegistryUnauthorized();
 
     string[] public enabledPolicyIDs;
-    mapping(address => bool) public registeredAttestors;
+    address[] public registeredAttestors;
+    mapping(address => bool) public isRegisteredAttestor;
     mapping(string => bool) public isEnabledPolicyID;
     mapping(address => string) public clientToPolicyID;
     mapping(string => bool) public spentTaskIDs;
@@ -48,7 +49,8 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         address _attestor
     ) external onlyOwner {
         require(!registeredAttestors[_attestor], "Predicate.registerAttestor: attestor already registered");
-        registeredAttestors[_attestor] = true;
+        registeredAttestors.push(_attestor);
+        isRegisteredAttestor[_attestor] = true;
         emit AttestorRegistered(_attestor);
     }
 
@@ -60,8 +62,15 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     function deregisterAttestor(
         address _attestor
     ) external onlyOwner {
-        require(registeredAttestors[_attestor], "Predicate.deregisterAttestor: attestor not registered");
-        registeredAttestors[_attestor] = false;
+        require(isRegisteredAttestor[_attestor], "Predicate.deregisterAttestor: attestor not registered");
+        for (uint256 i = 0; i < registeredAttestors.length; i++) {
+            if (registeredAttestors[i] == _attestor) {
+                registeredAttestors[i] = registeredAttestors[registeredAttestors.length - 1];
+                registeredAttestors.pop();
+                break;
+            }
+        }
+        isRegisteredAttestor[_attestor] = false;
         emit AttestorDeregistered(_attestor);
     }
 
@@ -174,7 +183,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         bytes32 messageHash = hashTaskSafe(_task);
         address recoveredAttestor = ECDSA.recover(messageHash, _attestation.signature);
         require(recoveredAttestor == _attestation.attestor, "Predicate.validateAttestation: Invalid signature");
-        require(registeredOperators[recoveredAttestor], "Predicate.validateAttestation: Attestor is not a registered operator");
+        require(isRegisteredAttestor[recoveredAttestor], "Predicate.validateAttestation: Attestor is not a registered attestor");
 
         spentTaskIDs[_task.uuid] = true;
 
