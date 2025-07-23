@@ -11,17 +11,16 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     error PredicateRegistryUnauthorized();
 
     string[] public enabledPolicyIDs;
-    mapping(address => bool) public registeredOperators;
-    mapping(string => bool) public enabledPolicyIDs;
+    mapping(address => bool) public registeredAttestors;
+    mapping(string => bool) public isEnabledPolicyID;
     mapping(address => string) public clientToPolicyID;
     mapping(string => bool) public spentTaskIDs;
 
-
-    event PolicySet(address indexed client, string policyID);
     event PolicyEnabled(string policyID);
     event PolicyDisabled(string policyID);
-    event OperatorRegistered(address indexed operator);
-    event OperatorDeregistered(address indexed operator);
+    event AttestorRegistered(address indexed attestor);
+    event AttestorDeregistered(address indexed attestor);
+    event PolicyIDOverridden(address indexed client, string policyID);
 
     event TaskValidated(
         address indexed msgSender,
@@ -42,78 +41,80 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
 
 
     /**
-     * @notice Registers a new operator
-     * @param _operator the address of the operator to be registered
+     * @notice Registers a new attestor
+     * @param _attestor the address of the attestor to be registered
      */
-    function registerOperator(
-        address _operator
+    function registerAttestor(
+        address _attestor
     ) external onlyOwner {
-        require(!registeredOperators[_operator], "Predicate.registerOperator: operator already registered");
-        registeredOperators[_operator] = true;
-        emit OperatorRegistered(_operator);
+        require(!registeredAttestors[_attestor], "Predicate.registerAttestor: attestor already registered");
+        registeredAttestors[_attestor] = true;
+        emit AttestorRegistered(_attestor);
     }
 
 
     /**
-     * @notice Deregisters an operator
-     * @param _operator the address of the operator to be deregistered
+     * @notice Deregisters an attestor
+     * @param _attestor the address of the attestor to be deregistered
      */
-    function deregisterOperator(
-        address _operator
+    function deregisterAttestor(
+        address _attestor
     ) external onlyOwner {
-        require(registeredOperators[_operator], "Predicate.deregisterOperator: operator not registered");
-        registeredOperators[_operator] = false;
-        emit OperatorDeregistered(_operator);
+        require(registeredAttestors[_attestor], "Predicate.deregisterAttestor: attestor not registered");
+        registeredAttestors[_attestor] = false;
+        emit AttestorDeregistered(_attestor);
     }
 
     /**
-     * @notice Deploys a policy for which clients can use
+     * @notice Enables a policy for which clients can use
      * @param _policyID is a unique identifier
-     * @param _policy is set of formatted rules
      */
-    function deployPolicy(
-        string memory _policyID,
-        string memory _policy,
+    function enablePolicy(
+        string memory _policyID
     ) external onlyOwner {
-        require(bytes(idToPolicy[_policyID]).length == 0, "Predicate.deployPolicy: policy exists");
-        require(bytes(_policy).length > 0, "Predicate.deployPolicy: policy string cannot be empty");
-        idToPolicy[_policyID] = _policy;
-        deployedPolicyIDs.push(_policyID);
-        emit PolicyDeployed(_policyID, _policy);
+        require(!isEnabledPolicyID[_policyID], "Predicate.enablePolicy: policy already exists");
+        isEnabledPolicyID[_policyID] = true;
+        enabledPolicyIDs.push(_policyID);
+        emit PolicyEnabled(_policyID);
     }
 
     /**
-     * @notice Gets array of deployed policies
-     * @return array of deployed policies
+     * @notice Gets array of enabled policy IDs
+     * @return array of enabled policy IDs
      */
-    function getDeployedPolicies() external view returns (string[] memory) {
-        return deployedPolicyIDs;
+    function getEnabledPolicyIDs() external view returns (string[] memory) {
+        return enabledPolicyIDs;
     }
 
     /**
-     * @notice Sets a policy for the calling contract (msg.sender)
-     * @dev Associates a client contract with a specific policy ID. The policy must be previously registered.
-     * @param _policyID Identifier of a registered policy to associate with the caller
+     * @notice Disables a policy for which clients can use
+     * @param _policyID is a unique identifier
      */
-    function setPolicy(
+    function disablePolicy(
         string memory _policyID
     ) external {
-        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
-        require(enabledPolicyIDs[_policyID], "Predicate.setPolicy: policy ID not enabled or doesn't exist");
-        clientToPolicyID[msg.sender] = _policyID;
-        emit PolicySet(msg.sender, _policyID);
+        require(isEnabledPolicyID[_policyID], "Predicate.disablePolicy: policy ID doesn't exist");
+        for (uint256 i = 0; i < enabledPolicyIDs.length; i++) {
+            if (keccak256(abi.encodePacked(enabledPolicyIDs[i])) == keccak256(abi.encodePacked(_policyID))) {
+                enabledPolicyIDs[i] = enabledPolicyIDs[enabledPolicyIDs.length - 1];
+                enabledPolicyIDs.pop();
+                break;
+            }
+        }
+        isEnabledPolicyID[_policyID] = false;
+        emit PolicyDisabled(_policyID);
     }
 
     /**
-     * @notice Overrides the policy for a specific client address
+     * @notice Overrides the policy ID for a client
      * @param _policyID is the unique identifier for the policy
      * @param _clientAddress is the address of the client for which the policy is being overridden
      */
-    function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner {
-        require(bytes(_policyID).length > 0, "Predicate.setPolicy: policy ID cannot be empty");
-        require(policyIdToThreshold[_policyID] > 0, "Predicate.setPolicy: policy ID not registered");
+    function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner() {
+        require(isEnabledPolicyID[_policyID], "Predicate.overrideClientPolicyID: policy ID doesn't exist");
+        require(clientToPolicyID[_clientAddress] != _policyID, "Predicate.overrideClientPolicyID: client already has this policy ID");
         clientToPolicyID[_clientAddress] = _policyID;
-        emit PolicySet(_clientAddress, _policyID);
+        emit PolicyIDOverridden(_clientAddress, _policyID);
     }
 
     /**
@@ -126,7 +127,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     ) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                _task.taskId,
+                _task.uuid,
                 _task.msgSender,
                 _task.target,
                 _task.msgValue,
@@ -147,7 +148,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     ) public view returns (bytes32) {
         return keccak256(
             abi.encode(
-                _task.taskId,
+                _task.uuid,
                 _task.msgSender,
                 msg.sender,
                 _task.msgValue,
