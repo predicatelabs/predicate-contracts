@@ -16,8 +16,8 @@ struct Task {
     uint256 msgValue;
     // the encoded signature and arguments for the task
     bytes encodedSigAndArgs;
-    // the policy ID associated with the task
-    string policyID;
+    // the policy associated with the task
+    string policy;
     // the timestamp by which the task must be executed
     uint256 expiration;
 }
@@ -26,6 +26,10 @@ struct Task {
  * @notice Struct that bundles together an attestation's parameters for validation
  */
 struct Attestation {
+    // the unique identifier for the attestation
+    string uuid;
+    // the timestamp by which the attestation must be executed
+    uint256 expiration;
     // the address of the attestor
     address attestor;
     // the signature from the attestation
@@ -39,29 +43,49 @@ struct Attestation {
 interface IPredicateRegistry {
 
     /**
-     * @notice Sets a policy ID for the sender, defining execution rules or parameters for tasks
-     * @param policyID string pointing to the policy details
+     * @notice Sets a policy for the sender, defining execution rules or parameters for tasks
+     * @param policy string pointing to the policy details
      * @dev Only callable by client contracts or EOAs to associate a policy with their address
-     * @dev Emits a SetPolicy event upon successful association
+     * @dev Emits a PolicySet event upon successful association
      */
     function setPolicy(
-        string memory policyID
+        string memory policy
     ) external;
 
     /**
-     * @notice Deploys a policy with ID with execution rules or parameters for tasks
-     * @param _policyID string pointing to the policy details
-     * @param _policy string containing the policy details
-     * @param _quorumThreshold The number of signatures required to authorize a task
-     * @dev Only callable by service manager deployer
-     * @dev Emits a DeployedPolicy event upon successful deployment
+     * @notice Disables a policy for which clients can use
+     * @param policy is the identifier for the policy
+     * @dev Emits a PolicyDisabled event upon successful disassociation
      */
-    function deployPolicy(string memory _policyID, string memory _policy, uint256 _quorumThreshold) external;
+    function disablePolicy(string memory policy) external;
 
     /**
-     * @notice Gets array of deployed policies
+     * @notice Enables a policy for which clients can use
+     * @param policy is the identifier for the policy
+     * @dev Emits a PolicyEnabled event upon successful association
      */
-    function getDeployedPolicies() external view returns (string[] memory);
+    function enablePolicy(string memory policy) external;
+
+    /**
+     * @notice Overrides the policy for a client
+     * @param policy is the identifier for the policy
+     * @param client is the address of the client for which the policy is being overridden
+     * @dev Emits a PolicySet event upon successful association
+     */
+    function overrideClientPolicy(string memory policy, address client) external;
+
+    /**
+     * @notice Gets array of enabled policies
+     * @return array of enabled policies
+     */
+    function getEnabledPolicies() external view returns (string[] memory);
+
+    /**
+     * @notice Gets the policy for a client
+     * @param client is the address of the client for which the policy is being retrieved
+     * @return policy is the identifier for the client's policy
+     */
+    function getPolicy(address client) external view returns (string memory);
 
     /**
      * @notice Verifies if a task is authorized by the attestor

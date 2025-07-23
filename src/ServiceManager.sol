@@ -7,28 +7,34 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegistry.sol";
 
+/**
+ * @title PredicateRegistry
+ * @author Predicate Labs, Inc
+ * @notice This contract is a registry for policies, attestors and task validation.
+ */
 contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpgradeable {
-    error PredicateRegistryUnauthorized();
-
-    string[] public enabledPolicyIDs;
+    // storage
+    string[] public enabledPolicies;
     address[] public registeredAttestors;
     mapping(address => bool) public isRegisteredAttestor;
-    mapping(string => bool) public isEnabledPolicyID;
-    mapping(address => string) public clientToPolicyID;
+    mapping(string => bool) public isEnabledPolicy;
+    mapping(address => string) public clientToPolicy;
     mapping(string => bool) public spentTaskIDs;
 
-    event PolicyEnabled(string policyID);
-    event PolicyDisabled(string policyID);
+    // events
+    event PolicyEnabled(string policy);
+    event PolicyDisabled(string policy);
     event AttestorRegistered(address indexed attestor);
     event AttestorDeregistered(address indexed attestor);
-    event PolicyIDOverridden(address indexed client, string policyID);
+    event PolicySet(address indexed client, address indexed setter, string policy, uint256 timestamp);
 
+    // task validation event
     event TaskValidated(
         address indexed msgSender,
         address indexed target,
         address indexed attestor,
         uint256 msgValue,
-        string policyID,
+        string policy,
         string uuid,
         uint256 expiration
     );
@@ -76,54 +82,72 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
 
     /**
      * @notice Enables a policy for which clients can use
-     * @param _policyID is a unique identifier
+     * @param _policy is a unique identifier
      */
     function enablePolicy(
-        string memory _policyID
+        string memory _policy
     ) external onlyOwner {
-        require(!isEnabledPolicyID[_policyID], "Predicate.enablePolicy: policy already exists");
-        isEnabledPolicyID[_policyID] = true;
-        enabledPolicyIDs.push(_policyID);
-        emit PolicyEnabled(_policyID);
+        require(!isEnabledPolicy[_policy], "Predicate.enablePolicy: policy already exists");
+        isEnabledPolicy[_policy] = true;
+        enabledPolicies.push(_policy);
+        emit PolicyEnabled(_policy);
     }
 
     /**
-     * @notice Gets array of enabled policy IDs
-     * @return array of enabled policy IDs
+     * @notice Gets array of enabled policies
+     * @return array of enabled policies
      */
-    function getEnabledPolicyIDs() external view returns (string[] memory) {
-        return enabledPolicyIDs;
+    function getEnabledPolicies() external view returns (string[] memory) {
+        return enabledPolicies;
     }
 
     /**
      * @notice Disables a policy for which clients can use
-     * @param _policyID is a unique identifier
+     * @param _policy is a unique identifier
      */
     function disablePolicy(
-        string memory _policyID
+        string memory _policy
     ) external {
-        require(isEnabledPolicyID[_policyID], "Predicate.disablePolicy: policy ID doesn't exist");
-        for (uint256 i = 0; i < enabledPolicyIDs.length; i++) {
-            if (keccak256(abi.encodePacked(enabledPolicyIDs[i])) == keccak256(abi.encodePacked(_policyID))) {
-                enabledPolicyIDs[i] = enabledPolicyIDs[enabledPolicyIDs.length - 1];
-                enabledPolicyIDs.pop();
+        require(isEnabledPolicy[_policy], "Predicate.disablePolicy: policy doesn't exist");
+        for (uint256 i = 0; i < enabledPolicies.length; i++) {
+            if (keccak256(abi.encodePacked(enabledPolicies[i])) == keccak256(abi.encodePacked(_policy))) {
+                enabledPolicies[i] = enabledPolicies[enabledPolicies.length - 1];
+                enabledPolicies.pop();
                 break;
             }
         }
-        isEnabledPolicyID[_policyID] = false;
-        emit PolicyDisabled(_policyID);
+        isEnabledPolicy[_policy] = false;
+        emit PolicyDisabled(_policy);
     }
 
     /**
-     * @notice Overrides the policy ID for a client
-     * @param _policyID is the unique identifier for the policy
-     * @param _clientAddress is the address of the client for which the policy is being overridden
+     * @notice Overrides the policy for a client
+     * @param _policy is the unique identifier for the policy
+     * @param _client is the address of the client for which the policy is being overridden
      */
-    function overrideClientPolicyID(string memory _policyID, address _clientAddress) external onlyOwner() {
-        require(isEnabledPolicyID[_policyID], "Predicate.overrideClientPolicyID: policy ID doesn't exist");
-        require(clientToPolicyID[_clientAddress] != _policyID, "Predicate.overrideClientPolicyID: client already has this policy ID");
-        clientToPolicyID[_clientAddress] = _policyID;
-        emit PolicyIDOverridden(_clientAddress, _policyID);
+    function overrideClientPolicy(string memory _policy, address _client) external onlyOwner() {
+        require(isEnabledPolicy[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
+        require(clientToPolicy[_client] != _policy, "Predicate.overrideClientPolicy: client already has this policy");
+        clientToPolicy[_client] = _policy;
+        emit PolicySet(_client, msg.sender, _policy, block.timestamp);
+    }
+
+    /**
+     * @notice Sets the policy for a client
+     * @param _policy is the unique identifier for the policy
+     */
+    function setPolicy(string memory _policy) external {
+        require(isEnabledPolicy[_policy], "Predicate.setPolicy: policy doesn't exist or is disabled");
+        clientToPolicy[msg.sender] = _policy;
+        emit PolicySet(msg.sender, msg.sender, _policy, block.timestamp);
+    }
+
+    /**
+     * @notice Gets the policy for a client
+     * @param _client is the address of the client for which the policy is being retrieved
+     */
+    function getPolicy(address _client) external view returns (string memory) {
+        return clientToPolicy[_client];
     }
 
     /**
@@ -141,7 +165,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 _task.target,
                 _task.msgValue,
                 _task.encodedSigAndArgs,
-                _task.policyID,
+                _task.policy,
                 _task.expiration
             )
         );
@@ -162,7 +186,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 msg.sender,
                 _task.msgValue,
                 _task.encodedSigAndArgs,
-                _task.policyID,
+                _task.policy,
                 _task.expiration
             )
         );
@@ -192,7 +216,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
             _task.target,
             _attestation.attestor,
             _task.msgValue,
-            _task.policyID,
+            _task.policy,
             _task.uuid,
             _task.expiration
         );
