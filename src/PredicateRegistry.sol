@@ -9,8 +9,8 @@ import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegi
 
 /**
  * @title PredicateRegistry
- * @author Predicate Labs, Inc
- * @notice This contract is a registry for policies, attestors and task validation.
+ * @author Predicate Labs, Inc (https://predicate.io)
+ * @notice This contract is a registry for policies, attestors and enables task validation.
  */
 contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpgradeable {
     // storage
@@ -39,13 +39,16 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         uint256 expiration
     );
 
+    /**
+     * @notice Initializes the contract
+     * @param _owner the address of the owner of the contract
+     */
     function initialize(
         address _owner
     ) external initializer {
         __Ownable2Step_init();
         __Ownable_init(_owner);
     }
-
 
     /**
      * @notice Registers a new attestor
@@ -59,7 +62,6 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         isRegisteredAttestor[_attestor] = true;
         emit AttestorRegistered(_attestor);
     }
-
 
     /**
      * @notice Deregisters an attestor
