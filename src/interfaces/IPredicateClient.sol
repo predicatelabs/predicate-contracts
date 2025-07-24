@@ -2,25 +2,16 @@
 
 pragma solidity ^0.8.12;
 
-import {IPredicateManager} from "../interfaces/IPredicateManager.sol";
-
-/// @notice Struct that bundles together a task's parameters for validation
-struct PredicateMessage {
-    // the unique identifier for the task
-    string taskId;
-    // the Timestamp expiry for the task
-    uint256 expireByTime;
-    // the operators that have signed the task
-    address[] signerAddresses;
-    // the signatures of the operators that have signed the task
-    bytes[] signatures;
-}
-
-/// @notice error type for unauthorized access
+/**
+ * @notice error type for unauthorized access
+ */
 error PredicateClient__Unauthorized();
 
-/// @notice Interface for a PredicateClient-type contract that enables clients to define execution rules or parameters for tasks they submit
+/**
+ * @notice Interface for a PredicateClient-type contract to set policy, registry and validate tasks
+ */
 interface IPredicateClient {
+
     /**
      * @notice Sets a policy for the calling address, associating it with a policy document stored on IPFS.
      * @param _policyID A string representing the policyID from on chain.
@@ -32,22 +23,24 @@ interface IPredicateClient {
     ) external;
 
     /**
+     * @notice Sets the Predicate Registry for the calling address
+     * @param _registry address of the registry
+     * @dev This function enables clients to set the Predicate Registry for the calling address
+     * @dev Authorized only by the owner of the contract
+     */
+    function setRegistry(
+        address _registry
+    ) external;
+
+    /**
      * @notice Retrieves the policy for the calling address.
      * @return The policyID associated with the calling address.
      */
     function getPolicy() external view returns (string memory);
 
     /**
-     * @notice Function for setting the Predicate ServiceManager
-     * @param _predicateManager address of the service manager
+     * @notice Function for getting the Predicate Registry
+     * @return address of the registry
      */
-    function setPredicateManager(
-        address _predicateManager
-    ) external;
-
-    /**
-     * @notice Function for getting the Predicate ServiceManager
-     * @return address of the service manager
-     */
-    function getPredicateManager() external view returns (address);
+    function getRegistry() external view returns (address);
 }

@@ -3,8 +3,8 @@ pragma solidity ^0.8.12;
 
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegistry.sol";
 
 /**
@@ -96,20 +96,12 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     }
 
     /**
-     * @notice Gets array of enabled policies
-     * @return array of enabled policies
-     */
-    function getEnabledPolicies() external view returns (string[] memory) {
-        return enabledPolicies;
-    }
-
-    /**
      * @notice Disables a policy for which clients can use
      * @param _policy is a unique identifier
      */
     function disablePolicy(
         string memory _policy
-    ) external {
+    ) external onlyOwner {
         require(isEnabledPolicy[_policy], "Predicate.disablePolicy: policy doesn't exist");
         for (uint256 i = 0; i < enabledPolicies.length; i++) {
             if (keccak256(abi.encodePacked(enabledPolicies[i])) == keccak256(abi.encodePacked(_policy))) {
@@ -120,6 +112,22 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         }
         isEnabledPolicy[_policy] = false;
         emit PolicyDisabled(_policy);
+    }
+
+    /**
+     * @notice Gets array of enabled policies
+     * @return array of enabled policies
+     */
+    function getEnabledPolicies() external view returns (string[] memory) {
+        return enabledPolicies;
+    }
+
+    /**
+     * @notice Gets array of registered attestors
+     * @return array of registered attestors
+     */
+    function getRegisteredAttestors() external view returns (address[] memory) {
+        return registeredAttestors;
     }
 
     /**

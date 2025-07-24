@@ -2,15 +2,15 @@
 
 pragma solidity ^0.8.12;
 
-import {IPredicateManager, Task} from "../interfaces/IPredicateManager.sol";
+import {IPredicateRegistry, Attestation, Task} from "../interfaces/IPredicateRegistry.sol";
 import "../interfaces/IPredicateClient.sol";
 
 abstract contract PredicateClient is IPredicateClient {
     /// @notice Struct to contain stateful values for PredicateClient-type contracts
     /// @custom:storage-location erc7201:predicate.storage.PredicateClient
     struct PredicateClientStorage {
-        IPredicateManager serviceManager;
-        string policyID;
+        IPredicateRegistry registry;
+        string policy;
     }
 
     /// @notice the storage slot for the PredicateClientStorage struct
@@ -24,72 +24,75 @@ abstract contract PredicateClient is IPredicateClient {
         }
     }
 
-    function _initPredicateClient(address _serviceManagerAddress, string memory _policyID) internal {
+    function _initPredicateClient(address _registryAddress, string memory _policy) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.serviceManager = IPredicateManager(_serviceManagerAddress);
-        _setPolicy(_policyID);
+        $.registry = IPredicateRegistry(_registryAddress);
+        _setPolicy(_policy);
     }
 
     function _setPolicy(
-        string memory _policyID
+        string memory _policy
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.policyID = _policyID;
-        $.serviceManager.setPolicy(_policyID);
+        $.policy = _policy;
+        $.registry.setPolicy(_policy);
     }
 
-    function getPolicy() external view override returns (string memory) {
+    function getPolicy() external view returns (string memory) {
         return _getPolicy();
     }
 
     function _getPolicy() internal view returns (string memory) {
-        return _getPredicateClientStorage().policyID;
+        return _getPredicateClientStorage().policy;
     }
 
-    function _setPredicateManager(
-        address _predicateManager
+    function _setRegistry(
+        address _registryAddress
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.serviceManager = IPredicateManager(_predicateManager);
+        $.registry = IPredicateRegistry(_registryAddress);
     }
 
-    function getPredicateManager() external view override returns (address) {
-        return _getPredicateManager();
+    function getRegistry() external view returns (address) {
+        return _getRegistry();
     }
 
-    function _getPredicateManager() internal view returns (address) {
-        return address(_getPredicateClientStorage().serviceManager);
+    function _getRegistry() internal view returns (address) {
+        return address(_getPredicateClientStorage().registry);
     }
 
-    modifier onlyPredicateServiceManager() {
-        if (msg.sender != address(_getPredicateClientStorage().serviceManager)) {
+    modifier onlyPredicateRegistry() {
+        if (msg.sender != address(_getPredicateClientStorage().registry)) {
             revert PredicateClient__Unauthorized();
         }
         _;
     }
 
     /**
-     *
-     * @notice Validates the transaction by checking the signatures of the operators.
+     * @notice Validates the transaction by checking the attestation.
+     * @param _attestation Attestation from the attestor authorizing the task
+     * @param _encodedSigAndArgs Encoded signature and arguments for the task
+     * @param _msgSender Address of the sender of the task
+     * @param _msgValue Value to send with the task
+     * @return bool indicating if the task has been validated
      */
     function _authorizeTransaction(
-        PredicateMessage memory _predicateMessage,
+        Attestation memory _attestation,
         bytes memory _encodedSigAndArgs,
         address _msgSender,
-        uint256 _value
+        uint256 _msgValue
     ) internal returns (bool) {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         Task memory task = Task({
             msgSender: _msgSender,
             target: address(this),
-            value: _value,
+            msgValue: _msgValue,
             encodedSigAndArgs: _encodedSigAndArgs,
-            policyID: $.policyID,
-            quorumThresholdCount: uint32(_predicateMessage.signerAddresses.length),
-            taskId: _predicateMessage.taskId,
-            expireByTime: _predicateMessage.expireByTime
+            policy: $.policy,
+            expiration: _attestation.expiration,
+            uuid: _attestation.uuid
         });
         return
-            $.serviceManager.validateSignatures(task, _predicateMessage.signerAddresses, _predicateMessage.signatures);
+            $.registry.validateAttestation(task, _attestation);
     }
 }
