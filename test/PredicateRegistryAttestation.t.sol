@@ -145,12 +145,8 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
         signature = abi.encodePacked(r, s, v);
 
-        Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attestor: attestorOne,
-            signature: signature,
-            expiration: block.timestamp
-        });
+        Attestation memory attestation =
+            Attestation({uuid: "uuid-1", attestor: attestorOne, signature: signature, expiration: block.timestamp});
 
         vm.expectRevert("Predicate.validateAttestation: attestation expired");
         vm.warp(block.timestamp + 100);
