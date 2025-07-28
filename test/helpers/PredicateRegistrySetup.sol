@@ -40,7 +40,7 @@ contract PredicateRegistrySetup {
         (attestorOne, attestorOnePk) = makeAddrAndKey("attestorOne");
         (attestorTwo, attestorTwoPk) = makeAddrAndKey("attestorTwo");
 
-        // register attestors
+        // register attestors (only One and Two)
         vm.startPrank(owner);
         predicateRegistry.registerAttestor(attestorOne);
         predicateRegistry.registerAttestor(attestorTwo);

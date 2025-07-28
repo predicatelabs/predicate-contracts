@@ -7,7 +7,7 @@ import {MockClient} from "./helpers/mocks/MockClient.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-contract OwnershipPredicateRegistryTest is PredicateRegistrySetup {
+contract PredicateRegistryOwnershipTest is PredicateRegistrySetup {
     Ownable2StepUpgradeable ownablePredicateRegistry;
     address newOwner;
     address randomAddress;

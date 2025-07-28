@@ -8,11 +8,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract MockClient is PredicateClient, Ownable {
     uint256 public counter;
 
-    constructor(address _owner, address _serviceManager, string memory _policyID) Ownable(_owner) {
-        _initPredicateClient(_serviceManager, _policyID);
+    constructor(address _owner, address _registry, string memory _policyID) Ownable(_owner) {
+        _initPredicateClient(_registry, _policyID);
     }
 
-    function incrementCounter() external onlyPredicateServiceManager {
+    function incrementCounter() external onlyPredicateRegistry {
         counter++;
     }
 
@@ -24,10 +24,10 @@ contract MockClient is PredicateClient, Ownable {
     }
 
     // @inheritdoc IPredicateClient
-    function setPredicateManager(
-        address _predicateManager
+    function setRegistry(
+        address _registry
     ) public onlyOwner {
-        _setPredicateManager(_predicateManager);
+        _setRegistry(_registry);
     }
 
     fallback() external payable {

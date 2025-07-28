@@ -6,8 +6,15 @@ import {MockClient} from "./helpers/mocks/MockClient.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 
 contract MockClientTest is PredicateRegistrySetup {
-    function testServiceManagerIsSet() public {
-        assertTrue(address(serviceManager) == client.getPredicateManager());
+    MockClient client;
+
+    function setUp() public override {
+        super.setUp();
+        client = new MockClient(owner, address(predicateRegistry), policyOne);
+    }
+
+    function testRegistryIsSet() public {
+        assertTrue(address(predicateRegistry) == client.getRegistry());
     }
 
     function testOwnerCanSetPolicy() public {

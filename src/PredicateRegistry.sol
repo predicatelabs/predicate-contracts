@@ -2,7 +2,6 @@
 pragma solidity ^0.8.12;
 
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegistry.sol";
@@ -12,12 +11,12 @@ import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegi
  * @author Predicate Labs, Inc (https://predicate.io)
  * @notice This contract is a registry for policies, attestors and enables task validation.
  */
-contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpgradeable {
+contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     // storage
     string[] public enabledPolicies;
     address[] public registeredAttestors;
-    mapping(address => bool) public isRegisteredAttestor;
-    mapping(string => bool) public isEnabledPolicy;
+    mapping(address => bool) public isAttestorRegistered;
+    mapping(string => bool) public isPolicyEnabled;
     mapping(address => string) public clientToPolicy;
     mapping(string => bool) public spentTaskIDs;
 
@@ -59,7 +58,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     ) external onlyOwner {
         require(!registeredAttestors[_attestor], "Predicate.registerAttestor: attestor already registered");
         registeredAttestors.push(_attestor);
-        isRegisteredAttestor[_attestor] = true;
+        isAttestorRegistered[_attestor] = true;
         emit AttestorRegistered(_attestor);
     }
 
@@ -70,7 +69,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     function deregisterAttestor(
         address _attestor
     ) external onlyOwner {
-        require(isRegisteredAttestor[_attestor], "Predicate.deregisterAttestor: attestor not registered");
+        require(isAttestorRegistered[_attestor], "Predicate.deregisterAttestor: attestor not registered");
         for (uint256 i = 0; i < registeredAttestors.length; i++) {
             if (registeredAttestors[i] == _attestor) {
                 registeredAttestors[i] = registeredAttestors[registeredAttestors.length - 1];
@@ -78,7 +77,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 break;
             }
         }
-        isRegisteredAttestor[_attestor] = false;
+        isAttestorRegistered[_attestor] = false;
         emit AttestorDeregistered(_attestor);
     }
 
@@ -89,8 +88,9 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     function enablePolicy(
         string memory _policy
     ) external onlyOwner {
-        require(!isEnabledPolicy[_policy], "Predicate.enablePolicy: policy already exists");
-        isEnabledPolicy[_policy] = true;
+        require(bytes(_policy).length > 0, "Predicate.enablePolicy: policy string cannot be empty");
+        require(!isPolicyEnabled[_policy], "Predicate.enablePolicy: policy already exists");
+        isPolicyEnabled[_policy] = true;
         enabledPolicies.push(_policy);
         emit PolicyEnabled(_policy);
     }
@@ -102,7 +102,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
     function disablePolicy(
         string memory _policy
     ) external onlyOwner {
-        require(isEnabledPolicy[_policy], "Predicate.disablePolicy: policy doesn't exist");
+        require(isPolicyEnabled[_policy], "Predicate.disablePolicy: policy doesn't exist");
         for (uint256 i = 0; i < enabledPolicies.length; i++) {
             if (keccak256(abi.encodePacked(enabledPolicies[i])) == keccak256(abi.encodePacked(_policy))) {
                 enabledPolicies[i] = enabledPolicies[enabledPolicies.length - 1];
@@ -110,7 +110,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
                 break;
             }
         }
-        isEnabledPolicy[_policy] = false;
+        isPolicyEnabled[_policy] = false;
         emit PolicyDisabled(_policy);
     }
 
@@ -136,7 +136,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
      * @param _client is the address of the client for which the policy is being overridden
      */
     function overrideClientPolicy(string memory _policy, address _client) external onlyOwner {
-        require(isEnabledPolicy[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
+        require(isPolicyEnabled[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
         require(clientToPolicy[_client] != _policy, "Predicate.overrideClientPolicy: client already has this policy");
         clientToPolicy[_client] = _policy;
         emit PolicySet(_client, msg.sender, _policy, block.timestamp);
@@ -147,7 +147,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
      * @param _policy is the unique identifier for the policy
      */
     function setPolicy(string memory _policy) external {
-        require(isEnabledPolicy[_policy], "Predicate.setPolicy: policy doesn't exist or is disabled");
+        require(isPolicyEnabled[_policy], "Predicate.setPolicy: policy doesn't exist or is disabled");
         clientToPolicy[msg.sender] = _policy;
         emit PolicySet(msg.sender, msg.sender, _policy, block.timestamp);
     }
@@ -217,7 +217,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
         bytes32 messageHash = hashTaskSafe(_task);
         address recoveredAttestor = ECDSA.recover(messageHash, _attestation.signature);
         require(recoveredAttestor == _attestation.attestor, "Predicate.validateAttestation: Invalid signature");
-        require(isRegisteredAttestor[recoveredAttestor], "Predicate.validateAttestation: Attestor is not a registered attestor");
+        require(isAttestorRegistered[recoveredAttestor], "Predicate.validateAttestation: Attestor is not a registered attestor");
 
         spentTaskIDs[_task.uuid] = true;
 
