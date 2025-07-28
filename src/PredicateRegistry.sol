@@ -218,8 +218,13 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         Task calldata _task,
         Attestation calldata _attestation
     ) external returns (bool isVerified) {
-        require(block.timestamp <= _task.expiration, "Predicate.validateAttestation: transaction expired");
+        // check if attestation is expired or task is already spent
+        require(block.timestamp <= _attestation.expiration, "Predicate.validateAttestation: attestation expired");
         require(!spentTaskIDs[_task.uuid], "Predicate.validateAttestation: task ID already spent");
+
+        // check if task ID matches attestation ID and expiration
+        require(keccak256(abi.encodePacked(_task.uuid)) == keccak256(abi.encodePacked(_attestation.uuid)), "Predicate.validateAttestation: task ID does not match attestation ID");
+        require(_task.expiration == _attestation.expiration, "Predicate.validateAttestation: task expiration does not match attestation expiration");
 
         bytes32 messageHash = hashTaskSafe(_task);
         address recoveredAttestor = ECDSA.recover(messageHash, _attestation.signature);

@@ -1,227 +1,296 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-// import {Test} from "forge-std/Test.sol";
-// import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
-// import "./helpers/PredicateRegistrySetup.sol";
+import {Test} from "forge-std/Test.sol";
+import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
+import "./helpers/PredicateRegistrySetup.sol";
 
-// contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
-//     // extra attestor
-//     address attestorThree;
-//     uint256 attestorThreePk;
+contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
+    // extra attestor
+    address attestorThree;
+    uint256 attestorThreePk;
 
-//     function setUp() public override {
-//         super.setUp();
-//         (attestorThree, attestorThreePk) = makeAddrAndKey("attestorThree");
-//     }
+    function setUp() public override {
+        super.setUp();
+        (attestorThree, attestorThreePk) = makeAddrAndKey("attestorThree");
+    }
 
-//     function testCannotUseSpentTask() public {
-//         Task memory task = Task({
-//             uuid: "uuid-1",
-//             msgSender: address(this),
-//             target: address(this),
-//             msgValue: 0,
-//             encodedSigAndArgs: "",
-//             policy: policyOne,
-//             expiration: block.timestamp + 100
-//         });
+    function testValidateAttestation() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//         // sign task
-//         bytes memory signature;
-//         bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
-//         (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
-//         signature = abi.encodePacked(r, s, v);
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         // create attestation
-//         Attestation memory attestation = Attestation({
-//             uuid: "uuid-1",
-//             attestor: attestorOne,
-//             signature: signature,
-//             expiration: block.timestamp + 100
-//         });
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorOne,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
 
-//         // validate attestation
-//         vm.prank(address(this));
-//         bool result = predicateRegistry.validateAttestation(task,attestation);
-//         assertTrue(result, "First execution should succeed");
+        vm.prank(address(this));
+        bool result = predicateRegistry.validateAttestation(task, attestation);
+        assertTrue(result, "First execution should succeed");
+    }
 
-//         vm.expectRevert();
-//         serviceManager.validateSignatures(task, signers, signatures);
+    function testCannotTamperUUID() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//         Task memory newTask = Task({
-//             taskId: "newTaskId",
-//             msgSender: address(this),
-//             target: address(this),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: "testPolicy",
-//             quorumThresholdCount: 1,
-//             expireByTime: block.timestamp + 100
-//         });
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         vm.expectRevert();
-//         vm.prank(address(client));
-//         serviceManager.validateSignatures(newTask, signers, signatures);
-//     }
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-new",
+            attestor: attestorOne,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
 
-//     function testCannotReplaySignatures() public permissionedOperators prepOperatorRegistration(true) {
-//         Task memory task = Task({
-//             taskId: "taskId",
-//             msgSender: address(this),
-//             target: address(client),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: policyID,
-//             quorumThresholdCount: 1,
-//             expireByTime: block.timestamp + 100
-//         });
+        vm.expectRevert("Predicate.validateAttestation: task ID does not match attestation ID");
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
+    function testCannotTamperExpiration() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
-//         bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         address[] memory signers = new address[](1);
-//         signers[0] = operatorOneAlias;
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorOne,
+            signature: signature,
+            expiration: block.timestamp + 200
+        });
 
-//         bytes[] memory signatures = new bytes[](1);
-//         signatures[0] = signature;
+        vm.expectRevert("Predicate.validateAttestation: task expiration does not match attestation expiration");
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         vm.prank(address(client));
-//         bool result = serviceManager.validateSignatures(task, signers, signatures);
-//         assertTrue(result, "First execution is expected to succeed");
+    function testCannotUseSpentUUID() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//         vm.expectRevert();
-//         vm.prank(address(client));
-//         serviceManager.validateSignatures(task, signers, signatures);
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         Task memory newTask = Task({
-//             taskId: "newTaskId",
-//             msgSender: address(this),
-//             target: address(client),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: "testPolicy",
-//             quorumThresholdCount: 1,
-//             expireByTime: block.timestamp + 100
-//         });
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorOne,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
 
-//         vm.expectRevert();
-//         vm.prank(address(client));
-//         serviceManager.validateSignatures(newTask, signers, signatures);
-//     }
+        vm.prank(address(this));
+        bool result = predicateRegistry.validateAttestation(task, attestation);
+        assertTrue(result, "First execution should succeed");
 
-//     function testRevertOnExpiredTask() public permissionedOperators prepOperatorRegistration(true) {
-//         uint256 expireByTime = block.timestamp - 1;
-//         Task memory task = Task({
-//             taskId: "taskId",
-//             msgSender: address(this),
-//             target: address(client),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: policyID,
-//             quorumThresholdCount: 1,
-//             expireByTime: expireByTime
-//         });
+        // cannot use spent UUID
+        vm.expectRevert("Predicate.validateAttestation: task ID already spent");
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
+    function testCannotUseExpiredAttestation() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp
+        });
 
-//         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
-//         bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         address[] memory signers = new address[](1);
-//         signers[0] = operatorOneAlias;
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorOne,
+            signature: signature,
+            expiration: block.timestamp
+        });
 
-//         bytes[] memory signatures = new bytes[](1);
-//         signatures[0] = signature;
+        vm.expectRevert("Predicate.validateAttestation: attestation expired");
+        vm.warp(block.timestamp + 100);
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         vm.expectRevert("Predicate.validateSignatures: transaction expired");
-//         vm.prank(address(client));
-//         serviceManager.validateSignatures(task, signers, signatures);
-//     }
+    function testCannotUseInvalidAttestor() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//     function cannotSupplySignaturesToTaskWithDifferentDigest()
-//         public
-//         permissionedOperators
-//         prepOperatorRegistration(true)
-//     {
-//         Task memory task = Task({
-//             taskId: "taskId",
-//             msgSender: address(this),
-//             target: address(client),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: "testPolicy",
-//             quorumThresholdCount: 1,
-//             expireByTime: block.timestamp + 100
-//         });
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorThree,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
 
-//         bytes memory signature;
-//         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
-//         signature = abi.encodePacked(r, s, v);
+        vm.expectRevert("Predicate.validateAttestation: Invalid signature");
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         address[] memory signers = new address[](1);
-//         signers[0] = operatorOneAlias;
+    function testCannotUseInvalidSignature() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//         bytes[] memory signatures = new bytes[](1);
-//         signatures[0] = signature;
+        bytes memory invalidSignature = abi.encodePacked(bytes32(0), bytes32(0), uint8(0));
 
-//         Task memory newTask = Task({
-//             taskId: "newTaskId",
-//             msgSender: address(this),
-//             target: address(this),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: "testPolicy",
-//             quorumThresholdCount: 1,
-//             expireByTime: block.timestamp + 100
-//         });
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorOne,
+            signature: invalidSignature,
+            expiration: block.timestamp + 100
+        });
 
-//         assertTrue(serviceManager.hashTaskWithExpiry(newTask) != taskDigest);
+        vm.expectRevert();
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         vm.expectRevert();
-//         vm.prank(address(client));
-//         serviceManager.validateSignatures(newTask, signers, signatures);
-//     }
+    function testCannotUseDifferentAttestor() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//     function testDeregisteredOperatorCannotValidateSignatures()
-//         public
-//         permissionedOperators
-//         prepOperatorRegistration(true)
-//     {
-//         Task memory task = Task({
-//             taskId: "taskId",
-//             msgSender: address(this),
-//             target: address(client),
-//             value: 0,
-//             encodedSigAndArgs: "",
-//             policyID: policyID,
-//             quorumThresholdCount: 1,
-//             expireByTime: block.timestamp + 100
-//         });
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         bytes32 taskDigest = serviceManager.hashTaskWithExpiry(task);
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorTwo,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
 
-//         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, taskDigest);
-//         bytes memory signature = abi.encodePacked(r, s, v);
+        vm.expectRevert();
+        predicateRegistry.validateAttestation(task, attestation);
+    }
 
-//         address[] memory signers = new address[](1);
-//         signers[0] = operatorOneAlias;
+    function testCannotUseDeregisteredAttestor() public {
+        Task memory task = Task({
+            uuid: "uuid-1",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
 
-//         bytes[] memory signatures = new bytes[](1);
-//         signatures[0] = signature;
+        bytes memory signature;
+        bytes32 taskDigest = predicateRegistry.hashTaskWithExpiry(task);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, taskDigest);
+        signature = abi.encodePacked(r, s, v);
 
-//         // Deregister operator
-//         serviceManager.deregisterOperatorFromAVS(operatorOne);
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-1",
+            attestor: attestorOne,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
 
-//         vm.prank(address(client));
-//         vm.expectRevert("Predicate.validateSignatures: Signer is not a registered operator");
-//         serviceManager.validateSignatures(task, signers, signatures);
-//     }
+        vm.prank(address(this));
+        bool result = predicateRegistry.validateAttestation(task, attestation);
+        assertTrue(result, "First execution should succeed");
 
-//     fallback() external payable {}
+        // deregister attestor
+        vm.prank(owner);
+        predicateRegistry.deregisterAttestor(attestorOne);
 
-//     receive() external payable {}
-// }
+        // create new task
+        Task memory task2 = Task({
+            uuid: "uuid-2",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
+
+        bytes memory signature2;
+        bytes32 taskDigest2 = predicateRegistry.hashTaskWithExpiry(task2);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(attestorOnePk, taskDigest2);
+        signature2 = abi.encodePacked(r2, s2, v2);
+
+        Attestation memory attestation2 = Attestation({
+            uuid: "uuid-2",
+            attestor: attestorOne,
+            signature: signature2,
+            expiration: block.timestamp + 100
+        });
+
+        // cannot use deregistered attestor
+        vm.expectRevert("Predicate.validateAttestation: Attestor is not a registered attestor");
+        predicateRegistry.validateAttestation(task2, attestation2);
+    }
+}
