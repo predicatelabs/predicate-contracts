@@ -91,7 +91,6 @@ abstract contract PredicateClient is IPredicateClient {
             expiration: _attestation.expiration,
             uuid: _attestation.uuid
         });
-        return
-            $.registry.validateAttestation(task, _attestation);
+        return $.registry.validateAttestation(task, _attestation);
     }
 }

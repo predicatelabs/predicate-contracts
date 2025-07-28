@@ -8,7 +8,7 @@ import "./helpers/PredicateRegistrySetup.sol";
 
 contract PredicateRegistryAttestorTest is PredicateRegistrySetup {
     // extra attestor
-    address attestorThree; 
+    address attestorThree;
     uint256 attestorThreePk;
 
     function setUp() public override {

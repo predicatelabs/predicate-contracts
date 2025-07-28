@@ -20,11 +20,11 @@ contract MetaCoinTest is PredicateRegistrySetup {
         // setup test accounts
         testReceiver = makeAddr("testReceiver");
         clientOwner = makeAddr("clientOwner");
-                
+
         // deploy metacoin contract
         client = new MetaCoin(clientOwner, address(predicateRegistry), policyOne);
     }
-    
+
     function testRegistryIsSet() public {
         assertTrue(address(predicateRegistry) == client.getRegistry());
     }
@@ -77,18 +77,12 @@ contract MetaCoinTest is PredicateRegistrySetup {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, messageHash);
         signature = abi.encodePacked(r, s, v);
 
-        Attestation memory attestation = Attestation({
-            uuid: uuid,
-            expiration: expireByTime,
-            attestor: attestorOne,
-            signature: signature
-        });
+        Attestation memory attestation =
+            Attestation({uuid: uuid, expiration: expireByTime, attestor: attestorOne, signature: signature});
 
         vm.prank(clientOwner);
         client.sendCoin(testReceiver, amount, attestation);
         assertEq(client.getBalance(testReceiver), 10, "receiver balance should be 10 after receiving");
-        assertEq(
-            client.getBalance(clientOwner), 9_999_999_999_990, "sender balance should be 9900 after sending"
-        );
+        assertEq(client.getBalance(clientOwner), 9_999_999_999_990, "sender balance should be 9900 after sending");
     }
 }

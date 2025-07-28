@@ -71,7 +71,7 @@ contract PredicateRegistryPolicyTest is PredicateRegistrySetup {
         vm.expectRevert();
         predicateRegistry.enablePolicy(policyOne);
     }
-    
+
     function testRandomAddrCannotDisablePolicy() public {
         vm.prank(randomAddress);
         vm.expectRevert();

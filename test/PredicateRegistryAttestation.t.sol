@@ -7,14 +7,14 @@ pragma solidity ^0.8.12;
 
 // contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
 //     // extra attestor
-//     address attestorThree; 
+//     address attestorThree;
 //     uint256 attestorThreePk;
 
 //     function setUp() public override {
 //         super.setUp();
 //         (attestorThree, attestorThreePk) = makeAddrAndKey("attestorThree");
 //     }
-    
+
 //     function testCannotUseSpentTask() public {
 //         Task memory task = Task({
 //             uuid: "uuid-1",

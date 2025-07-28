@@ -16,7 +16,7 @@ contract PredicateRegistrySetup is Test {
 
     // owner of the contract
     address owner = makeAddr("owner");
-    
+
     // attestors
     address attestorOne;
     uint256 attestorOnePk;

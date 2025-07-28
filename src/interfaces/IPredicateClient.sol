@@ -10,7 +10,6 @@ error PredicateClient__Unauthorized();
  * @notice Interface for a PredicateClient-type contract to set policy, registry and validate tasks
  */
 interface IPredicateClient {
-
     /**
      * @notice Sets a policy for the calling address, associating it with a policy document stored on IPFS.
      * @param _policyID A string representing the policyID from on chain.

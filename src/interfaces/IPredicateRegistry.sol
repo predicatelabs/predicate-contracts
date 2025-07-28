@@ -40,7 +40,6 @@ struct Attestation {
  * @author Predicate Labs, Inc
  */
 interface IPredicateRegistry {
-
     /**
      * @notice Sets a policy for the sender, defining execution rules or parameters for tasks
      * @param policy string pointing to the policy details
@@ -56,14 +55,18 @@ interface IPredicateRegistry {
      * @param policy is the identifier for the policy
      * @dev Emits a PolicyDisabled event upon successful disassociation
      */
-    function disablePolicy(string memory policy) external;
+    function disablePolicy(
+        string memory policy
+    ) external;
 
     /**
      * @notice Enables a policy for which clients can use
      * @param policy is the identifier for the policy
      * @dev Emits a PolicyEnabled event upon successful association
      */
-    function enablePolicy(string memory policy) external;
+    function enablePolicy(
+        string memory policy
+    ) external;
 
     /**
      * @notice Overrides the policy for a client
@@ -84,7 +87,9 @@ interface IPredicateRegistry {
      * @param client is the address of the client for which the policy is being retrieved
      * @return policy is the identifier for the client's policy
      */
-    function getPolicy(address client) external view returns (string memory);
+    function getPolicy(
+        address client
+    ) external view returns (string memory);
 
     /**
      * @notice Verifies if a task is authorized by the attestor

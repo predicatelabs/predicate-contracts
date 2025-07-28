@@ -137,7 +137,10 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      */
     function overrideClientPolicy(string memory _policy, address _client) external onlyOwner {
         require(isPolicyEnabled[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
-        require(keccak256(abi.encodePacked(clientToPolicy[_client])) != keccak256(abi.encodePacked(_policy)), "Predicate.overrideClientPolicy: client already has this policy");
+        require(
+            keccak256(abi.encodePacked(clientToPolicy[_client])) != keccak256(abi.encodePacked(_policy)),
+            "Predicate.overrideClientPolicy: client already has this policy"
+        );
         clientToPolicy[_client] = _policy;
         emit PolicySet(_client, msg.sender, _policy, block.timestamp);
     }
@@ -146,7 +149,9 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      * @notice Sets the policy for a client
      * @param _policy is the unique identifier for the policy
      */
-    function setPolicy(string memory _policy) external {
+    function setPolicy(
+        string memory _policy
+    ) external {
         require(isPolicyEnabled[_policy], "Predicate.setPolicy: policy doesn't exist or is disabled");
         clientToPolicy[msg.sender] = _policy;
         emit PolicySet(msg.sender, msg.sender, _policy, block.timestamp);
@@ -156,7 +161,9 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      * @notice Gets the policy for a client
      * @param _client is the address of the client for which the policy is being retrieved
      */
-    function getPolicy(address _client) external view returns (string memory) {
+    function getPolicy(
+        address _client
+    ) external view returns (string memory) {
         return clientToPolicy[_client];
     }
 
@@ -217,7 +224,10 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         bytes32 messageHash = hashTaskSafe(_task);
         address recoveredAttestor = ECDSA.recover(messageHash, _attestation.signature);
         require(recoveredAttestor == _attestation.attestor, "Predicate.validateAttestation: Invalid signature");
-        require(isAttestorRegistered[recoveredAttestor], "Predicate.validateAttestation: Attestor is not a registered attestor");
+        require(
+            isAttestorRegistered[recoveredAttestor],
+            "Predicate.validateAttestation: Attestor is not a registered attestor"
+        );
 
         spentTaskIDs[_task.uuid] = true;
 
