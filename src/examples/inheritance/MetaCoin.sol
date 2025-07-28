@@ -1,27 +1,25 @@
-// SPDX-License-Identifier: MIT
-// Tells the Solidity compiler to compile only from v0.8.13 to v0.9.0
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
-import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateManager} from "../../interfaces/IPredicateManager.sol";
+import {Attestation} from "../../interfaces/IPredicateRegistry.sol";
 
 contract MetaCoin is PredicateClient, Ownable {
     mapping(address => uint256) public balances;
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address _owner, address _serviceManager, string memory _policyID) Ownable(_owner) {
+    constructor(address _owner, address _registry, string memory _policyID) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
-        _initPredicateClient(_serviceManager, _policyID);
+        _initPredicateClient(_registry, _policyID);
     }
 
-    function sendCoin(address _receiver, uint256 _amount, PredicateMessage calldata _message) external payable {
+    function sendCoin(address _receiver, uint256 _amount, Attestation calldata _attestation) external payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
-            _authorizeTransaction(_message, encodedSigAndArgs, msg.sender, msg.value),
+            _authorizeTransaction(_attestation, encodedSigAndArgs, msg.sender, msg.value),
             "MetaCoin: unauthorized transaction"
         );
 
@@ -35,10 +33,10 @@ contract MetaCoin is PredicateClient, Ownable {
         _setPolicy(_policyID);
     }
 
-    function setPredicateManager(
-        address _predicateManager
+    function setRegistry(
+        address _registry
     ) public onlyOwner {
-        _setPredicateManager(_predicateManager);
+        _setRegistry(_registry);
     }
 
     function _sendCoin(address _receiver, uint256 _amount) internal {
