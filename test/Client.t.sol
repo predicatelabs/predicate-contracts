@@ -3,10 +3,9 @@ pragma solidity ^0.8.12;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MockClient} from "./helpers/mocks/MockClient.sol";
-import "./helpers/utility/ServiceManagerSetup.sol";
-import "forge-std/Test.sol";
+import "./helpers/PredicateRegistrySetup.sol";
 
-contract MockClientTest is ServiceManagerSetup {
+contract MockClientTest is PredicateRegistrySetup {
     function testServiceManagerIsSet() public {
         assertTrue(address(serviceManager) == client.getPredicateManager());
     }

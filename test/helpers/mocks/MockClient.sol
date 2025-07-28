@@ -3,7 +3,6 @@
 pragma solidity ^0.8.12;
 
 import {PredicateClient} from "src/mixins/PredicateClient.sol";
-import {IPredicateManager} from "src/interfaces/IPredicateManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MockClient is PredicateClient, Ownable {

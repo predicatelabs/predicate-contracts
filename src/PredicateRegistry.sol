@@ -135,7 +135,7 @@ contract PredicateRegistry is IPredicateRegistry, Initializable, Ownable2StepUpg
      * @param _policy is the unique identifier for the policy
      * @param _client is the address of the client for which the policy is being overridden
      */
-    function overrideClientPolicy(string memory _policy, address _client) external onlyOwner() {
+    function overrideClientPolicy(string memory _policy, address _client) external onlyOwner {
         require(isEnabledPolicy[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
         require(clientToPolicy[_client] != _policy, "Predicate.overrideClientPolicy: client already has this policy");
         clientToPolicy[_client] = _policy;

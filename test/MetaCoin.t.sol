@@ -1,41 +1,55 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-import "./helpers/utility/TestUtils.sol";
-import "./helpers/utility/MetaCoinTestSetup.sol";
-import "./helpers/utility/OperatorTestPrep.sol";
 import {PredicateMessage} from "../src/interfaces/IPredicateClient.sol";
-import "forge-std/console.sol";
+import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
+import {MetaCoin} from "../src/MetaCoin.sol";
+import "./helpers/PredicateRegistrySetup.sol";
 
-contract MetaCoinTest is OperatorTestPrep, MetaCoinTestSetup {
-    modifier permissionedOperators() {
-        vm.startPrank(address(this));
-        address[] memory operators = new address[](2);
-        operators[0] = operatorOne;
-        operators[1] = operatorTwo;
-        serviceManager.addPermissionedOperators(operators);
-        vm.stopPrank();
-        _;
+contract MetaCoinTest is PredicateRegistrySetup {
+
+    function setUp() public override {
+        // setup predicate registry
+        super.setUp();
+
+        // setup test accounts
+        (testSender, testSenderPk) = makeAddrAndKey("testSender");
+        (testReceiver, testReceiverPk) = makeAddrAndKey("testReceiver");
+        
+        // deploy meta coin contract
+        metaCoinContract = new MetaCoin();
+        metaCoinContract.initialize(owner);
     }
 
-    function testMetaCoinTransferWithPredicateMessage() public permissionedOperators prepOperatorRegistration(true) {
+    function testMetaCoinTransferWithPredicateMessage() public {
         uint256 expireByTime = block.timestamp + 100;
-        string memory taskId = "unique-identifier";
+        string memory uuid = "unique-identifier";
         uint256 amount = 10;
-
-        bytes32 messageHash = TestUtils.hashTaskSTM(
+        bytes32 messageHash = predicateRegistry.hashTaskWithExpiry(
             Task({
-                taskId: taskId,
+                uuid: uuid,
                 msgSender: testSender,
                 target: address(metaCoinContract),
-                value: 0,
+                msgValue: 0,
                 encodedSigAndArgs: abi.encodeWithSignature("_sendCoin(address,uint256)", testReceiver, amount),
-                policyID: "testPolicy",
+                policyID: policyOne,
                 quorumThresholdCount: 1,
                 expireByTime: expireByTime
             })
         );
 
+
+        return keccak256(
+            abi.encode(
+                _task.uuid,
+                _task.msgSender,
+                msg.sender,
+                _task.msgValue,
+                _task.encodedSigAndArgs,
+                _task.policy,
+                _task.expiration
+            )
+        );
         bytes memory signature;
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorOneAliasPk, messageHash);
         signature = abi.encodePacked(r, s, v);
