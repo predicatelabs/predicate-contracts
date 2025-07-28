@@ -56,7 +56,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     function registerAttestor(
         address _attestor
     ) external onlyOwner {
-        require(!registeredAttestors[_attestor], "Predicate.registerAttestor: attestor already registered");
+        require(!isAttestorRegistered[_attestor], "Predicate.registerAttestor: attestor already registered");
         registeredAttestors.push(_attestor);
         isAttestorRegistered[_attestor] = true;
         emit AttestorRegistered(_attestor);
@@ -137,7 +137,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      */
     function overrideClientPolicy(string memory _policy, address _client) external onlyOwner {
         require(isPolicyEnabled[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
-        require(clientToPolicy[_client] != _policy, "Predicate.overrideClientPolicy: client already has this policy");
+        require(keccak256(abi.encodePacked(clientToPolicy[_client])) != keccak256(abi.encodePacked(_policy)), "Predicate.overrideClientPolicy: client already has this policy");
         clientToPolicy[_client] = _policy;
         emit PolicySet(_client, msg.sender, _policy, block.timestamp);
     }

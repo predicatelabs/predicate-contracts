@@ -6,7 +6,7 @@ import {PredicateRegistry} from "src/PredicateRegistry.sol";
 import {MockProxyAdmin} from "./mocks/MockProxyAdmin.sol";
 import {MockProxy} from "./mocks/MockProxy.sol";
 
-contract PredicateRegistrySetup {
+contract PredicateRegistrySetup is Test {
     // registry
     PredicateRegistry predicateRegistry;
 
@@ -24,6 +24,9 @@ contract PredicateRegistrySetup {
     address attestorTwo;
     uint256 attestorTwoPk;
 
+    // random address
+    address randomAddress;
+
     // policies
     string policyOne = "policyOne";
     string policyTwo = "policyTwo";
@@ -39,7 +42,7 @@ contract PredicateRegistrySetup {
 
         (attestorOne, attestorOnePk) = makeAddrAndKey("attestorOne");
         (attestorTwo, attestorTwoPk) = makeAddrAndKey("attestorTwo");
-
+        (randomAddress,) = makeAddrAndKey("random");
         // register attestors (only One and Two)
         vm.startPrank(owner);
         predicateRegistry.registerAttestor(attestorOne);

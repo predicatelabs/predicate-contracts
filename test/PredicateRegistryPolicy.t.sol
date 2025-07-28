@@ -21,7 +21,7 @@ contract PredicateRegistryPolicyTest is PredicateRegistrySetup {
 
     function testEnabledPolicies() public {
         // enabled policies verification
-        string[] memory enabledPolicies = predicateRegistry.enabledPolicies();
+        string[] memory enabledPolicies = predicateRegistry.getEnabledPolicies();
         assertEq(enabledPolicies.length, 2);
         assertEq(enabledPolicies[0], policyOne);
         assertEq(enabledPolicies[1], policyTwo);
@@ -44,8 +44,8 @@ contract PredicateRegistryPolicyTest is PredicateRegistrySetup {
         // disable policy by owner and verify policy is disabled
         vm.prank(owner);
         predicateRegistry.disablePolicy(policyOne);
-        assertEq(predicateRegistry.enabledPolicies().length, 1);
-        assertEq(predicateRegistry.enabledPolicies()[0], policyTwo);
+        assertEq(predicateRegistry.getEnabledPolicies().length, 1);
+        assertEq(predicateRegistry.getEnabledPolicies()[0], policyTwo);
     }
 
     function testCannotDisablePolicyThatDoesNotExist() public {

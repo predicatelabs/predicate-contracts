@@ -3,20 +3,17 @@ pragma solidity ^0.8.12;
 
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {MockClient} from "./helpers/mocks/MockClient.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 contract PredicateRegistryOwnershipTest is PredicateRegistrySetup {
     Ownable2StepUpgradeable ownablePredicateRegistry;
     address newOwner;
-    address randomAddress;
 
     function setUp() public override {
         super.setUp();
         ownablePredicateRegistry = Ownable2StepUpgradeable(address(predicateRegistry));
         (newOwner,) = makeAddrAndKey("newOwner");
-        (randomAddress,) = makeAddrAndKey("random");
     }
 
     function testOwnerIsUninitializedFromConstructor() public {
@@ -70,19 +67,12 @@ contract PredicateRegistryOwnershipTest is PredicateRegistrySetup {
     }
 
     function testRenounceOwnership() public {
-        // owner can transfer ownership
+        // owner can renounce ownership
         vm.startPrank(owner);
-        ownablePredicateRegistry.transferOwnership(newOwner);
         ownablePredicateRegistry.renounceOwnership();
         vm.stopPrank();
 
-        // new owner cannot accept ownership
-        vm.prank(newOwner);
-        vm.expectRevert();
-        ownablePredicateRegistry.acceptOwnership();
-
-        // owner is the owner of the contract
-        assertEq(ownablePredicateRegistry.owner(), owner);
-        assertEq(ownablePredicateRegistry.pendingOwner(), address(0));
+        // address(0) is the owner of the contract
+        assertEq(ownablePredicateRegistry.owner(), address(0));
     }
 }

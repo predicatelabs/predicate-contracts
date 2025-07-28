@@ -11,7 +11,6 @@ contract PredicateRegistryAttestorTest is PredicateRegistrySetup {
     address attestorThree; 
     uint256 attestorThreePk;
 
-
     function setUp() public override {
         super.setUp();
         (attestorThree, attestorThreePk) = makeAddrAndKey("attestorThree");
@@ -26,7 +25,7 @@ contract PredicateRegistryAttestorTest is PredicateRegistrySetup {
     }
 
     function testRegisteredAttestors() public {
-        address[] memory registeredAttestors = predicateRegistry.registeredAttestors();
+        address[] memory registeredAttestors = predicateRegistry.getRegisteredAttestors();
         assertEq(registeredAttestors.length, 2);
         assertEq(registeredAttestors[0], attestorOne);
         assertEq(registeredAttestors[1], attestorTwo);
@@ -36,8 +35,8 @@ contract PredicateRegistryAttestorTest is PredicateRegistrySetup {
         vm.prank(owner);
         predicateRegistry.registerAttestor(attestorThree);
         assertTrue(predicateRegistry.isAttestorRegistered(attestorThree));
-        assertEq(predicateRegistry.registeredAttestors().length, 3);
-        assertEq(predicateRegistry.registeredAttestors()[2], attestorThree);
+        assertEq(predicateRegistry.getRegisteredAttestors().length, 3);
+        assertEq(predicateRegistry.getRegisteredAttestors()[2], attestorThree);
     }
 
     function testCannotRegisterAttestorThatIsAlreadyRegistered() public {
@@ -52,8 +51,8 @@ contract PredicateRegistryAttestorTest is PredicateRegistrySetup {
         vm.prank(owner);
         predicateRegistry.deregisterAttestor(attestorOne);
         assertFalse(predicateRegistry.isAttestorRegistered(attestorOne));
-        assertEq(predicateRegistry.registeredAttestors().length, 1);
-        assertEq(predicateRegistry.registeredAttestors()[0], attestorTwo);
+        assertEq(predicateRegistry.getRegisteredAttestors().length, 1);
+        assertEq(predicateRegistry.getRegisteredAttestors()[0], attestorTwo);
     }
 
     function testCannotDeregisterAttestorThatIsNotRegistered() public {
