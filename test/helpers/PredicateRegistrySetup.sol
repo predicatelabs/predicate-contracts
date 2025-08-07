@@ -48,11 +48,5 @@ contract PredicateRegistrySetup is Test {
         predicateRegistry.registerAttestor(attestorOne);
         predicateRegistry.registerAttestor(attestorTwo);
         vm.stopPrank();
-
-        // enable policies
-        vm.startPrank(owner);
-        predicateRegistry.enablePolicy(policyOne);
-        predicateRegistry.enablePolicy(policyTwo);
-        vm.stopPrank();
     }
 }

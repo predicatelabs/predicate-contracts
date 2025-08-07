@@ -51,38 +51,6 @@ interface IPredicateRegistry {
     ) external;
 
     /**
-     * @notice Disables a policy for which clients can use
-     * @param policy is the identifier for the policy
-     * @dev Emits a PolicyDisabled event upon successful disassociation
-     */
-    function disablePolicy(
-        string memory policy
-    ) external;
-
-    /**
-     * @notice Enables a policy for which clients can use
-     * @param policy is the identifier for the policy
-     * @dev Emits a PolicyEnabled event upon successful association
-     */
-    function enablePolicy(
-        string memory policy
-    ) external;
-
-    /**
-     * @notice Overrides the policy for a client
-     * @param policy is the identifier for the policy
-     * @param client is the address of the client for which the policy is being overridden
-     * @dev Emits a PolicySet event upon successful association
-     */
-    function overrideClientPolicy(string memory policy, address client) external;
-
-    /**
-     * @notice Gets array of enabled policies
-     * @return array of enabled policies
-     */
-    function getEnabledPolicies() external view returns (string[] memory);
-
-    /**
      * @notice Gets the policy for a client
      * @param client is the address of the client for which the policy is being retrieved
      * @return policy is the identifier for the client's policy

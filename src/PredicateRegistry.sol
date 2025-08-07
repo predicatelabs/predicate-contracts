@@ -13,16 +13,12 @@ import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegi
  */
 contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     // storage
-    string[] public enabledPolicies;
     address[] public registeredAttestors;
     mapping(address => bool) public isAttestorRegistered;
-    mapping(string => bool) public isPolicyEnabled;
     mapping(address => string) public clientToPolicy;
     mapping(string => bool) public spentTaskIDs;
 
     // events
-    event PolicyEnabled(string policy);
-    event PolicyDisabled(string policy);
     event AttestorRegistered(address indexed attestor);
     event AttestorDeregistered(address indexed attestor);
     event PolicySet(address indexed client, address indexed setter, string policy, uint256 timestamp);
@@ -82,67 +78,11 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Enables a policy for which clients can use
-     * @param _policy is a unique identifier
-     */
-    function enablePolicy(
-        string memory _policy
-    ) external onlyOwner {
-        require(bytes(_policy).length > 0, "Predicate.enablePolicy: policy string cannot be empty");
-        require(!isPolicyEnabled[_policy], "Predicate.enablePolicy: policy already exists");
-        isPolicyEnabled[_policy] = true;
-        enabledPolicies.push(_policy);
-        emit PolicyEnabled(_policy);
-    }
-
-    /**
-     * @notice Disables a policy for which clients can use
-     * @param _policy is a unique identifier
-     */
-    function disablePolicy(
-        string memory _policy
-    ) external onlyOwner {
-        require(isPolicyEnabled[_policy], "Predicate.disablePolicy: policy doesn't exist");
-        for (uint256 i = 0; i < enabledPolicies.length; i++) {
-            if (keccak256(abi.encodePacked(enabledPolicies[i])) == keccak256(abi.encodePacked(_policy))) {
-                enabledPolicies[i] = enabledPolicies[enabledPolicies.length - 1];
-                enabledPolicies.pop();
-                break;
-            }
-        }
-        isPolicyEnabled[_policy] = false;
-        emit PolicyDisabled(_policy);
-    }
-
-    /**
-     * @notice Gets array of enabled policies
-     * @return array of enabled policies
-     */
-    function getEnabledPolicies() external view returns (string[] memory) {
-        return enabledPolicies;
-    }
-
-    /**
      * @notice Gets array of registered attestors
      * @return array of registered attestors
      */
     function getRegisteredAttestors() external view returns (address[] memory) {
         return registeredAttestors;
-    }
-
-    /**
-     * @notice Overrides the policy for a client
-     * @param _policy is the unique identifier for the policy
-     * @param _client is the address of the client for which the policy is being overridden
-     */
-    function overrideClientPolicy(string memory _policy, address _client) external onlyOwner {
-        require(isPolicyEnabled[_policy], "Predicate.overrideClientPolicy: policy doesn't exist");
-        require(
-            keccak256(abi.encodePacked(clientToPolicy[_client])) != keccak256(abi.encodePacked(_policy)),
-            "Predicate.overrideClientPolicy: client already has this policy"
-        );
-        clientToPolicy[_client] = _policy;
-        emit PolicySet(_client, msg.sender, _policy, block.timestamp);
     }
 
     /**
@@ -152,7 +92,6 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     function setPolicy(
         string memory _policy
     ) external {
-        require(isPolicyEnabled[_policy], "Predicate.setPolicy: policy doesn't exist or is disabled");
         clientToPolicy[msg.sender] = _policy;
         emit PolicySet(msg.sender, msg.sender, _policy, block.timestamp);
     }
