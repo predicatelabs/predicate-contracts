@@ -1,8 +1,6 @@
-// SPDX-License-Identifier: MIT
-// Tells the Solidity compiler to compile only from v0.8.13 to v0.9.0
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {IPredicateClient, PredicateMessage} from "../../interfaces/IPredicateClient.sol";
 import {PredicateClientProxy} from "./PredicateClientProxy.sol";
 import {IPredicateProtected} from "./IPredicateProtected.sol";
 

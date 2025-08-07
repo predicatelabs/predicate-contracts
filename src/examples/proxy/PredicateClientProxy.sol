@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: MIT
-// Tells the Solidity compiler to compile only from v0.8.13 to v0.9.0
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
 import {PredicateClient} from "../../mixins/PredicateClient.sol";
-import {PredicateMessage} from "../../interfaces/IPredicateClient.sol";
-import {IPredicateManager} from "../../interfaces/IPredicateManager.sol";
+import {Attestation} from "../../interfaces/IPredicateRegistry.sol";
 
 import {MetaCoin} from "./MetaCoin.sol";
 
@@ -16,10 +14,10 @@ contract PredicateClientProxy is PredicateClient {
         _metaCoin = MetaCoin(_metaCoinContract);
     }
 
-    function proxySendCoin(address _receiver, uint256 _amount, PredicateMessage calldata _message) external payable {
+    function proxySendCoin(address _receiver, uint256 _amount, Attestation calldata _attestation) external payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
-            _authorizeTransaction(_message, encodedSigAndArgs, msg.sender, msg.value),
+            _authorizeTransaction(_attestation, encodedSigAndArgs, msg.sender, msg.value),
             "MetaCoin: unauthorized transaction"
         );
 
@@ -32,9 +30,9 @@ contract PredicateClientProxy is PredicateClient {
         _setPolicy(_policyID);
     }
 
-    function setPredicateManager(
-        address _predicateManager
+    function setRegistry(
+        address _registry
     ) public {
-        _setPredicateManager(_predicateManager);
+        _setRegistry(_registry);
     }
 }
