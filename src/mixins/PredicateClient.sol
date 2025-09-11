@@ -69,7 +69,7 @@ abstract contract PredicateClient is IPredicateClient {
 
     /**
      * @notice Validates the transaction by checking the attestation.
-     * @param _attestation Attestation from the attestor authorizing the task
+     * @param _attestation Attestation from the attester authorizing the task
      * @param _encodedSigAndArgs Encoded signature and arguments for the task
      * @param _msgSender Address of the sender of the task
      * @param _msgValue Value to send with the task

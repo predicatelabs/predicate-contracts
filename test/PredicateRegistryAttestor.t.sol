@@ -6,70 +6,70 @@ import {PredicateRegistry} from "../src/PredicateRegistry.sol";
 import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 
-contract PredicateRegistryAttestorTest is PredicateRegistrySetup {
-    // extra attestor
-    address attestorThree;
-    uint256 attestorThreePk;
+contract PredicateRegistryAttesterTest is PredicateRegistrySetup {
+    // extra attester
+    address attesterThree;
+    uint256 attesterThreePk;
 
     function setUp() public override {
         super.setUp();
-        (attestorThree, attestorThreePk) = makeAddrAndKey("attestorThree");
+        (attesterThree, attesterThreePk) = makeAddrAndKey("attesterThree");
     }
 
-    //attestor tests
-    function testIsAttestorRegistered() public {
-        assertTrue(predicateRegistry.isAttestorRegistered(attestorOne));
-        assertTrue(predicateRegistry.isAttestorRegistered(attestorTwo));
+    //attester tests
+    function testIsAttesterRegistered() public {
+        assertTrue(predicateRegistry.isAttesterRegistered(attesterOne));
+        assertTrue(predicateRegistry.isAttesterRegistered(attesterTwo));
 
-        assertFalse(predicateRegistry.isAttestorRegistered(attestorThree));
+        assertFalse(predicateRegistry.isAttesterRegistered(attesterThree));
     }
 
-    function testRegisteredAttestors() public {
-        address[] memory registeredAttestors = predicateRegistry.getRegisteredAttestors();
-        assertEq(registeredAttestors.length, 2);
-        assertEq(registeredAttestors[0], attestorOne);
-        assertEq(registeredAttestors[1], attestorTwo);
+    function testRegisteredAttesters() public {
+        address[] memory registeredAttesters = predicateRegistry.getRegisteredAttesters();
+        assertEq(registeredAttesters.length, 2);
+        assertEq(registeredAttesters[0], attesterOne);
+        assertEq(registeredAttesters[1], attesterTwo);
     }
 
-    function testOwnerCanRegisterAttestor() public {
+    function testOwnerCanRegisterAttester() public {
         vm.prank(owner);
-        predicateRegistry.registerAttestor(attestorThree);
-        assertTrue(predicateRegistry.isAttestorRegistered(attestorThree));
-        assertEq(predicateRegistry.getRegisteredAttestors().length, 3);
-        assertEq(predicateRegistry.getRegisteredAttestors()[2], attestorThree);
+        predicateRegistry.registerAttester(attesterThree);
+        assertTrue(predicateRegistry.isAttesterRegistered(attesterThree));
+        assertEq(predicateRegistry.getRegisteredAttesters().length, 3);
+        assertEq(predicateRegistry.getRegisteredAttesters()[2], attesterThree);
     }
 
-    function testCannotRegisterAttestorThatIsAlreadyRegistered() public {
-        vm.expectRevert("Predicate.registerAttestor: attestor already registered");
+    function testCannotRegisterAttesterThatIsAlreadyRegistered() public {
+        vm.expectRevert("Predicate.registerAttester: attester already registered");
         vm.prank(owner);
-        predicateRegistry.registerAttestor(attestorOne);
+        predicateRegistry.registerAttester(attesterOne);
     }
 
-    function testOwnerCanDeregisterAttestor() public {
-        assertTrue(predicateRegistry.isAttestorRegistered(attestorOne));
+    function testOwnerCanDeregisterAttester() public {
+        assertTrue(predicateRegistry.isAttesterRegistered(attesterOne));
 
         vm.prank(owner);
-        predicateRegistry.deregisterAttestor(attestorOne);
-        assertFalse(predicateRegistry.isAttestorRegistered(attestorOne));
-        assertEq(predicateRegistry.getRegisteredAttestors().length, 1);
-        assertEq(predicateRegistry.getRegisteredAttestors()[0], attestorTwo);
+        predicateRegistry.deregisterAttester(attesterOne);
+        assertFalse(predicateRegistry.isAttesterRegistered(attesterOne));
+        assertEq(predicateRegistry.getRegisteredAttesters().length, 1);
+        assertEq(predicateRegistry.getRegisteredAttesters()[0], attesterTwo);
     }
 
-    function testCannotDeregisterAttestorThatIsNotRegistered() public {
-        vm.expectRevert("Predicate.deregisterAttestor: attestor not registered");
+    function testCannotDeregisterAttesterThatIsNotRegistered() public {
+        vm.expectRevert("Predicate.deregisterAttester: attester not registered");
         vm.prank(owner);
-        predicateRegistry.deregisterAttestor(attestorThree);
+        predicateRegistry.deregisterAttester(attesterThree);
     }
 
-    function testRandomAddrCannotRegisterAttestor() public {
+    function testRandomAddrCannotRegisterAttester() public {
         vm.prank(randomAddress);
         vm.expectRevert();
-        predicateRegistry.registerAttestor(attestorOne);
+        predicateRegistry.registerAttester(attesterOne);
     }
 
-    function testRandomAddrCannotDeregisterAttestor() public {
+    function testRandomAddrCannotDeregisterAttester() public {
         vm.prank(randomAddress);
         vm.expectRevert();
-        predicateRegistry.deregisterAttestor(attestorOne);
+        predicateRegistry.deregisterAttester(attesterOne);
     }
 }
