@@ -17,12 +17,12 @@ contract PredicateRegistrySetup is Test {
     // owner of the contract
     address owner = makeAddr("owner");
 
-    // attestors
-    address attestorOne;
-    uint256 attestorOnePk;
+    // attesters
+    address attesterOne;
+    uint256 attesterOnePk;
 
-    address attestorTwo;
-    uint256 attestorTwoPk;
+    address attesterTwo;
+    uint256 attesterTwoPk;
 
     // random address
     address randomAddress;
@@ -40,13 +40,13 @@ contract PredicateRegistrySetup is Test {
         predicateRegistry.initialize(owner);
         vm.stopPrank();
 
-        (attestorOne, attestorOnePk) = makeAddrAndKey("attestorOne");
-        (attestorTwo, attestorTwoPk) = makeAddrAndKey("attestorTwo");
+        (attesterOne, attesterOnePk) = makeAddrAndKey("attesterOne");
+        (attesterTwo, attesterTwoPk) = makeAddrAndKey("attesterTwo");
         (randomAddress,) = makeAddrAndKey("random");
-        // register attestors (only One and Two)
+        // register attesters (only One and Two)
         vm.startPrank(owner);
-        predicateRegistry.registerAttestor(attestorOne);
-        predicateRegistry.registerAttestor(attestorTwo);
+        predicateRegistry.registerAttester(attesterOne);
+        predicateRegistry.registerAttester(attesterTwo);
         vm.stopPrank();
     }
 }
