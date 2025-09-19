@@ -74,11 +74,11 @@ contract MetaCoinTest is PredicateRegistrySetup {
         );
 
         bytes memory signature;
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorOnePk, messageHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attesterOnePk, messageHash);
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation =
-            Attestation({uuid: uuid, expiration: expireByTime, attestor: attestorOne, signature: signature});
+            Attestation({uuid: uuid, expiration: expireByTime, attester: attesterOne, signature: signature});
 
         vm.prank(clientOwner);
         client.sendCoin(testReceiver, amount, attestation);

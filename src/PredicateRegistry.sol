@@ -9,25 +9,25 @@ import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegi
 /**
  * @title PredicateRegistry
  * @author Predicate Labs, Inc (https://predicate.io)
- * @notice This contract is a registry for policies, attestors and enables task validation.
+ * @notice This contract is a registry for policies, attesters and enables task validation.
  */
 contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     // storage
-    address[] public registeredAttestors;
-    mapping(address => bool) public isAttestorRegistered;
+    address[] public registeredAttesters;
+    mapping(address => bool) public isAttesterRegistered;
     mapping(address => string) public clientToPolicy;
     mapping(string => bool) public spentTaskIDs;
 
     // events
-    event AttestorRegistered(address indexed attestor);
-    event AttestorDeregistered(address indexed attestor);
+    event AttesterRegistered(address indexed attester);
+    event AttesterDeregistered(address indexed attester);
     event PolicySet(address indexed client, address indexed setter, string policy, uint256 timestamp);
 
     // task validation event
     event TaskValidated(
         address indexed msgSender,
         address indexed target,
-        address indexed attestor,
+        address indexed attester,
         uint256 msgValue,
         string policy,
         string uuid,
@@ -46,43 +46,43 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Registers a new attestor
-     * @param _attestor the address of the attestor to be registered
+     * @notice Registers a new attester
+     * @param _attester the address of the attester to be registered
      */
-    function registerAttestor(
-        address _attestor
+    function registerAttester(
+        address _attester
     ) external onlyOwner {
-        require(!isAttestorRegistered[_attestor], "Predicate.registerAttestor: attestor already registered");
-        registeredAttestors.push(_attestor);
-        isAttestorRegistered[_attestor] = true;
-        emit AttestorRegistered(_attestor);
+        require(!isAttesterRegistered[_attester], "Predicate.registerAttester: attester already registered");
+        registeredAttesters.push(_attester);
+        isAttesterRegistered[_attester] = true;
+        emit AttesterRegistered(_attester);
     }
 
     /**
-     * @notice Deregisters an attestor
-     * @param _attestor the address of the attestor to be deregistered
+     * @notice Deregisters an attester
+     * @param _attester the address of the attester to be deregistered
      */
-    function deregisterAttestor(
-        address _attestor
+    function deregisterAttester(
+        address _attester
     ) external onlyOwner {
-        require(isAttestorRegistered[_attestor], "Predicate.deregisterAttestor: attestor not registered");
-        for (uint256 i = 0; i < registeredAttestors.length; i++) {
-            if (registeredAttestors[i] == _attestor) {
-                registeredAttestors[i] = registeredAttestors[registeredAttestors.length - 1];
-                registeredAttestors.pop();
+        require(isAttesterRegistered[_attester], "Predicate.deregisterAttester: attester not registered");
+        for (uint256 i = 0; i < registeredAttesters.length; i++) {
+            if (registeredAttesters[i] == _attester) {
+                registeredAttesters[i] = registeredAttesters[registeredAttesters.length - 1];
+                registeredAttesters.pop();
                 break;
             }
         }
-        isAttestorRegistered[_attestor] = false;
-        emit AttestorDeregistered(_attestor);
+        isAttesterRegistered[_attester] = false;
+        emit AttesterDeregistered(_attester);
     }
 
     /**
-     * @notice Gets array of registered attestors
-     * @return array of registered attestors
+     * @notice Gets array of registered attesters
+     * @return array of registered attesters
      */
-    function getRegisteredAttestors() external view returns (address[] memory) {
-        return registeredAttestors;
+    function getRegisteredAttesters() external view returns (address[] memory) {
+        return registeredAttesters;
     }
 
     /**
@@ -151,7 +151,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     /**
      * @notice Validates signatures using the OpenZeppelin ECDSA library for the Predicate Single Transaction Model
      * @param _task the params of the task
-     * @param _attestation the attestation from the attestor
+     * @param _attestation the attestation from the attester
      */
     function validateAttestation(
         Task calldata _task,
@@ -172,11 +172,11 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         );
 
         bytes32 messageHash = hashTaskSafe(_task);
-        address recoveredAttestor = ECDSA.recover(messageHash, _attestation.signature);
-        require(recoveredAttestor == _attestation.attestor, "Predicate.validateAttestation: Invalid signature");
+        address recoveredAttester = ECDSA.recover(messageHash, _attestation.signature);
+        require(recoveredAttester == _attestation.attester, "Predicate.validateAttestation: Invalid signature");
         require(
-            isAttestorRegistered[recoveredAttestor],
-            "Predicate.validateAttestation: Attestor is not a registered attestor"
+            isAttesterRegistered[recoveredAttester],
+            "Predicate.validateAttestation: Attester is not a registered attester"
         );
 
         spentTaskIDs[_task.uuid] = true;
@@ -184,7 +184,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         emit TaskValidated(
             _task.msgSender,
             _task.target,
-            _attestation.attestor,
+            _attestation.attester,
             _task.msgValue,
             _task.policy,
             _task.uuid,

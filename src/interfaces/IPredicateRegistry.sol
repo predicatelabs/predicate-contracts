@@ -29,8 +29,8 @@ struct Attestation {
     string uuid;
     // the timestamp by which the attestation must be executed
     uint256 expiration;
-    // the address of the attestor
-    address attestor;
+    // the address of the attester
+    address attester;
     // the signature from the attestation
     bytes signature;
 }
@@ -60,9 +60,9 @@ interface IPredicateRegistry {
     ) external view returns (string memory);
 
     /**
-     * @notice Verifies if a task is authorized by the attestor
+     * @notice Verifies if a task is authorized by the attester
      * @param _task Parameters of the task including sender, target, function signature, arguments, quorum count, and expiry block
-     * @param _attestation Attestation from the attestor
+     * @param _attestation Attestation from the attester
      * @return isVerified Boolean indicating if the task has been verified by the predicate registry
      * @dev This function checks the attestation against the hash of the task parameters to ensure task authenticity and authorization
      */
