@@ -44,6 +44,12 @@ abstract contract PredicateClient is IPredicateClient {
     bytes32 private constant _PREDICATE_CLIENT_STORAGE_SLOT =
         0x804776a84f3d03ad8442127b1451e2fbbb6a715c681d6a83c9e9fca787b99300;
 
+    /// @notice Emitted when the PredicateRegistry address is updated
+    event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    
+    /// @notice Emitted when the policy ID is updated
+    event PredicatePolicyIdUpdated(string oldPolicyId, string newPolicyId);
+
     function _getPredicateClientStorage() private pure returns (PredicateClientStorage storage $) {
         assembly {
             $.slot := _PREDICATE_CLIENT_STORAGE_SLOT
@@ -67,14 +73,17 @@ abstract contract PredicateClient is IPredicateClient {
      * @notice Updates the policy ID for this contract
      * @dev Updates local storage and registers with PredicateRegistry.
      *      Should typically be restricted to owner/admin.
+     *      Emits PredicatePolicyIdUpdated event.
      * @param _policyId The new policy identifier to set
      */
     function _setPolicyId(
         string memory _policyId
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
+        string memory oldPolicyId = $.policy;
         $.policy = _policyId;
         $.registry.setPolicyId(_policyId);
+        emit PredicatePolicyIdUpdated(oldPolicyId, _policyId);
     }
 
     function getPolicyId() external view returns (string memory policyId) {
@@ -89,6 +98,7 @@ abstract contract PredicateClient is IPredicateClient {
      * @notice Updates the PredicateRegistry address
      * @dev Should typically be restricted to owner/admin for security.
      *      Does not re-register the policy - call _setPolicyId() if needed.
+     *      Emits PredicateRegistryUpdated event.
      * @param _registryAddress The new PredicateRegistry contract address
      * @custom:security Changing registry is sensitive - ensure proper access control
      */
@@ -96,7 +106,9 @@ abstract contract PredicateClient is IPredicateClient {
         address _registryAddress
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
+        address oldRegistry = address($.registry);
         $.registry = IPredicateRegistry(_registryAddress);
+        emit PredicateRegistryUpdated(oldRegistry, _registryAddress);
     }
 
     function getRegistry() external view returns (address) {

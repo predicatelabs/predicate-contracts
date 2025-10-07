@@ -85,4 +85,26 @@ contract MetaCoinTest is PredicateRegistrySetup {
         assertEq(client.getBalance(testReceiver), 10, "receiver balance should be 10 after receiving");
         assertEq(client.getBalance(clientOwner), 9_999_999_999_990, "sender balance should be 9900 after sending");
     }
+
+    function testPolicyIdUpdatedEventEmitted() public {
+        vm.expectEmit(true, true, true, true);
+        emit PredicatePolicyIdUpdated(policyOne, policyTwo);
+        
+        vm.prank(clientOwner);
+        client.setPolicyId(policyTwo);
+    }
+
+    function testRegistryUpdatedEventEmitted() public {
+        address newRegistry = makeAddr("newRegistry");
+        
+        vm.expectEmit(true, true, true, true);
+        emit PredicateRegistryUpdated(address(predicateRegistry), newRegistry);
+        
+        vm.prank(clientOwner);
+        client.setRegistry(newRegistry);
+    }
+
+    // Event declarations for testing
+    event PredicatePolicyIdUpdated(string oldPolicyId, string newPolicyId);
+    event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 }

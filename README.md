@@ -118,6 +118,27 @@ An `Attestation` is a signed approval from an authorized attester:
 - ECDSA signature over the statement hash
 - Expiration timestamp
 
+### Events for Monitoring
+
+Predicate v2 emits comprehensive events for off-chain monitoring:
+
+**PredicateRegistry events:**
+- `AttesterRegistered` / `AttesterDeregistered` - Attester management
+- `PolicySet` - Policy changes (emitted when client calls `setPolicyId()`)
+- `StatementValidated` - Successful attestation validations
+
+**PredicateClient events** (from your contract):
+- `PredicatePolicyIdUpdated` - Track policy changes in your contract
+- `PredicateRegistryUpdated` - Alert on registry address changes (security-critical)
+
+**Note:** Transaction authorization is tracked via `StatementValidated` from PredicateRegistry (no duplicate event needed).
+
+These events enable:
+- 📊 Analytics and usage tracking
+- 🔍 Audit trails and compliance monitoring
+- ⚠️ Security alerts (unexpected policy/registry changes)
+- 🐛 Debugging and transaction analysis
+
 ## Migration from v1
 
 v2 introduces several improvements over v1:
