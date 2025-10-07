@@ -57,15 +57,16 @@ This document outlines all changes that should be made before deploying v2 to pr
 
 ### 3. Update README.md - Wrapper Pattern Status ✅ **COMPLETED**
 
-**What**: Marked wrapper pattern as "NOT YET IMPLEMENTED"
-**Why**: README documented non-existent code, causing confusion
+**What**: Marked wrapper pattern as "DEPRECATED IN V2"
+**Why**: Pattern not supported in v2; README documented non-existent code
 **Files**: `src/examples/README.md`
 **Key Changes**:
-- Added ⚠️ "NOT YET IMPLEMENTED" warning
-- Changed all descriptions to "Planned" tense
-- Updated recommendations to suggest Inheritance or Proxy patterns
+- Added ⚠️ "DEPRECATED IN V2" warning
+- Explained why deprecated (complexity, gas costs, unnecessary)
+- Updated recommendations to use Inheritance or Proxy patterns
+- Added migration guidance for v1 wrapper users
 
-**Result**: Clear user guidance | Commit: `5bb91fcb`
+**Result**: Clear deprecation notice | Commit: `5bb91fcb`
 
 ---
 
@@ -276,13 +277,13 @@ In case of critical issues post-deployment:
 
 ## Questions to Resolve
 
-Before starting implementation, clarify:
+Before deployment, clarify:
 
 1. **Upgradeability**: Is PredicateRegistry deployed as upgradeable proxy?
 2. **Attester Onboarding**: What's the process for registering new attesters?
-3. **Policy Format**: What's the expected format for policy strings (URLs, IPFS CIDs)?
+3. ~~**Policy Format**~~: ✅ **RESOLVED** - We use `policyId` (can be any string, typically "x-{hash(policy)[:16]}")
 4. **Network**: Which networks for initial deployment?
 5. **Governance**: Who controls the owner key? Multisig details?
 6. **Audit**: Is security audit scheduled? Which firm?
 7. **Timeline**: Hard deadline for deployment?
-8. **Wrapper Pattern**: Should we implement it or officially deprecate it?
+8. ~~**Wrapper Pattern**~~: ✅ **RESOLVED** - Deprecated in v2, docs updated accordingly
