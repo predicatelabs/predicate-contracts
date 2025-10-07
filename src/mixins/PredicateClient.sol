@@ -10,19 +10,19 @@ import "../interfaces/IPredicateClient.sol";
  * @notice Abstract contract for integrating Predicate attestation validation
  * @dev Provides core functionality for contracts to validate attestations before executing transactions.
  *      Implements ERC-7201 namespaced storage to prevent collisions in upgradeable contracts.
- * 
+ *
  * Usage:
  * 1. Inherit this contract
  * 2. Call _initPredicateClient() in your constructor
  * 3. Use _authorizeTransaction() to validate attestations before business logic
- * 
+ *
  * Example:
  * ```solidity
  * contract MyContract is PredicateClient {
  *     constructor(address _registry, string memory _policy) {
  *         _initPredicateClient(_registry, _policy);
  *     }
- *     
+ *
  *     function protectedFunction(Attestation calldata _attestation) external {
  *         bytes memory encoded = abi.encodeWithSignature("_internal()");
  *         require(_authorizeTransaction(_attestation, encoded, msg.sender, msg.value));
@@ -46,7 +46,7 @@ abstract contract PredicateClient is IPredicateClient {
 
     /// @notice Emitted when the PredicateRegistry address is updated
     event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
-    
+
     /// @notice Emitted when the policy ID is updated
     event PredicatePolicyIdUpdated(string oldPolicyId, string newPolicyId);
 
@@ -131,19 +131,19 @@ abstract contract PredicateClient is IPredicateClient {
      * @dev Constructs a Statement from parameters and validates it against the attestation.
      *      This is the core authorization function that should be called before executing
      *      any protected business logic.
-     * 
+     *
      * Process:
      * 1. Builds Statement struct with transaction parameters
      * 2. Calls PredicateRegistry.validateAttestation()
      * 3. Registry verifies signature and checks attestation validity
      * 4. Returns true if valid (reverts if invalid)
-     * 
+     *
      * @param _attestation The attestation containing UUID, expiration, attester, and signature
      * @param _encodedSigAndArgs The encoded function signature and arguments (use abi.encodeWithSignature)
      * @param _msgSender The original transaction sender (typically msg.sender)
      * @param _msgValue The ETH value sent with the transaction (typically msg.value)
      * @return success Always returns true (reverts on validation failure)
-     * 
+     *
      * @custom:security Always use this before executing protected functions
      * @custom:security Encode the internal function call, not the public one
      */

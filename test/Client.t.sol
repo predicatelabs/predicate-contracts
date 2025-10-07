@@ -89,17 +89,17 @@ contract MetaCoinTest is PredicateRegistrySetup {
     function testPolicyIdUpdatedEventEmitted() public {
         vm.expectEmit(true, true, true, true);
         emit PredicatePolicyIdUpdated(policyOne, policyTwo);
-        
+
         vm.prank(clientOwner);
         client.setPolicyId(policyTwo);
     }
 
     function testRegistryUpdatedEventEmitted() public {
         address newRegistry = makeAddr("newRegistry");
-        
+
         vm.expectEmit(true, true, true, true);
         emit PredicateRegistryUpdated(address(predicateRegistry), newRegistry);
-        
+
         vm.prank(clientOwner);
         client.setRegistry(newRegistry);
     }
