@@ -9,7 +9,14 @@ import {IPredicateRegistry, Statement, Attestation} from "./interfaces/IPredicat
 /**
  * @title PredicateRegistry
  * @author Predicate Labs, Inc (https://predicate.io)
- * @notice This contract is a registry for policies, attesters and enables task validation.
+ * @notice Core registry contract for managing attesters, policies, and validating attestations
+ * @dev This contract provides:
+ *      - Attester registration/deregistration (owner only)
+ *      - Policy management (clients set their own policies)
+ *      - Statement validation with attestation verification
+ *      - UUID-based replay protection
+ *      - ECDSA signature verification using OpenZeppelin
+ * @custom:security Uses ERC-1967 upgradeable proxy pattern via Ownable2StepUpgradeable
  */
 contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     // storage
@@ -46,8 +53,10 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Registers a new attester
-     * @param _attester the address of the attester to be registered
+     * @notice Registers a new attester who can sign attestations
+     * @dev Only the contract owner can register attesters. Reverts if attester already registered.
+     * @param _attester The address of the attester to register
+     * @custom:security Attesters have critical trust - only register verified entities
      */
     function registerAttester(
         address _attester
@@ -59,8 +68,11 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Deregisters an attester
-     * @param _attester the address of the attester to be deregistered
+     * @notice Removes an attester from the registry
+     * @dev Only the contract owner can deregister attesters. Uses swap-and-pop for gas efficiency.
+     *      Reverts if attester is not currently registered.
+     * @param _attester The address of the attester to remove
+     * @custom:security Existing attestations from this attester remain valid until their expiration
      */
     function deregisterAttester(
         address _attester
@@ -78,16 +90,19 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Gets array of registered attesters
-     * @return array of registered attesters
+     * @notice Returns the complete list of registered attesters
+     * @dev Returns a dynamic array - may be gas-intensive for large attester sets
+     * @return attesters Array of all currently registered attester addresses
      */
-    function getRegisteredAttesters() external view returns (address[] memory) {
+    function getRegisteredAttesters() external view returns (address[] memory attesters) {
         return registeredAttesters;
     }
 
     /**
-     * @notice Sets the policy for a client
-     * @param _policy is the unique identifier for the policy
+     * @notice Sets or updates the policy for the calling contract/address
+     * @dev Policy is a string identifier (e.g., IPFS CID, URL, or policy name)
+     *      Each client can only have one active policy at a time
+     * @param _policy The unique identifier for the policy to associate with msg.sender
      */
     function setPolicy(
         string memory _policy
@@ -97,23 +112,27 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Gets the policy for a client
-     * @param _client is the address of the client for which the policy is being retrieved
+     * @notice Retrieves the policy associated with a specific client address
+     * @param _client The address of the client to query
+     * @return policy The policy string identifier, empty string if no policy set
      */
     function getPolicy(
         address _client
-    ) external view returns (string memory) {
+    ) external view returns (string memory policy) {
         return clientToPolicy[_client];
     }
 
     /**
-     * @notice Performs the hashing of a statement with expiry
-     * @param _statement parameters of the statement
-     * @return the keccak256 digest of the statement
+     * @notice Computes the hash of a statement for attester signing
+     * @dev Used by attesters to generate signatures. Includes target address (not msg.sender).
+     *      This is the hash that attesters sign off-chain.
+     * @param _statement The statement containing transaction details
+     * @return digest The keccak256 hash of the encoded statement
+     * @custom:security Attesters should sign this hash off-chain
      */
     function hashStatementWithExpiry(
         Statement calldata _statement
-    ) public pure returns (bytes32) {
+    ) public pure returns (bytes32 digest) {
         return keccak256(
             abi.encode(
                 _statement.uuid,
@@ -128,13 +147,16 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Computes a secure statement hash with validation-time context
-     * @param _statement The statement parameters to hash
-     * @return bytes32 The keccak256 digest including validation context
+     * @notice Computes statement hash with msg.sender for validation (prevents replay attacks)
+     * @dev Used during validation. Replaces target with msg.sender to prevent cross-contract replay.
+     *      This ensures the signature is only valid when called from the intended contract.
+     * @param _statement The statement to hash
+     * @return digest The keccak256 hash including msg.sender context
+     * @custom:security Critical anti-replay measure - binds signature to calling contract
      */
     function hashStatementSafe(
         Statement calldata _statement
-    ) public view returns (bytes32) {
+    ) public view returns (bytes32 digest) {
         return keccak256(
             abi.encode(
                 _statement.uuid,
@@ -149,9 +171,21 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Validates signatures using the OpenZeppelin ECDSA library for the Predicate Single Transaction Model
-     * @param _statement the params of the statement
-     * @param _attestation the attestation from the attester
+     * @notice Validates an attestation to authorize a transaction
+     * @dev Performs comprehensive validation:
+     *      1. Checks attestation has not expired (block.timestamp <= expiration)
+     *      2. Verifies statement UUID hasn't been used (replay protection)
+     *      3. Confirms UUID matches between statement and attestation
+     *      4. Confirms expiration matches between statement and attestation
+     *      5. Recovers signer from ECDSA signature using hashStatementSafe()
+     *      6. Verifies recovered signer matches attestation.attester
+     *      7. Confirms attester is registered
+     *      8. Marks UUID as spent
+     * @param _statement The statement describing the transaction to authorize
+     * @param _attestation The signed attestation from an authorized attester
+     * @return isVerified Always returns true (reverts on validation failure)
+     * @custom:security Statement UUID is marked as spent to prevent replay attacks
+     * @custom:security Uses msg.sender in hash to prevent cross-contract replay
      */
     function validateAttestation(
         Statement calldata _statement,
