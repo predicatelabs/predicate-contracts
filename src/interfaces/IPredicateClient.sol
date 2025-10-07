@@ -11,13 +11,13 @@ error PredicateClient__Unauthorized();
  */
 interface IPredicateClient {
     /**
-     * @notice Sets a policy for the calling address, associating it with a policy document stored on IPFS.
-     * @param _policyID A string representing the policyID from on chain.
-     * @dev This function enables clients to define execution rules or parameters for tasks they submit.
-     *      The policy governs how tasks submitted by the caller are executed, ensuring compliance with predefined rules.
+     * @notice Sets a policy ID for the calling address
+     * @param _policyId The policy identifier. Typically "x-{hash(policy)[:16]}" but can be any string
+     * @dev This function enables clients to define execution rules or parameters for statements they submit.
+     *      The policy ID governs how statements are validated, ensuring compliance with predefined rules.
      */
-    function setPolicy(
-        string memory _policyID
+    function setPolicyId(
+        string memory _policyId
     ) external;
 
     /**
@@ -31,10 +31,10 @@ interface IPredicateClient {
     ) external;
 
     /**
-     * @notice Retrieves the policy for the calling address.
-     * @return The policyID associated with the calling address.
+     * @notice Retrieves the policy ID for the calling address
+     * @return policyId The policy identifier associated with the calling address
      */
-    function getPolicy() external view returns (string memory);
+    function getPolicyId() external view returns (string memory policyId);
 
     /**
      * @notice Function for getting the Predicate Registry

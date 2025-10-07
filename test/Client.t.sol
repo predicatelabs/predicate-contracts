@@ -31,14 +31,14 @@ contract MetaCoinTest is PredicateRegistrySetup {
 
     function testOwnerCanSetPolicy() public {
         vm.prank(clientOwner);
-        client.setPolicy(policyTwo);
-        assertEq(client.getPolicy(), policyTwo);
+        client.setPolicyId(policyTwo);
+        assertEq(client.getPolicyId(), policyTwo);
     }
 
     function testRandomAccountCannotSetPolicy() public {
         vm.expectRevert();
         vm.prank(randomAddress);
-        client.setPolicy("testpolicy12345");
+        client.setPolicyId("testpolicy12345");
     }
 
     function testClientOwnerCanSetRegistry() public {

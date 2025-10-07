@@ -50,25 +50,25 @@ struct Attestation {
  */
 interface IPredicateRegistry {
     /**
-     * @notice Sets a policy for the sender, defining execution rules for statements
-     * @dev Associates a policy identifier with msg.sender. Policy string can be:
-     *      - IPFS CID (e.g., "QmX...")
-     *      - URL (e.g., "https://example.com/policy")
-     *      - Simple identifier (e.g., "policy-v1")
-     * @param policy The unique identifier for the policy
+     * @notice Sets a policy ID for the sender, defining execution rules for statements
+     * @dev Associates a policy identifier with msg.sender. Policy ID format:
+     *      - Typically: "x-{hash(policy)[:16]}" (e.g., "x-a1b2c3d4e5f6g7h8")
+     *      - Can be any string: IPFS CID, URL, or custom identifier
+     *      - No format validation - any string accepted
+     * @param policyId The unique identifier for the policy
      */
-    function setPolicy(
-        string memory policy
+    function setPolicyId(
+        string memory policyId
     ) external;
 
     /**
-     * @notice Retrieves the policy associated with a client address
+     * @notice Retrieves the policy ID associated with a client address
      * @param client The address to query
-     * @return policy The policy identifier, empty string if none set
+     * @return policyId The policy identifier, empty string if none set
      */
-    function getPolicy(
+    function getPolicyId(
         address client
-    ) external view returns (string memory policy);
+    ) external view returns (string memory policyId);
 
     /**
      * @notice Validates an attestation to authorize a statement execution

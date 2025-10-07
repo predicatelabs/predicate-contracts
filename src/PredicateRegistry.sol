@@ -99,26 +99,29 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Sets or updates the policy for the calling contract/address
-     * @dev Policy is a string identifier (e.g., IPFS CID, URL, or policy name)
-     *      Each client can only have one active policy at a time
-     * @param _policy The unique identifier for the policy to associate with msg.sender
+     * @notice Sets or updates the policy ID for the calling contract/address
+     * @dev Policy ID format:
+     *      - Typically: "x-{hash(policy)[:16]}" (e.g., "x-a1b2c3d4e5f6g7h8")
+     *      - Can be any string: IPFS CID, URL, or custom identifier
+     *      - No format validation performed - accepts any string
+     *      - Each client can only have one active policy ID at a time
+     * @param _policyId The unique identifier for the policy to associate with msg.sender
      */
-    function setPolicy(
-        string memory _policy
+    function setPolicyId(
+        string memory _policyId
     ) external {
-        clientToPolicy[msg.sender] = _policy;
-        emit PolicySet(msg.sender, msg.sender, _policy, block.timestamp);
+        clientToPolicy[msg.sender] = _policyId;
+        emit PolicySet(msg.sender, msg.sender, _policyId, block.timestamp);
     }
 
     /**
-     * @notice Retrieves the policy associated with a specific client address
+     * @notice Retrieves the policy ID associated with a specific client address
      * @param _client The address of the client to query
-     * @return policy The policy string identifier, empty string if no policy set
+     * @return policyId The policy identifier, empty string if no policy set
      */
-    function getPolicy(
+    function getPolicyId(
         address _client
-    ) external view returns (string memory policy) {
+    ) external view returns (string memory policyId) {
         return clientToPolicy[_client];
     }
 

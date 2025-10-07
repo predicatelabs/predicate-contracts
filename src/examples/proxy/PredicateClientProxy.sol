@@ -9,8 +9,8 @@ import {MetaCoin} from "./MetaCoin.sol";
 contract PredicateClientProxy is PredicateClient {
     MetaCoin private _metaCoin;
 
-    constructor(address _metaCoinContract, address _serviceManager, string memory _policyID) {
-        _initPredicateClient(_serviceManager, _policyID);
+    constructor(address _metaCoinContract, address _serviceManager, string memory _policyId) {
+        _initPredicateClient(_serviceManager, _policyId);
         _metaCoin = MetaCoin(_metaCoinContract);
     }
 
@@ -24,10 +24,10 @@ contract PredicateClientProxy is PredicateClient {
         _metaCoin.sendCoin{value: msg.value}(msg.sender, _receiver, _amount);
     }
 
-    function setPolicy(
-        string memory _policyID
+    function setPolicyId(
+        string memory _policyId
     ) external {
-        _setPolicy(_policyID);
+        _setPolicyId(_policyId);
     }
 
     function setRegistry(

@@ -51,44 +51,44 @@ abstract contract PredicateClient is IPredicateClient {
     }
 
     /**
-     * @notice Initializes the Predicate client with registry and policy
+     * @notice Initializes the Predicate client with registry and policy ID
      * @dev Must be called in the constructor of the inheriting contract.
-     *      Sets both the registry address and initial policy.
+     *      Sets both the registry address and initial policy ID.
      * @param _registryAddress The address of the PredicateRegistry contract
-     * @param _policy The initial policy identifier for this contract
+     * @param _policyId The initial policy identifier for this contract (typically "x-{hash[:16]}")
      */
-    function _initPredicateClient(address _registryAddress, string memory _policy) internal {
+    function _initPredicateClient(address _registryAddress, string memory _policyId) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         $.registry = IPredicateRegistry(_registryAddress);
-        _setPolicy(_policy);
+        _setPolicyId(_policyId);
     }
 
     /**
-     * @notice Updates the policy for this contract
+     * @notice Updates the policy ID for this contract
      * @dev Updates local storage and registers with PredicateRegistry.
      *      Should typically be restricted to owner/admin.
-     * @param _policy The new policy identifier to set
+     * @param _policyId The new policy identifier to set
      */
-    function _setPolicy(
-        string memory _policy
+    function _setPolicyId(
+        string memory _policyId
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        $.policy = _policy;
-        $.registry.setPolicy(_policy);
+        $.policy = _policyId;
+        $.registry.setPolicyId(_policyId);
     }
 
-    function getPolicy() external view returns (string memory) {
-        return _getPolicy();
+    function getPolicyId() external view returns (string memory policyId) {
+        return _getPolicyId();
     }
 
-    function _getPolicy() internal view returns (string memory) {
+    function _getPolicyId() internal view returns (string memory policyId) {
         return _getPredicateClientStorage().policy;
     }
 
     /**
      * @notice Updates the PredicateRegistry address
      * @dev Should typically be restricted to owner/admin for security.
-     *      Does not re-register the policy - call _setPolicy() if needed.
+     *      Does not re-register the policy - call _setPolicyId() if needed.
      * @param _registryAddress The new PredicateRegistry contract address
      * @custom:security Changing registry is sensitive - ensure proper access control
      */
