@@ -4,196 +4,123 @@ This document outlines all changes that should be made before deploying v2 to pr
 
 ---
 
-## 🔴 Critical Changes (Must Complete)
+## 📊 Progress Summary
+
+| Task | Status | Commit |
+|------|--------|--------|
+| 1. Task → Statement rename | ✅ Complete | `86734307` |
+| 2. ERC-7201 storage fix | ✅ Complete | `f2c969ec` |
+| 3. Wrapper pattern docs | ✅ Complete | `5bb91fcb` |
+| 4. Main README update | ✅ Complete | `9e4e4df1` |
+| 5. NatSpec documentation | ✅ Complete | `29d583be` |
+| BONUS: setPolicy → setPolicyId | ✅ Complete | `4aa38e83` |
+| 6. Deployment scripts | ⏸️ **TODO** | - |
+| 7. Events in PredicateClient | ⏸️ **TODO** | - |
+
+**Current Branch**: `andy/PRE-2213`
+**Tests**: ✅ All 29 passing
+**Compilation**: ✅ Clean
+
+---
+
+## 🔴 Critical Changes (Must Complete Before Deploy)
 
 ### 1. Rename Task → Statement ✅ **COMPLETED**
 
-**Rationale**: The current naming "Task" implies an asynchronous work item, but the struct actually represents a "Statement" - a claim or assertion about a transaction that gets attested to. This rename improves semantic clarity.
+**What**: Renamed all references from "Task" to "Statement" for semantic clarity
+**Why**: "Task" implies async work; "Statement" correctly represents a claim/assertion about a transaction
+**Files**: 6 core contracts + 3 test files + 2 examples
+**Key Changes**:
+- `struct Task` → `struct Statement`
+- `hashTaskWithExpiry()` → `hashStatementWithExpiry()`
+- `hashTaskSafe()` → `hashStatementSafe()`
+- `TaskValidated` event → `StatementValidated`
+- `spentTaskIDs` → `usedStatementUUIDs`
 
-**Files to Update**:
-
-#### Core Contracts:
-- [x] `src/interfaces/IPredicateRegistry.sol`
-  - Rename `struct Task` → `struct Statement`
-  - Update function parameter: `Task memory _task` → `Statement memory _statement`
-  
-- [x] `src/PredicateRegistry.sol`
-  - Update import: `Task` → `Statement`
-  - Rename function: `hashTaskWithExpiry(Task calldata _task)` → `hashStatementWithExpiry(Statement calldata _statement)`
-  - Rename function: `hashTaskSafe(Task calldata _task)` → `hashStatementSafe(Statement calldata _statement)`
-  - Update function: `validateAttestation(Task calldata _task, ...)` → `validateAttestation(Statement calldata _statement, ...)`
-  - Rename event: `TaskValidated` → `StatementValidated`
-  - Rename storage: `mapping(string => bool) public spentTaskIDs` → `mapping(string => bool) public usedStatementUUIDs`
-  - Update all internal variable names: `_task` → `_statement`
-
-- [x] `src/mixins/PredicateClient.sol`
-  - Update import: `Task` → `Statement`
-  - Update internal variable: `Task memory task` → `Statement memory statement`
-
-#### Test Files:
-- [x] `test/PredicateRegistryAttestation.t.sol`
-  - Update all `Task` references to `Statement`
-  - Update variable names
-
-- [x] `test/Client.t.sol`
-  - Update all `Task` references to `Statement`
-  - Update variable names
-
-- [x] `test/PredicateRegistryAttester.t.sol`
-  - Update import
-
-- [x] `test/helpers/PredicateRegistrySetup.sol`
-  - No changes needed (imports from core)
-
-#### Examples:
-- [x] `src/examples/inheritance/MetaCoin.sol` - No direct changes needed (uses imports)
-- [x] `src/examples/proxy/PredicateClientProxy.sol` - No direct changes needed (uses imports)
-- [x] `src/examples/proxy/MetaCoin.sol` - No changes needed
-
-**Actual Effort**: ~1.5 hours
-**Tests**: ✅ All 29 tests passing
+**Result**: ✅ All 29 tests passing | Commit: `86734307`
 
 ---
 
 ### 2. Fix PredicateProtected Storage Pattern ✅ **COMPLETED**
 
-**Rationale**: Current implementation uses regular storage which can cause collisions in upgradeable contracts. Should use ERC-7201 namespaced storage like PredicateClient does.
+**What**: Implemented ERC-7201 namespaced storage pattern
+**Why**: Prevents storage collisions in upgradeable contracts
+**Files**: `src/examples/proxy/PredicateProtected.sol`
+**Key Changes**:
+- Replaced direct storage variables with `PredicateProtectedStorage` struct
+- Implemented `_getPredicateProtectedStorage()` accessor
+- Storage slot: `0x5e2f89b9a8b8c33b0c4efeb789eb49ad0c1a074e1e2f1c94e31ab1f8f1e00800`
 
-**File to Update**:
-- [x] `src/examples/proxy/PredicateProtected.sol`
-
-**Changes Needed**:
-
-```solidity
-// CURRENT (Line 8-10):
-bool private _predicateProxyEnabled;
-PredicateClientProxy private _predicateProxy;
-
-// SHOULD BE:
-struct PredicateProtectedStorage {
-    bool predicateProxyEnabled;
-    PredicateClientProxy predicateProxy;
-}
-
-bytes32 private constant _PREDICATE_PROTECTED_STORAGE_SLOT = 
-    0x[calculated_slot]; // Calculate using keccak256
-
-function _getPredicateProtectedStorage() private pure returns (PredicateProtectedStorage storage $) {
-    assembly {
-        $.slot := _PREDICATE_PROTECTED_STORAGE_SLOT
-    }
-}
-```
-
-**Storage Slot Calculation**:
-```javascript
-// Calculate: keccak256(abi.encode(uint256(keccak256("predicate.storage.PredicateProtected")) - 1)) & ~bytes32(uint256(0xff))
-```
-
-**Actual Effort**: ~30 minutes
-**Storage Slot Used**: `0x5e2f89b9a8b8c33b0c4efeb789eb49ad0c1a074e1e2f1c94e31ab1f8f1e00800`
-**Tests**: ✅ All 29 tests passing
+**Result**: ✅ All 29 tests passing | Commit: `f2c969ec`
 
 ---
 
 ### 3. Update README.md - Wrapper Pattern Status ✅ **COMPLETED**
 
-**Rationale**: README documents a wrapper pattern that doesn't exist in the codebase, causing confusion.
+**What**: Marked wrapper pattern as "NOT YET IMPLEMENTED"
+**Why**: README documented non-existent code, causing confusion
+**Files**: `src/examples/README.md`
+**Key Changes**:
+- Added ⚠️ "NOT YET IMPLEMENTED" warning
+- Changed all descriptions to "Planned" tense
+- Updated recommendations to suggest Inheritance or Proxy patterns
 
-**File to Update**:
-- [x] `src/examples/README.md` - Updated "Choosing the Right Pattern" section
-- [x] `src/examples/README.md` - Updated Wrapper pattern section (lines 49-73) to mark as "NOT YET IMPLEMENTED"
-
-**Changes Made**:
-- ✅ Marked section as "⚠️ Status: NOT YET IMPLEMENTED"
-- ✅ Changed all descriptions to "Planned" tense
-- ✅ Added note directing users to contact team or use other patterns
-- ✅ Updated "Choosing the Right Pattern" to recommend Inheritance or Proxy patterns
-- ✅ Crossed out Wrapper pattern recommendation
-
-**Actual Effort**: 20 minutes
+**Result**: Clear user guidance | Commit: `5bb91fcb`
 
 ---
 
 ### 4. Update Main README.md ✅ **COMPLETED**
 
-**Rationale**: Main README is minimal and doesn't guide users on how to integrate.
-
-**File to Update**:
-- [x] `README.md`
-
+**What**: Enhanced README with comprehensive integration guide
+**Why**: Original README was minimal, didn't guide users on integration
+**Files**: `README.md`
 **Sections Added**:
-- ✅ Overview section with v2 features
-- ✅ Quick Start with complete code example
-- ✅ Integration Patterns (Inheritance and Proxy)
-- ✅ Architecture diagram and explanation
-- ✅ Key Concepts (Statement and Attestation)
-- ✅ Migration from v1 comparison table
-- ✅ Documentation links section
-- ✅ Contributing guidelines
+- Overview, Quick Start (3-step integration), Integration Patterns
+- Architecture diagram, Key Concepts, Migration from v1 table
+- Documentation links, Contributing guidelines
 
-**Actual Effort**: 45 minutes
+**Result**: Production-ready user documentation | Commit: `9e4e4df1`
+
+### BONUS: Rename setPolicy → setPolicyId ✅ **COMPLETED**
+
+**What**: Renamed setPolicy/getPolicy to setPolicyId/getPolicyId throughout
+**Why**: Clarifies it's an identifier (typically "x-{hash[:16]}") not the full policy
+**Files**: All interfaces, implementations, examples, and tests
+**Documentation**: Added format examples in NatSpec
+
+**Result**: ✅ All 29 tests passing | Commit: `4aa38e83`
 
 ---
 
-## 🟡 Important Changes (Should Complete)
+## 🟡 Important Changes (Should Complete Before Deploy)
 
 ### 5. Add Comprehensive NatSpec Documentation ✅ **COMPLETED**
 
-**Rationale**: Production contracts should have complete documentation for auditors and integrators.
+**What**: Added complete NatSpec documentation to all core contracts
+**Why**: Essential for auditors and integrators
+**Files**: `PredicateRegistry.sol`, `PredicateClient.sol`, `IPredicateRegistry.sol`
+**Documentation Added**:
+- Contract-level @title, @author, @notice, @dev
+- Function-level @notice, @param, @return for all public functions
+- Security considerations with @custom:security tags
+- Process flows and usage examples
+- ERC-7201 storage pattern explanations
 
-**Files to Update**:
-- [x] `src/PredicateRegistry.sol`
-  - Added detailed @notice, @param, @return for all functions
-  - Documented security considerations with @custom:security tags
-  - Explained validation flow step-by-step
-
-- [x] `src/mixins/PredicateClient.sol`
-  - Documented ERC-7201 storage pattern
-  - Explained authorization flow with process steps
-  - Added complete usage example in contract-level docs
-
-- [x] `src/interfaces/IPredicateRegistry.sol`
-  - Complete interface documentation
-  - Documented expected behavior and security considerations
-  - Added @custom tags for Statement and Attestation structs
-
-**Example**:
-```solidity
-/**
- * @notice Validates an attestation against a statement to authorize a transaction
- * @dev This function verifies:
- *      - Attestation has not expired
- *      - Statement UUID has not been previously used (replay protection)
- *      - UUID and expiration match between statement and attestation
- *      - Signature is valid and from a registered attester
- * @param _statement The statement describing the transaction to be authorized
- * @param _attestation The attester's signed approval of the statement
- * @return isVerified True if validation succeeds, reverts otherwise
- * @custom:security This function marks the UUID as spent to prevent replay attacks
- */
-function validateAttestation(
-    Statement calldata _statement,
-    Attestation calldata _attestation
-) external returns (bool isVerified)
-```
-
-**Actual Effort**: 2.5 hours
-**Tests**: ✅ All 29 tests passing
-**Compilation**: ✅ Clean
+**Result**: ✅ Audit-ready documentation | Commit: `29d583be`
 
 ---
 
 ### 6. Add Deployment Scripts
 
-**Rationale**: Need reproducible deployment process.
+**What**: Create deployment scripts for PredicateRegistry
+**Why**: Need reproducible deployment process for mainnet and testnets
 
 **Files to Create**:
-- [ ] `script/Deploy.s.sol` - Foundry deployment script
+- [ ] `script/Deploy.s.sol` - Main deployment script
 - [ ] `script/DeployTestnet.s.sol` - Testnet-specific script
-- [ ] `script/UpgradeRegistry.s.sol` - Upgrade script for registry
+- [ ] `script/UpgradeRegistry.s.sol` - Upgrade script
 
-**Example Template**:
+**Template**:
 ```solidity
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
@@ -230,13 +157,12 @@ contract DeployScript is Script {
 }
 ```
 
-**Estimated Effort**: 2-3 hours
-
 ---
 
 ### 7. Add Events to PredicateClient
 
-**Rationale**: Important state changes should emit events for off-chain monitoring.
+**What**: Add events for important state changes in PredicateClient
+**Why**: Essential for off-chain monitoring and indexing
 
 **File to Update**:
 - [ ] `src/mixins/PredicateClient.sol`
@@ -253,119 +179,50 @@ event TransactionAuthorized(
 );
 ```
 
-**Estimated Effort**: 1 hour
-
 ---
 
-## 🟢 Nice-to-Have Changes
+## 🟢 Nice-to-Have Changes (Post-Deploy OK)
 
 ### 8. Add Gas Optimization Tests
 
-**File to Create**:
-- [ ] `test/gas/PredicateRegistryGas.t.sol`
-
-**Tests to Add**:
-- Gas cost comparison between patterns (inheritance vs proxy)
-- Gas cost for validation with different signature lengths
-- Gas cost for different policy string lengths
-- Benchmark against v1 if available
-
-**Estimated Effort**: 2-3 hours
+**What**: Benchmark gas costs across different patterns and configurations
+**Files**: `test/gas/PredicateRegistryGas.t.sol`
+**Tests**: 
+- Gas comparison: Inheritance vs Proxy patterns
+- Validation costs with different signature/policy lengths
+- Benchmark vs v1 if available
 
 ---
 
 ### 9. Add Integration Tests for Multiple Attesters
 
-**Rationale**: Test realistic scenarios with multiple registered attesters.
-
-**File to Create**:
-- [ ] `test/integration/MultiAttester.t.sol`
-
-**Scenarios to Test**:
-- Multiple attesters registered
-- Switching between attesters
-- Attester deregistration doesn't affect others
-- Different policies per client
-
-**Estimated Effort**: 2 hours
+**What**: Test realistic multi-attester scenarios
+**Files**: `test/integration/MultiAttester.t.sol`
+**Scenarios**: Multiple attesters, switching, deregistration, different policies
 
 ---
 
 ### 10. Add Upgrade Tests
 
-**Rationale**: Verify upgrade path works correctly.
-
-**File to Create**:
-- [ ] `test/upgrades/PredicateRegistryUpgrade.t.sol`
-
-**Tests to Add**:
-- Upgrade preserves state
-- Old attesters still work after upgrade
-- Old policies still work after upgrade
-- Storage layout compatibility
-
-**Estimated Effort**: 2-3 hours
+**What**: Verify upgrade path and storage compatibility
+**Files**: `test/upgrades/PredicateRegistryUpgrade.t.sol`
+**Tests**: State preservation, attester/policy compatibility, storage layout
 
 ---
 
 ### 11. Create Migration Guide Document
 
-**File to Create**:
-- [ ] `MIGRATION.md`
-
-**Content**:
-- Detailed step-by-step migration from v1
-- Code comparison (before/after)
-- Breaking changes list
-- Timeline and support information
-- FAQ section
-
-**Estimated Effort**: 2-3 hours
+**What**: Detailed v1 → v2 migration guide
+**Files**: `MIGRATION.md`
+**Content**: Step-by-step migration, code comparisons, breaking changes, FAQ
 
 ---
 
 ### 12. Add CI/CD Pipeline
 
-**Files to Create**:
-- [ ] `.github/workflows/test.yml`
-- [ ] `.github/workflows/coverage.yml`
-- [ ] `.github/workflows/lint.yml`
-
-**Jobs to Add**:
-- Run forge tests on push
-- Run forge coverage and upload to Codecov
-- Run solhint for linting
-- Run slither for security analysis (if appropriate)
-
-**Estimated Effort**: 2-3 hours
-
----
-
-## Summary & Timeline
-
-### Critical Path (Must Complete Before Deploy)
-1. ✅ Task → Statement rename (2-3 hours)
-2. ✅ Fix PredicateProtected storage (1-2 hours)
-3. ✅ Update README for wrapper pattern (30 mins)
-4. ✅ Update main README (1 hour)
-5. ✅ Add NatSpec documentation (3-4 hours)
-6. ✅ Add deployment scripts (2-3 hours)
-
-**Total Critical Path**: ~10-14 hours
-
-### Important Changes (Strongly Recommended)
-7. Add events to PredicateClient (1 hour)
-8. Add gas optimization tests (2-3 hours)
-9. Add integration tests (2 hours)
-10. Add upgrade tests (2-3 hours)
-
-**Total Important**: ~7-9 hours
-
-### Nice-to-Have (Post-Deploy OK)
-11. Create migration guide (2-3 hours)
-12. Add CI/CD pipeline (2-3 hours)
-
-**Total Nice-to-Have**: ~4-6 hours
+**What**: Automate testing and quality checks
+**Files**: `.github/workflows/test.yml`, `coverage.yml`, `lint.yml`
+**Jobs**: Forge tests, coverage, linting, Slither analysis
 
 ---
 
@@ -429,14 +286,3 @@ Before starting implementation, clarify:
 6. **Audit**: Is security audit scheduled? Which firm?
 7. **Timeline**: Hard deadline for deployment?
 8. **Wrapper Pattern**: Should we implement it or officially deprecate it?
-
----
-
-## Contact & Resources
-
-- **Technical Lead**: [Name]
-- **Security Contact**: [Name]
-- **Documentation**: See `OVERVIEW.md`
-- **Examples**: See `src/examples/`
-- **Issues**: [GitHub Issues Link]
-
