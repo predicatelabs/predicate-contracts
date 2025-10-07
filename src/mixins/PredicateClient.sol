@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {IPredicateRegistry, Attestation, Task} from "../interfaces/IPredicateRegistry.sol";
+import {IPredicateRegistry, Attestation, Statement} from "../interfaces/IPredicateRegistry.sol";
 import "../interfaces/IPredicateClient.sol";
 
 abstract contract PredicateClient is IPredicateClient {
@@ -69,11 +69,11 @@ abstract contract PredicateClient is IPredicateClient {
 
     /**
      * @notice Validates the transaction by checking the attestation.
-     * @param _attestation Attestation from the attester authorizing the task
-     * @param _encodedSigAndArgs Encoded signature and arguments for the task
-     * @param _msgSender Address of the sender of the task
-     * @param _msgValue Value to send with the task
-     * @return bool indicating if the task has been validated
+     * @param _attestation Attestation from the attester authorizing the statement
+     * @param _encodedSigAndArgs Encoded signature and arguments for the statement
+     * @param _msgSender Address of the sender of the statement
+     * @param _msgValue Value to send with the statement
+     * @return bool indicating if the statement has been validated
      */
     function _authorizeTransaction(
         Attestation memory _attestation,
@@ -82,7 +82,7 @@ abstract contract PredicateClient is IPredicateClient {
         uint256 _msgValue
     ) internal returns (bool) {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        Task memory task = Task({
+        Statement memory statement = Statement({
             msgSender: _msgSender,
             target: address(this),
             msgValue: _msgValue,
@@ -91,6 +91,6 @@ abstract contract PredicateClient is IPredicateClient {
             expiration: _attestation.expiration,
             uuid: _attestation.uuid
         });
-        return $.registry.validateAttestation(task, _attestation);
+        return $.registry.validateAttestation(statement, _attestation);
     }
 }

@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-import {IPredicateRegistry, Task, Attestation} from "./interfaces/IPredicateRegistry.sol";
+import {IPredicateRegistry, Statement, Attestation} from "./interfaces/IPredicateRegistry.sol";
 
 /**
  * @title PredicateRegistry
@@ -16,15 +16,15 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     address[] public registeredAttesters;
     mapping(address => bool) public isAttesterRegistered;
     mapping(address => string) public clientToPolicy;
-    mapping(string => bool) public spentTaskIDs;
+    mapping(string => bool) public usedStatementUUIDs;
 
     // events
     event AttesterRegistered(address indexed attester);
     event AttesterDeregistered(address indexed attester);
     event PolicySet(address indexed client, address indexed setter, string policy, uint256 timestamp);
 
-    // task validation event
-    event TaskValidated(
+    // statement validation event
+    event StatementValidated(
         address indexed msgSender,
         address indexed target,
         address indexed attester,
@@ -107,71 +107,71 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Performs the hashing of an STM task
-     * @param _task parameters of the task
-     * @return the keccak256 digest of the task
+     * @notice Performs the hashing of a statement with expiry
+     * @param _statement parameters of the statement
+     * @return the keccak256 digest of the statement
      */
-    function hashTaskWithExpiry(
-        Task calldata _task
+    function hashStatementWithExpiry(
+        Statement calldata _statement
     ) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                _task.uuid,
-                _task.msgSender,
-                _task.target,
-                _task.msgValue,
-                _task.encodedSigAndArgs,
-                _task.policy,
-                _task.expiration
+                _statement.uuid,
+                _statement.msgSender,
+                _statement.target,
+                _statement.msgValue,
+                _statement.encodedSigAndArgs,
+                _statement.policy,
+                _statement.expiration
             )
         );
     }
 
     /**
-     * @notice Computes a secure task hash with validation-time context
-     * @param _task The task parameters to hash
+     * @notice Computes a secure statement hash with validation-time context
+     * @param _statement The statement parameters to hash
      * @return bytes32 The keccak256 digest including validation context
      */
-    function hashTaskSafe(
-        Task calldata _task
+    function hashStatementSafe(
+        Statement calldata _statement
     ) public view returns (bytes32) {
         return keccak256(
             abi.encode(
-                _task.uuid,
-                _task.msgSender,
+                _statement.uuid,
+                _statement.msgSender,
                 msg.sender,
-                _task.msgValue,
-                _task.encodedSigAndArgs,
-                _task.policy,
-                _task.expiration
+                _statement.msgValue,
+                _statement.encodedSigAndArgs,
+                _statement.policy,
+                _statement.expiration
             )
         );
     }
 
     /**
      * @notice Validates signatures using the OpenZeppelin ECDSA library for the Predicate Single Transaction Model
-     * @param _task the params of the task
+     * @param _statement the params of the statement
      * @param _attestation the attestation from the attester
      */
     function validateAttestation(
-        Task calldata _task,
+        Statement calldata _statement,
         Attestation calldata _attestation
     ) external returns (bool isVerified) {
-        // check if attestation is expired or task is already spent
+        // check if attestation is expired or statement is already spent
         require(block.timestamp <= _attestation.expiration, "Predicate.validateAttestation: attestation expired");
-        require(!spentTaskIDs[_task.uuid], "Predicate.validateAttestation: task ID already spent");
+        require(!usedStatementUUIDs[_statement.uuid], "Predicate.validateAttestation: statement UUID already used");
 
-        // check if task ID matches attestation ID and expiration
+        // check if statement UUID matches attestation UUID and expiration
         require(
-            keccak256(abi.encodePacked(_task.uuid)) == keccak256(abi.encodePacked(_attestation.uuid)),
-            "Predicate.validateAttestation: task ID does not match attestation ID"
+            keccak256(abi.encodePacked(_statement.uuid)) == keccak256(abi.encodePacked(_attestation.uuid)),
+            "Predicate.validateAttestation: statement UUID does not match attestation UUID"
         );
         require(
-            _task.expiration == _attestation.expiration,
-            "Predicate.validateAttestation: task expiration does not match attestation expiration"
+            _statement.expiration == _attestation.expiration,
+            "Predicate.validateAttestation: statement expiration does not match attestation expiration"
         );
 
-        bytes32 messageHash = hashTaskSafe(_task);
+        bytes32 messageHash = hashStatementSafe(_statement);
         address recoveredAttester = ECDSA.recover(messageHash, _attestation.signature);
         require(recoveredAttester == _attestation.attester, "Predicate.validateAttestation: Invalid signature");
         require(
@@ -179,16 +179,16 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
             "Predicate.validateAttestation: Attester is not a registered attester"
         );
 
-        spentTaskIDs[_task.uuid] = true;
+        usedStatementUUIDs[_statement.uuid] = true;
 
-        emit TaskValidated(
-            _task.msgSender,
-            _task.target,
+        emit StatementValidated(
+            _statement.msgSender,
+            _statement.target,
             _attestation.attester,
-            _task.msgValue,
-            _task.policy,
-            _task.uuid,
-            _task.expiration
+            _statement.msgValue,
+            _statement.policy,
+            _statement.uuid,
+            _statement.expiration
         );
 
         return true;

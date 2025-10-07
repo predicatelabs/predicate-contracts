@@ -2,22 +2,23 @@
 pragma solidity ^0.8.12;
 
 /**
- * @notice Struct that bundles together a task's parameters for validation
+ * @notice Struct that bundles together a statement's parameters for validation
+ * @dev A statement represents a claim or assertion about a transaction to be executed
  */
-struct Task {
-    // the unique identifier for the task
+struct Statement {
+    // the unique identifier for the statement
     string uuid;
-    // the address of the sender of the task
+    // the address of the sender of the statement
     address msgSender;
-    // the address of the target contract for the task
+    // the address of the target contract for the statement
     address target;
-    // the value to send with the task
+    // the value to send with the statement
     uint256 msgValue;
-    // the encoded signature and arguments for the task
+    // the encoded signature and arguments for the statement
     bytes encodedSigAndArgs;
-    // the policy associated with the task
+    // the policy associated with the statement
     string policy;
-    // the timestamp by which the task must be executed
+    // the timestamp by which the statement must be executed
     uint256 expiration;
 }
 
@@ -60,14 +61,14 @@ interface IPredicateRegistry {
     ) external view returns (string memory);
 
     /**
-     * @notice Verifies if a task is authorized by the attester
-     * @param _task Parameters of the task including sender, target, function signature, arguments, quorum count, and expiry block
+     * @notice Verifies if a statement is authorized by the attester
+     * @param _statement Parameters of the statement including sender, target, function signature, arguments, and expiration
      * @param _attestation Attestation from the attester
-     * @return isVerified Boolean indicating if the task has been verified by the predicate registry
-     * @dev This function checks the attestation against the hash of the task parameters to ensure task authenticity and authorization
+     * @return isVerified Boolean indicating if the statement has been verified by the predicate registry
+     * @dev This function checks the attestation against the hash of the statement parameters to ensure statement authenticity and authorization
      */
     function validateAttestation(
-        Task memory _task,
+        Statement memory _statement,
         Attestation memory _attestation
     ) external returns (bool isVerified);
 }

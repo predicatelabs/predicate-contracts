@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
+import {Statement, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
 import {MetaCoin} from "../src/examples/inheritance/MetaCoin.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 
@@ -61,8 +61,8 @@ contract MetaCoinTest is PredicateRegistrySetup {
         uint256 expireByTime = block.timestamp + 100;
         string memory uuid = "unique-identifier";
         uint256 amount = 10;
-        bytes32 messageHash = predicateRegistry.hashTaskWithExpiry(
-            Task({
+        bytes32 messageHash = predicateRegistry.hashStatementWithExpiry(
+            Statement({
                 uuid: uuid,
                 msgSender: clientOwner,
                 target: address(client),
