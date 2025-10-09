@@ -119,10 +119,21 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      * @param _client The address of the client to query
      * @return policyId The policy identifier, empty string if no policy set
      */
-    function getPolicyId(
+    function getPolicyID(
         address _client
-    ) external view returns (string memory policyId) {
+    ) external view returns (string memory policyID) {
         return clientToPolicy[_client];
+    }
+
+    /**
+     * @notice Gets the policy for a client
+     * @param _client is the address of the client for which the policy is being retrieved
+     @return policyId The policy identifier, empty string if no policy set
+     */
+    function getPolicy(
+        address _client
+    ) external view returns (string memory) {
+        return getPolicyID(_client);
     }
 
     /**
