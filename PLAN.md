@@ -13,7 +13,7 @@ This document outlines all changes that should be made before deploying v2 to pr
 | 3. Wrapper pattern docs | ✅ Complete | `5bb91fcb` |
 | 4. Main README update | ✅ Complete | `9e4e4df1` |
 | 5. NatSpec documentation | ✅ Complete | `29d583be` |
-| BONUS: setPolicy → setPolicyId | ✅ Complete | `4aa38e83` |
+| BONUS: setPolicy → setPolicyID | ✅ Complete | `4aa38e83` |
 | 6. Deployment scripts | ⏸️ **TODO** | - |
 | 7. Events in PredicateClient | ✅ Complete | `[pending]` |
 
@@ -82,9 +82,9 @@ This document outlines all changes that should be made before deploying v2 to pr
 
 **Result**: Production-ready user documentation | Commit: `9e4e4df1`
 
-### BONUS: Rename setPolicy → setPolicyId ✅ **COMPLETED**
+### BONUS: Rename setPolicy → setPolicyID ✅ **COMPLETED**
 
-**What**: Renamed setPolicy/getPolicy to setPolicyId/getPolicyId throughout
+**What**: Renamed setPolicy/getPolicy to setPolicyID/getPolicyID throughout
 **Why**: Clarifies it's an identifier (typically "x-{hash[:16]}") not the full policy
 **Files**: All interfaces, implementations, examples, and tests
 **Documentation**: Added format examples in NatSpec
@@ -168,15 +168,15 @@ contract DeployScript is Script {
 
 **Events Added**:
 - ✅ `PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry)`
-- ✅ `PredicatePolicyIdUpdated(string oldPolicyId, string newPolicyId)`
+- ✅ `PredicatePolicyIDUpdated(string oldPolicyID, string newPolicyID)`
 - ❌ `TransactionAuthorized` - Removed (redundant with `StatementValidated` from PredicateRegistry)
 
 **Event Emissions**:
-- ✅ `_setPolicyId()` emits `PredicatePolicyIdUpdated`
+- ✅ `_setPolicyID()` emits `PredicatePolicyIDUpdated`
 - ✅ `_setRegistry()` emits `PredicateRegistryUpdated`
 
 **Tests Added**:
-- ✅ `testPolicyIdUpdatedEventEmitted()` 
+- ✅ `testPolicyIDUpdatedEventEmitted()` 
 - ✅ `testRegistryUpdatedEventEmitted()`
 
 **Documentation**:
@@ -286,7 +286,7 @@ Before deployment, clarify:
 
 1. **Upgradeability**: Is PredicateRegistry deployed as upgradeable proxy?
 2. **Attester Onboarding**: What's the process for registering new attesters?
-3. ~~**Policy Format**~~: ✅ **RESOLVED** - We use `policyId` (can be any string, typically "x-{hash(policy)[:16]}")
+3. ~~**Policy Format**~~: ✅ **RESOLVED** - We use `policyID` (can be any string, typically "x-{hash(policy)[:16]}")
 4. **Network**: Which networks for initial deployment?
 5. **Governance**: Who controls the owner key? Multisig details?
 6. **Audit**: Is security audit scheduled? Which firm?

@@ -48,7 +48,7 @@ abstract contract PredicateClient is IPredicateClient {
     event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
     /// @notice Emitted when the policy ID is updated
-    event PredicatePolicyIdUpdated(string oldPolicyId, string newPolicyId);
+    event PredicatePolicyIDUpdated(string oldPolicyID, string newPolicyID);
 
     function _getPredicateClientStorage() private pure returns (PredicateClientStorage storage $) {
         assembly {
@@ -61,43 +61,42 @@ abstract contract PredicateClient is IPredicateClient {
      * @dev Must be called in the constructor of the inheriting contract.
      *      Sets both the registry address and initial policy ID.
      * @param _registryAddress The address of the PredicateRegistry contract
-     * @param _policyId The initial policy identifier for this contract (typically "x-{hash[:16]}")
+     * @param _policyID The initial policy identifier for this contract (typically "x-{hash[:16]}")
      */
-    function _initPredicateClient(address _registryAddress, string memory _policyId) internal {
+    function _initPredicateClient(address _registryAddress, string memory _policyID) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         $.registry = IPredicateRegistry(_registryAddress);
-        _setPolicyId(_policyId);
+        _setPolicyID(_policyID);
     }
 
     /**
      * @notice Updates the policy ID for this contract
      * @dev Updates local storage and registers with PredicateRegistry.
      *      Should typically be restricted to owner/admin.
-     *      Emits PredicatePolicyIdUpdated event.
-     * @param _policyId The new policy identifier to set
+     *      Emits PredicatePolicyIDUpdated event.
+     * @param _policyID The new policy identifier to set
      */
-    function _setPolicyId(
-        string memory _policyId
+    function _setPolicyID(
+        string memory _policyID
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
-        string memory oldPolicyId = $.policy;
-        $.policy = _policyId;
-        $.registry.setPolicyId(_policyId);
-        emit PredicatePolicyIdUpdated(oldPolicyId, _policyId);
+        string memory oldPolicyID = $.policy;
+        $.policy = _policyID;
+        $.registry.setPolicyID(_policyID);
+        emit PredicatePolicyIDUpdated(oldPolicyID, _policyID);
     }
 
-    function getPolicyId() external view returns (string memory policyId) {
-        return _getPolicyId();
+    function getPolicyID() external view returns (string memory policyID) {
+        return _getPolicyID();
     }
 
-    function _getPolicyId() internal view returns (string memory policyId) {
+    function _getPolicyID() internal view returns (string memory policyID) {
         return _getPredicateClientStorage().policy;
     }
 
     /**
      * @notice Updates the PredicateRegistry address
      * @dev Should typically be restricted to owner/admin for security.
-     *      Does not re-register the policy - call _setPolicyId() if needed.
      *      Emits PredicateRegistryUpdated event.
      * @param _registryAddress The new PredicateRegistry contract address
      * @custom:security Changing registry is sensitive - ensure proper access control

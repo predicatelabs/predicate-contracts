@@ -55,20 +55,20 @@ interface IPredicateRegistry {
      *      - Typically: "x-{hash(policy)[:16]}" (e.g., "x-a1b2c3d4e5f6g7h8")
      *      - Can be any string: IPFS CID, URL, or custom identifier
      *      - No format validation - any string accepted
-     * @param policyId The unique identifier for the policy
+     * @param policyID The unique identifier for the policy
      */
-    function setPolicyId(
-        string memory policyId
+    function setPolicyID(
+        string memory policyID
     ) external;
 
     /**
      * @notice Retrieves the policy ID associated with a client address
      * @param client The address to query
-     * @return policyId The policy identifier, empty string if none set
+     * @return policyID The policy identifier, empty string if none set
      */
-    function getPolicyId(
+    function getPolicyID(
         address client
-    ) external view returns (string memory policyId);
+    ) external view returns (string memory policyID);
 
     /**
      * @notice Validates an attestation to authorize a statement execution

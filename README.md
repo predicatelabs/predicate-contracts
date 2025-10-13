@@ -124,11 +124,11 @@ Predicate v2 emits comprehensive events for off-chain monitoring:
 
 **PredicateRegistry events:**
 - `AttesterRegistered` / `AttesterDeregistered` - Attester management
-- `PolicySet` - Policy changes (emitted when client calls `setPolicyId()`)
+- `PolicySet` - Policy changes (emitted when client calls `setPolicyID()`)
 - `StatementValidated` - Successful attestation validations
 
 **PredicateClient events** (from your contract):
-- `PredicatePolicyIdUpdated` - Track policy changes in your contract
+- `PredicatePolicyIDUpdated` - Track policy changes in your contract
 - `PredicateRegistryUpdated` - Alert on registry address changes (security-critical)
 
 **Note:** Transaction authorization is tracked via `StatementValidated` from PredicateRegistry (no duplicate event needed).

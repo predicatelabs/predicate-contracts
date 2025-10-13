@@ -12,12 +12,12 @@ error PredicateClient__Unauthorized();
 interface IPredicateClient {
     /**
      * @notice Sets a policy ID for the calling address
-     * @param _policyId The policy identifier. Typically "x-{hash(policy)[:16]}" but can be any string
+     * @param _policyID The policy identifier. Typically "x-{hash(policy)[:16]}" but can be any string
      * @dev This function enables clients to define execution rules or parameters for statements they submit.
      *      The policy ID governs how statements are validated, ensuring compliance with predefined rules.
      */
-    function setPolicyId(
-        string memory _policyId
+    function setPolicyID(
+        string memory _policyID
     ) external;
 
     /**
@@ -32,9 +32,9 @@ interface IPredicateClient {
 
     /**
      * @notice Retrieves the policy ID for the calling address
-     * @return policyId The policy identifier associated with the calling address
+     * @return policyID The policy identifier associated with the calling address
      */
-    function getPolicyId() external view returns (string memory policyId);
+    function getPolicyID() external view returns (string memory policyID);
 
     /**
      * @notice Function for getting the Predicate Registry

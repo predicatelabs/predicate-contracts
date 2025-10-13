@@ -31,14 +31,14 @@ contract MetaCoinTest is PredicateRegistrySetup {
 
     function testOwnerCanSetPolicy() public {
         vm.prank(clientOwner);
-        client.setPolicyId(policyTwo);
-        assertEq(client.getPolicyId(), policyTwo);
+        client.setPolicyID(policyTwo);
+        assertEq(client.getPolicyID(), policyTwo);
     }
 
     function testRandomAccountCannotSetPolicy() public {
         vm.expectRevert();
         vm.prank(randomAddress);
-        client.setPolicyId("testpolicy12345");
+        client.setPolicyID("testpolicy12345");
     }
 
     function testClientOwnerCanSetRegistry() public {
@@ -86,12 +86,12 @@ contract MetaCoinTest is PredicateRegistrySetup {
         assertEq(client.getBalance(clientOwner), 9_999_999_999_990, "sender balance should be 9900 after sending");
     }
 
-    function testPolicyIdUpdatedEventEmitted() public {
+    function testPolicyIDUpdatedEventEmitted() public {
         vm.expectEmit(true, true, true, true);
-        emit PredicatePolicyIdUpdated(policyOne, policyTwo);
+        emit PredicatePolicyIDUpdated(policyOne, policyTwo);
 
         vm.prank(clientOwner);
-        client.setPolicyId(policyTwo);
+        client.setPolicyID(policyTwo);
     }
 
     function testRegistryUpdatedEventEmitted() public {
@@ -105,6 +105,6 @@ contract MetaCoinTest is PredicateRegistrySetup {
     }
 
     // Event declarations for testing
-    event PredicatePolicyIdUpdated(string oldPolicyId, string newPolicyId);
+    event PredicatePolicyIDUpdated(string oldPolicyID, string newPolicyID);
     event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 }

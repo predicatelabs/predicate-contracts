@@ -105,23 +105,23 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      *      - Can be any string: IPFS CID, URL, or custom identifier
      *      - No format validation performed - accepts any string
      *      - Each client can only have one active policy ID at a time
-     * @param _policyId The unique identifier for the policy to associate with msg.sender
+     * @param _policyID The unique identifier for the policy to associate with msg.sender
      */
-    function setPolicyId(
-        string memory _policyId
+    function setPolicyID(
+        string memory _policyID
     ) external {
-        clientToPolicy[msg.sender] = _policyId;
-        emit PolicySet(msg.sender, msg.sender, _policyId, block.timestamp);
+        clientToPolicy[msg.sender] = _policyID;
+        emit PolicySet(msg.sender, msg.sender, _policyID, block.timestamp);
     }
 
     /**
      * @notice Retrieves the policy ID associated with a specific client address
      * @param _client The address of the client to query
-     * @return policyId The policy identifier, empty string if no policy set
+     * @return policyID The policy identifier, empty string if no policy set
      */
-    function getPolicyId(
+    function getPolicyID(
         address _client
-    ) external view returns (string memory policyId) {
+    ) external view returns (string memory policyID) {
         return clientToPolicy[_client];
     }
 
