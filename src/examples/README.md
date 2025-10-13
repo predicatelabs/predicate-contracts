@@ -9,7 +9,6 @@ This directory contains example implementations demonstrating different patterns
 The diagram above illustrates the three integration patterns and their interaction flows:
 - **Proxy Pattern**: Uses a dedicated PredicateProxy contract as an intermediary
 - **Inheritance Pattern**: Business logic directly inherits PredicateClient functionality
-- **Wrapper Pattern**: Business logic calls an external PredicateWrapper contract
 
 ## Base Contract: MetaCoin
 
@@ -46,27 +45,7 @@ The Proxy pattern uses a dedicated proxy contract to interact with the main cont
 - Additional gas costs for proxy deployment and calls
 - More complex architecture
 
-### 2. Wrapper Pattern
-
-⚠️ **Status: DEPRECATED IN V2**
-
-**Location:** `src/examples/wrapper/` (not available)
-
-The Wrapper pattern is **not supported in v2**. This pattern was explored in earlier versions but has been deprecated in favor of the simpler and more efficient Inheritance and Proxy patterns.
-
-**Why deprecated:**
-- Added unnecessary complexity with external contract calls
-- Higher gas costs compared to Inheritance pattern
-- Maintenance overhead not justified by benefits
-- Inheritance and Proxy patterns cover all practical use cases
-
-**Migration:** If you were using the Wrapper pattern in v1, migrate to:
-- **Inheritance Pattern** - For direct integration with minimal gas overhead
-- **Proxy Pattern** - For separation of concerns and upgradeability
-
-**Note:** The Wrapper pattern will not be implemented in v2. Please use the **Inheritance Pattern** (recommended for most cases) or **Proxy Pattern** (for separation of concerns).
-
-### 3. Inheritance Pattern
+### 2. Inheritance Pattern
 
 **Location:** `src/examples/inheritance/`
 
