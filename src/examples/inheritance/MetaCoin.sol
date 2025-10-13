@@ -27,10 +27,10 @@ contract MetaCoin is PredicateClient, Ownable {
         _sendCoin(_receiver, _amount);
     }
 
-    function setPolicy(
+    function setPolicyID(
         string memory _policyID
     ) external onlyOwner {
-        _setPolicy(_policyID);
+        _setPolicyID(_policyID);
     }
 
     function setRegistry(

@@ -48,31 +48,23 @@ The Proxy pattern uses a dedicated proxy contract to interact with the main cont
 
 ### 2. Wrapper Pattern
 
-**Location:** `src/examples/wrapper/`
+⚠️ **Status: DEPRECATED IN V2**
 
-The Wrapper pattern uses a modifier-based approach to wrap protected functions with Predicate validation by calling an external contract.
+**Location:** `src/examples/wrapper/` (not available)
 
-**Key components:**
-- `PredicateClientWrapper.sol`: External contract that provides the validation functionality
-- `PredicateProtected.sol`: Base contract with wrapper-related functionality
-- `IPredicateProtected.sol`: Interface for wrapper methods
-- `MetaCoin.sol`: Main contract with wrapper integration
+The Wrapper pattern is **not supported in v2**. This pattern was explored in earlier versions but has been deprecated in favor of the simpler and more efficient Inheritance and Proxy patterns.
 
-**How it works:**
-1. Protected functions are decorated with a validation modifier
-2. The modifier makes an external call to the PredicateClientWrapper contract for validation
-3. The external wrapper contract performs Predicate validation before allowing execution to continue
-4. If validation fails, the transaction is reverted
+**Why deprecated:**
+- Added unnecessary complexity with external contract calls
+- Higher gas costs compared to Inheritance pattern
+- Maintenance overhead not justified by benefits
+- Inheritance and Proxy patterns cover all practical use cases
 
-**Benefits:**
-- Flexible per-function protection
-- Validation logic can be upgraded by changing the external wrapper contract
+**Migration:** If you were using the Wrapper pattern in v1, migrate to:
+- **Inheritance Pattern** - For direct integration with minimal gas overhead
+- **Proxy Pattern** - For separation of concerns and upgradeability
 
-**Drawbacks:**
-- Requires modifying function signatures to include Predicate message
-- Protected and unprotected functions coexist, which might lead to confusion
-- External calls can increase gas costs
-- Introduces dependency on an external contract
+**Note:** The Wrapper pattern will not be implemented in v2. Please use the **Inheritance Pattern** (recommended for most cases) or **Proxy Pattern** (for separation of concerns).
 
 ### 3. Inheritance Pattern
 
@@ -100,8 +92,8 @@ The Inheritance pattern directly extends the Predicate client functionality thro
 
 ## Choosing the Right Pattern
 
-- **Use the Proxy pattern** when you need a clean separation of concerns and potentially upgradable validation logic. This is the recommended approach.
-- **Use the Wrapper pattern** when we need to call the business logic contract first.
-- **Use the Inheritance pattern** when you need direct control over the validation process and want to minimize contract dependencies.
+- **Use the Inheritance pattern** when you need direct control over the validation process and want to minimize contract dependencies. This is the **recommended approach** for most use cases.
+- **Use the Proxy pattern** when you need a clean separation of concerns and potentially upgradable validation logic. This provides maximum flexibility.
+- ~~**Wrapper pattern**~~ - **Deprecated in v2**. Use Inheritance or Proxy patterns instead.
 
 Each pattern can be adapted to suit your specific needs and security requirements.

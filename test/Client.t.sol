@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.12;
 
-import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
+import {Statement, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
 import {MetaCoin} from "../src/examples/inheritance/MetaCoin.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 
@@ -31,14 +31,14 @@ contract MetaCoinTest is PredicateRegistrySetup {
 
     function testOwnerCanSetPolicy() public {
         vm.prank(clientOwner);
-        client.setPolicy(policyTwo);
-        assertEq(client.getPolicy(), policyTwo);
+        client.setPolicyID(policyTwo);
+        assertEq(client.getPolicyID(), policyTwo);
     }
 
     function testRandomAccountCannotSetPolicy() public {
         vm.expectRevert();
         vm.prank(randomAddress);
-        client.setPolicy("testpolicy12345");
+        client.setPolicyID("testpolicy12345");
     }
 
     function testClientOwnerCanSetRegistry() public {
@@ -61,8 +61,8 @@ contract MetaCoinTest is PredicateRegistrySetup {
         uint256 expireByTime = block.timestamp + 100;
         string memory uuid = "unique-identifier";
         uint256 amount = 10;
-        bytes32 messageHash = predicateRegistry.hashTaskWithExpiry(
-            Task({
+        bytes32 messageHash = predicateRegistry.hashStatementWithExpiry(
+            Statement({
                 uuid: uuid,
                 msgSender: clientOwner,
                 target: address(client),
@@ -85,4 +85,26 @@ contract MetaCoinTest is PredicateRegistrySetup {
         assertEq(client.getBalance(testReceiver), 10, "receiver balance should be 10 after receiving");
         assertEq(client.getBalance(clientOwner), 9_999_999_999_990, "sender balance should be 9900 after sending");
     }
+
+    function testPolicyIDUpdatedEventEmitted() public {
+        vm.expectEmit(true, true, true, true);
+        emit PredicatePolicyIDUpdated(policyOne, policyTwo);
+
+        vm.prank(clientOwner);
+        client.setPolicyID(policyTwo);
+    }
+
+    function testRegistryUpdatedEventEmitted() public {
+        address newRegistry = makeAddr("newRegistry");
+
+        vm.expectEmit(true, true, true, true);
+        emit PredicateRegistryUpdated(address(predicateRegistry), newRegistry);
+
+        vm.prank(clientOwner);
+        client.setRegistry(newRegistry);
+    }
+
+    // Event declarations for testing
+    event PredicatePolicyIDUpdated(string oldPolicyID, string newPolicyID);
+    event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 }

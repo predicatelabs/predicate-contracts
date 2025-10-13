@@ -24,10 +24,10 @@ contract PredicateClientProxy is PredicateClient {
         _metaCoin.sendCoin{value: msg.value}(msg.sender, _receiver, _amount);
     }
 
-    function setPolicy(
+    function setPolicyID(
         string memory _policyID
     ) external {
-        _setPolicy(_policyID);
+        _setPolicyID(_policyID);
     }
 
     function setRegistry(

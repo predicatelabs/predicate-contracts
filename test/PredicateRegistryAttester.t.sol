@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import {Test, console} from "forge-std/Test.sol";
 import {PredicateRegistry} from "../src/PredicateRegistry.sol";
-import {Task, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
+import {Statement, Attestation} from "../src/interfaces/IPredicateRegistry.sol";
 import "./helpers/PredicateRegistrySetup.sol";
 
 contract PredicateRegistryAttesterTest is PredicateRegistrySetup {

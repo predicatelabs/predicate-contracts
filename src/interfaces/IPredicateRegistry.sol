@@ -2,27 +2,34 @@
 pragma solidity ^0.8.12;
 
 /**
- * @notice Struct that bundles together a task's parameters for validation
+ * @notice Struct that bundles together a statement's parameters for validation
+ * @dev A statement represents a claim or assertion about a transaction to be executed.
+ *      It contains all the necessary information to validate that a transaction
+ *      is authorized by an attester according to a specific policy.
+ * @custom:security UUID must be unique per statement to prevent replay attacks
  */
-struct Task {
-    // the unique identifier for the task
+struct Statement {
+    // the unique identifier for the statement
     string uuid;
-    // the address of the sender of the task
+    // the address of the sender of the statement
     address msgSender;
-    // the address of the target contract for the task
+    // the address of the target contract for the statement
     address target;
-    // the value to send with the task
+    // the value to send with the statement
     uint256 msgValue;
-    // the encoded signature and arguments for the task
+    // the encoded signature and arguments for the statement
     bytes encodedSigAndArgs;
-    // the policy associated with the task
+    // the policy associated with the statement
     string policy;
-    // the timestamp by which the task must be executed
+    // the timestamp by which the statement must be executed
     uint256 expiration;
 }
 
 /**
  * @notice Struct that bundles together an attestation's parameters for validation
+ * @dev An attestation is a signed approval from an authorized attester.
+ *      The signature is created by signing the hash of the corresponding Statement.
+ * @custom:security signature must be generated using hashStatementWithExpiry()
  */
 struct Attestation {
     // the unique identifier for the attestation
@@ -36,38 +43,49 @@ struct Attestation {
 }
 
 /**
- * @title IPredicateRegistry interface for a registry of policies, operators, and tasks
- * @author Predicate Labs, Inc
+ * @title IPredicateRegistry
+ * @author Predicate Labs, Inc (https://predicate.io)
+ * @notice Interface for the core registry managing attesters, policies, and statement validation
+ * @dev Defines the contract interface for PredicateRegistry implementation
  */
 interface IPredicateRegistry {
     /**
-     * @notice Sets a policy for the sender, defining execution rules or parameters for tasks
-     * @param policy string pointing to the policy details
-     * @dev Only callable by client contracts or EOAs to associate a policy with their address
-     * @dev Emits a PolicySet event upon successful association
+     * @notice Sets a policy ID for the sender, defining execution rules for statements
+     * @dev Associates a policy identifier with msg.sender. Policy ID format:
+     *      - Typically: "x-{hash(policy)[:16]}" (e.g., "x-a1b2c3d4e5f6g7h8")
+     *      - Can be any string: IPFS CID, URL, or custom identifier
+     *      - No format validation - any string accepted
+     * @param policyID The unique identifier for the policy
      */
-    function setPolicy(
-        string memory policy
+    function setPolicyID(
+        string memory policyID
     ) external;
 
     /**
-     * @notice Gets the policy for a client
-     * @param client is the address of the client for which the policy is being retrieved
-     * @return policy is the identifier for the client's policy
+     * @notice Retrieves the policy ID associated with a client address
+     * @param client The address to query
+     * @return policyID The policy identifier, empty string if none set
      */
-    function getPolicy(
+    function getPolicyID(
         address client
-    ) external view returns (string memory);
+    ) external view returns (string memory policyID);
 
     /**
-     * @notice Verifies if a task is authorized by the attester
-     * @param _task Parameters of the task including sender, target, function signature, arguments, quorum count, and expiry block
-     * @param _attestation Attestation from the attester
-     * @return isVerified Boolean indicating if the task has been verified by the predicate registry
-     * @dev This function checks the attestation against the hash of the task parameters to ensure task authenticity and authorization
+     * @notice Validates an attestation to authorize a statement execution
+     * @dev Verifies:
+     *      - Attestation not expired
+     *      - Statement UUID not previously used (replay protection)
+     *      - UUIDs match between statement and attestation
+     *      - Expirations match
+     *      - Signature is valid (ECDSA recovery)
+     *      - Attester is registered
+     * @param _statement The statement to validate
+     * @param _attestation The signed attestation authorizing the statement
+     * @return isVerified True if valid, reverts otherwise
+     * @custom:security Marks UUID as spent to prevent replay attacks
      */
     function validateAttestation(
-        Task memory _task,
+        Statement memory _statement,
         Attestation memory _attestation
     ) external returns (bool isVerified);
 }
