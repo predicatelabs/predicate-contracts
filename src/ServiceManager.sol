@@ -49,6 +49,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
     mapping(string => uint256) public policyIdToThreshold;
     mapping(address => bool) private permissionedOperators;
     mapping(address => string) public clientToPolicyID;
+    bool public allowRegistrations;
 
     event SetPolicy(address indexed client, string indexed policyID);
     event DeployedPolicy(string indexed policyID, string policy);
@@ -152,6 +153,30 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
     }
 
     /**
+    * @notice Registers an operator with owner override
+    * @param _operator the address of the operator to register
+    * @param _operatorSigningKey the address of the operator signing key
+    * @dev only callable by the owner
+    */
+    function registerOperatorOverride(address _operator, address _operatorSigningKey) external onlyOwner {
+        require(
+            signingKeyToOperator[_operatorSigningKey] == address(0),
+            "Predicate.registerOperatorToAVS: operator already registered"
+        );
+        require(
+            signingKeyToOperator[_operatorSigningKey] == address(0),
+            "Predicate.rotatePredicateSigningKey: new signing key already registered"
+        );
+        operators[_operator] = OperatorInfo(0, OperatorStatus.REGISTERED);
+        signingKeyToOperator[_operatorSigningKey] = _operator;
+        emit OperatorRegistered(_operator);
+    }
+
+    function setAllowRegistrations(bool _allowRegistrations) external onlyOwner {
+        allowRegistrations = _allowRegistrations;
+    }
+
+    /**
      * @notice Registers a new operator
      * @param _operatorSigningKey address of the operator signing key
      * @param _operatorSignature signature used for validation
@@ -160,6 +185,7 @@ contract ServiceManager is IPredicateManager, Initializable, Ownable2StepUpgrade
         address _operatorSigningKey,
         SignatureWithSaltAndExpiry memory _operatorSignature
     ) external onlyPermissionedOperator {
+        require(allowRegistrations, "Predicate.registerOperatorToAVS: registrations are not allowed");
         require(
             signingKeyToOperator[_operatorSigningKey] == address(0),
             "Predicate.registerOperatorToAVS: operator already registered"

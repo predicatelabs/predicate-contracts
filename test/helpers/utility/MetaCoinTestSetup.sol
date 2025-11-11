@@ -36,6 +36,8 @@ contract MetaCoinTestSetup is TestStorage {
         );
         vm.stopPrank();
 
+        serviceManager.setAllowRegistrations(true);
+
         vm.startPrank(address(this));
         serviceManager.deployPolicy(
             "testPolicy",

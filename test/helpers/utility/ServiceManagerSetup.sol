@@ -32,6 +32,7 @@ contract ServiceManagerSetup is TestStorage {
             0
         );
         vm.stopPrank();
+        serviceManager.setAllowRegistrations(true);
 
         vm.startPrank(address(this));
         serviceManager.deployPolicy(
