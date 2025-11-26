@@ -11,12 +11,20 @@ contract MetaCoin is PredicateClient, Ownable {
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address _owner, address _registry, string memory _policyID) Ownable(_owner) {
+    constructor(
+        address _owner,
+        address _registry,
+        string memory _policyID
+    ) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
         _initPredicateClient(_registry, _policyID);
     }
 
-    function sendCoin(address _receiver, uint256 _amount, Attestation calldata _attestation) external payable {
+    function sendCoin(
+        address _receiver,
+        uint256 _amount,
+        Attestation calldata _attestation
+    ) external payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
             _authorizeTransaction(_attestation, encodedSigAndArgs, msg.sender, msg.value),
@@ -39,7 +47,10 @@ contract MetaCoin is PredicateClient, Ownable {
         _setRegistry(_registry);
     }
 
-    function _sendCoin(address _receiver, uint256 _amount) internal {
+    function _sendCoin(
+        address _receiver,
+        uint256 _amount
+    ) internal {
         require(balances[msg.sender] >= _amount, "MetaCoin: insufficient balance");
         balances[msg.sender] -= _amount;
         balances[_receiver] += _amount;

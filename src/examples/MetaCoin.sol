@@ -14,12 +14,18 @@ contract MetaCoin is Ownable {
         balances[_owner] = 10_000_000_000_000;
     }
 
-    function sendCoin(address _receiver, uint256 _amount) external payable {
+    function sendCoin(
+        address _receiver,
+        uint256 _amount
+    ) external payable {
         _sendCoin(_receiver, _amount);
     }
 
     // business logic function that is protected
-    function _sendCoin(address _receiver, uint256 _amount) internal {
+    function _sendCoin(
+        address _receiver,
+        uint256 _amount
+    ) internal {
         require(balances[msg.sender] >= _amount, "MetaCoin: insufficient balance");
         balances[msg.sender] -= _amount;
         balances[_receiver] += _amount;

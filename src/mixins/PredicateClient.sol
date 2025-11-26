@@ -63,7 +63,10 @@ abstract contract PredicateClient is IPredicateClient {
      * @param _registryAddress The address of the PredicateRegistry contract
      * @param _policyID The initial policy identifier for this contract (typically "x-{hash[:16]}")
      */
-    function _initPredicateClient(address _registryAddress, string memory _policyID) internal {
+    function _initPredicateClient(
+        address _registryAddress,
+        string memory _policyID
+    ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         $.registry = IPredicateRegistry(_registryAddress);
         _setPolicyID(_policyID);

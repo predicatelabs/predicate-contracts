@@ -73,7 +73,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      * @notice Removes an attester from the registry
      * @dev Only the contract owner can deregister attesters. 
      * @param _attester The address of the attester to remove
-     * @custom:security Existing attestations from this attester remain valid until their expiration
+     * @custom:security Deregistration immediately revokes all attestations from this attester
      */
     function deregisterAttester(
         address _attester
