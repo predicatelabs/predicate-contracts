@@ -71,7 +71,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
 
     /**
      * @notice Removes an attester from the registry
-     * @dev Only the contract owner can deregister attesters. 
+     * @dev Only the contract owner can deregister attesters.
      * @param _attester The address of the attester to remove
      * @custom:security Deregistration immediately revokes all attestations from this attester
      */
@@ -79,16 +79,16 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         address _attester
     ) external onlyOwner {
         require(isAttesterRegistered[_attester], "Predicate.deregisterAttester: attester not registered");
-        
+
         uint256 indexToRemove = attesterIndex[_attester];
         uint256 lastIndex = registeredAttesters.length - 1;
-        
+
         if (indexToRemove != lastIndex) {
             address lastAttester = registeredAttesters[lastIndex];
             registeredAttesters[indexToRemove] = lastAttester;
             attesterIndex[lastAttester] = indexToRemove;
         }
-        
+
         registeredAttesters.pop();
         delete attesterIndex[_attester];
         isAttesterRegistered[_attester] = false;
