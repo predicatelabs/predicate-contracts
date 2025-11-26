@@ -9,12 +9,20 @@ import {MetaCoin} from "./MetaCoin.sol";
 contract PredicateClientProxy is PredicateClient {
     MetaCoin private _metaCoin;
 
-    constructor(address _metaCoinContract, address _serviceManager, string memory _policyID) {
+    constructor(
+        address _metaCoinContract,
+        address _serviceManager,
+        string memory _policyID
+    ) {
         _initPredicateClient(_serviceManager, _policyID);
         _metaCoin = MetaCoin(_metaCoinContract);
     }
 
-    function proxySendCoin(address _receiver, uint256 _amount, Attestation calldata _attestation) external payable {
+    function proxySendCoin(
+        address _receiver,
+        uint256 _amount,
+        Attestation calldata _attestation
+    ) external payable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
         require(
             _authorizeTransaction(_attestation, encodedSigAndArgs, msg.sender, msg.value),

@@ -9,16 +9,27 @@ contract MetaCoin is Ownable, PredicateProtected {
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
-    constructor(address _owner, address _predicateProxyAddress) Ownable(_owner) {
+    constructor(
+        address _owner,
+        address _predicateProxyAddress
+    ) Ownable(_owner) {
         balances[_owner] = 10_000_000_000_000;
         _setPredicateProxy(_predicateProxyAddress);
     }
 
-    function sendCoin(address _sender, address _receiver, uint256 _amount) external payable onlyPredicateProxy {
+    function sendCoin(
+        address _sender,
+        address _receiver,
+        uint256 _amount
+    ) external payable onlyPredicateProxy {
         _sendCoin(_sender, _receiver, _amount);
     }
 
-    function _sendCoin(address _sender, address _receiver, uint256 _amount) internal {
+    function _sendCoin(
+        address _sender,
+        address _receiver,
+        uint256 _amount
+    ) internal {
         require(balances[_sender] >= _amount, "MetaCoin: insufficient balance");
         balances[_sender] -= _amount;
         balances[_receiver] += _amount;

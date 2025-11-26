@@ -32,10 +32,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-1", attester: attesterOne, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.prank(address(this));
@@ -60,10 +57,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-new",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-new", attester: attesterOne, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.expectRevert("Predicate.validateAttestation: statement UUID does not match attestation UUID");
@@ -87,10 +81,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 200
+            uuid: "uuid-1", attester: attesterOne, signature: signature, expiration: block.timestamp + 200
         });
 
         vm.expectRevert("Predicate.validateAttestation: statement expiration does not match attestation expiration");
@@ -114,10 +105,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-1", attester: attesterOne, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.prank(address(this));
@@ -170,10 +158,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterThree,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-1", attester: attesterThree, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.expectRevert("Predicate.validateAttestation: Invalid signature");
@@ -194,10 +179,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         bytes memory invalidSignature = abi.encodePacked(bytes32(0), bytes32(0), uint8(0));
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterOne,
-            signature: invalidSignature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-1", attester: attesterOne, signature: invalidSignature, expiration: block.timestamp + 100
         });
 
         vm.expectRevert();
@@ -221,10 +203,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterTwo,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-1", attester: attesterTwo, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.expectRevert();
@@ -248,10 +227,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-1",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-1", attester: attesterOne, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.prank(address(this));
@@ -279,10 +255,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature2 = abi.encodePacked(r2, s2, v2);
 
         Attestation memory attestation2 = Attestation({
-            uuid: "uuid-2",
-            attester: attesterOne,
-            signature: signature2,
-            expiration: block.timestamp + 100
+            uuid: "uuid-2", attester: attesterOne, signature: signature2, expiration: block.timestamp + 100
         });
 
         // cannot use deregistered attester
