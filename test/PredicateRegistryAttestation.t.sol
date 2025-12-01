@@ -280,17 +280,15 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         signature = abi.encodePacked(r, s, v);
 
         Attestation memory attestation = Attestation({
-            uuid: "uuid-crosschain",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-crosschain", attester: attesterOne, signature: signature, expiration: block.timestamp + 100
         });
 
         vm.prank(address(this));
         bool result = predicateRegistry.validateAttestation(statement, attestation);
         assertTrue(result, "Should succeed on original chain");
 
-        vm.chainId(999);
+        // Create a new statement with same parameters but different UUID (to avoid UUID reuse)
+        // Sign it on original chain but don't validate yet
         Statement memory statement2 = Statement({
             uuid: "uuid-crosschain-2",
             msgSender: address(this),
@@ -301,11 +299,17 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
             expiration: block.timestamp + 100
         });
 
+        bytes memory signature2;
+        bytes32 statementDigest2 = predicateRegistry.hashStatementWithExpiry(statement2);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(attesterOnePk, statementDigest2);
+        signature2 = abi.encodePacked(r2, s2, v2);
+
+        // Now change to a different chain and try to use the signature from original chain
+        // The signature was created for the original chain's hash (includes original chain ID)
+        // but validation will compute hash with new chain ID, causing signature mismatch
+        vm.chainId(999);
         Attestation memory attestation2 = Attestation({
-            uuid: "uuid-crosschain-2",
-            attester: attesterOne,
-            signature: signature,
-            expiration: block.timestamp + 100
+            uuid: "uuid-crosschain-2", attester: attesterOne, signature: signature2, expiration: block.timestamp + 100
         });
 
         vm.prank(address(this));
@@ -335,7 +339,7 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         bytes32 hashChain137 = predicateRegistry.hashStatementWithExpiry(statement);
         assertNotEq(hashChain137, hashChain1, "Different chain ID should produce different hash");
 
-        vm.chainId(42161);
+        vm.chainId(42_161);
         bytes32 hashChain42161 = predicateRegistry.hashStatementWithExpiry(statement);
         assertNotEq(hashChain42161, hashChain1, "Different chain ID should produce different hash");
         assertNotEq(hashChain42161, hashChain137, "Different chain IDs should produce different hashes");
