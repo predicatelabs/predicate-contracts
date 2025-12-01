@@ -29,6 +29,7 @@ struct Statement {
  * @notice Struct that bundles together an attestation's parameters for validation
  * @dev An attestation is a signed approval from an authorized attester.
  *      The signature is created by signing the hash of the corresponding Statement.
+ *      The hash includes chain ID for domain separation to prevent cross-chain replay.
  * @custom:security signature must be generated using hashStatementWithExpiry()
  */
 struct Attestation {

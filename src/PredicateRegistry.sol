@@ -128,16 +128,18 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     /**
      * @notice Computes the hash of a statement for attester signing
      * @dev Used by attesters to generate signatures. Includes target address (not msg.sender).
-     *      This is the hash that attesters sign off-chain.
+     *      This is the hash that attesters sign off-chain. Includes chain ID for domain separation.
      * @param _statement The statement containing transaction details
      * @return digest The keccak256 hash of the encoded statement
      * @custom:security Attesters should sign this hash off-chain
+     * @custom:security Includes chain ID to prevent cross-chain replay attacks
      */
     function hashStatementWithExpiry(
         Statement calldata _statement
-    ) public pure returns (bytes32 digest) {
+    ) public view returns (bytes32 digest) {
         return keccak256(
             abi.encode(
+                block.chainid,
                 _statement.uuid,
                 _statement.msgSender,
                 _statement.target,
@@ -153,15 +155,17 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      * @notice Computes statement hash with msg.sender for validation (prevents replay attacks)
      * @dev Used during validation. Replaces target with msg.sender to prevent cross-contract replay.
      *      This ensures the signature is only valid when called from the intended contract.
+     *      Includes chain ID for domain separation to prevent cross-chain replay.
      * @param _statement The statement to hash
-     * @return digest The keccak256 hash including msg.sender context
-     * @custom:security Critical anti-replay measure - binds signature to calling contract
+     * @return digest The keccak256 hash including msg.sender context and chain ID
+     * @custom:security Critical anti-replay measure - binds signature to calling contract and chain
      */
     function hashStatementSafe(
         Statement calldata _statement
     ) public view returns (bytes32 digest) {
         return keccak256(
             abi.encode(
+                block.chainid,
                 _statement.uuid,
                 _statement.msgSender,
                 msg.sender,

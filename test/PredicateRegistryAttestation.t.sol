@@ -262,4 +262,86 @@ contract PredicateRegistryAttestationTest is PredicateRegistrySetup {
         vm.expectRevert("Predicate.validateAttestation: Attester is not a registered attester");
         predicateRegistry.validateAttestation(statement2, attestation2);
     }
+
+    function testCrossChainReplayPrevention() public {
+        Statement memory statement = Statement({
+            uuid: "uuid-crosschain",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
+
+        bytes memory signature;
+        bytes32 statementDigest = predicateRegistry.hashStatementWithExpiry(statement);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attesterOnePk, statementDigest);
+        signature = abi.encodePacked(r, s, v);
+
+        Attestation memory attestation = Attestation({
+            uuid: "uuid-crosschain",
+            attester: attesterOne,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
+
+        vm.prank(address(this));
+        bool result = predicateRegistry.validateAttestation(statement, attestation);
+        assertTrue(result, "Should succeed on original chain");
+
+        vm.chainId(999);
+        Statement memory statement2 = Statement({
+            uuid: "uuid-crosschain-2",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
+
+        Attestation memory attestation2 = Attestation({
+            uuid: "uuid-crosschain-2",
+            attester: attesterOne,
+            signature: signature,
+            expiration: block.timestamp + 100
+        });
+
+        vm.prank(address(this));
+        vm.expectRevert("Predicate.validateAttestation: Invalid signature");
+        predicateRegistry.validateAttestation(statement2, attestation2);
+    }
+
+    function testHashStatementWithExpiryIncludesChainId() public {
+        Statement memory statement = Statement({
+            uuid: "uuid-hashtest",
+            msgSender: address(this),
+            target: address(this),
+            msgValue: 0,
+            encodedSigAndArgs: "",
+            policy: policyOne,
+            expiration: block.timestamp + 100
+        });
+
+        vm.chainId(1);
+        bytes32 hashChain1 = predicateRegistry.hashStatementWithExpiry(statement);
+
+        vm.chainId(1);
+        bytes32 hashChain1Again = predicateRegistry.hashStatementWithExpiry(statement);
+        assertEq(hashChain1Again, hashChain1, "Same chain ID should produce same hash");
+
+        vm.chainId(137);
+        bytes32 hashChain137 = predicateRegistry.hashStatementWithExpiry(statement);
+        assertNotEq(hashChain137, hashChain1, "Different chain ID should produce different hash");
+
+        vm.chainId(42161);
+        bytes32 hashChain42161 = predicateRegistry.hashStatementWithExpiry(statement);
+        assertNotEq(hashChain42161, hashChain1, "Different chain ID should produce different hash");
+        assertNotEq(hashChain42161, hashChain137, "Different chain IDs should produce different hashes");
+
+        vm.chainId(1);
+        bytes32 hashChain1Restored = predicateRegistry.hashStatementWithExpiry(statement);
+        assertEq(hashChain1Restored, hashChain1, "Returning to same chain ID should produce same hash");
+    }
 }
