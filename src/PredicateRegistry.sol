@@ -105,6 +105,21 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     }
 
     /**
+     * @notice Migrates existing attesters to populate attesterIndex mapping
+     * @dev One-time migration function for upgrading from versions without index mapping.
+     *      Safe to call multiple times (idempotent). Should be called immediately after upgrade.
+     *      Only owner can call this function.
+     */
+    function migrateAttesterIndices() external onlyOwner {
+        address[] memory attesters = registeredAttesters;
+        for (uint256 i = 0; i < attesters.length; i++) {
+            if (attesterIndex[attesters[i]] != i) {
+                attesterIndex[attesters[i]] = i;
+            }
+        }
+    }
+
+    /**
      * @notice Sets or updates the policy ID for the calling contract/address
      * @dev Policy ID format:
      *      - Typically: "x-{hash(policy)[:16]}" (e.g., "x-a1b2c3d4e5f6g7h8")
