@@ -22,6 +22,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     // storage
     address[] public registeredAttesters;
     mapping(address => bool) public isAttesterRegistered;
+    mapping(address => uint256) public attesterIndex;
     mapping(address => string) public clientToPolicy;
     mapping(string => bool) public usedStatementUUIDs;
 
@@ -62,6 +63,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         address _attester
     ) external onlyOwner {
         require(!isAttesterRegistered[_attester], "Predicate.registerAttester: attester already registered");
+        attesterIndex[_attester] = registeredAttesters.length;
         registeredAttesters.push(_attester);
         isAttesterRegistered[_attester] = true;
         emit AttesterRegistered(_attester);
@@ -69,8 +71,7 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
 
     /**
      * @notice Removes an attester from the registry
-     * @dev Only the contract owner can deregister attesters. Uses swap-and-pop for gas efficiency.
-     *      Reverts if attester is not currently registered.
+     * @dev Only the contract owner can deregister attesters.
      * @param _attester The address of the attester to remove
      * @custom:security Deregistration immediately revokes all attestations from this attester
      */
@@ -78,13 +79,18 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
         address _attester
     ) external onlyOwner {
         require(isAttesterRegistered[_attester], "Predicate.deregisterAttester: attester not registered");
-        for (uint256 i = 0; i < registeredAttesters.length; i++) {
-            if (registeredAttesters[i] == _attester) {
-                registeredAttesters[i] = registeredAttesters[registeredAttesters.length - 1];
-                registeredAttesters.pop();
-                break;
-            }
+
+        uint256 indexToRemove = attesterIndex[_attester];
+        uint256 lastIndex = registeredAttesters.length - 1;
+
+        if (indexToRemove != lastIndex) {
+            address lastAttester = registeredAttesters[lastIndex];
+            registeredAttesters[indexToRemove] = lastAttester;
+            attesterIndex[lastAttester] = indexToRemove;
         }
+
+        registeredAttesters.pop();
+        delete attesterIndex[_attester];
         isAttesterRegistered[_attester] = false;
         emit AttesterDeregistered(_attester);
     }
@@ -96,6 +102,21 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      */
     function getRegisteredAttesters() external view returns (address[] memory attesters) {
         return registeredAttesters;
+    }
+
+    /**
+     * @notice Migrates existing attesters to populate attesterIndex mapping
+     * @dev One-time migration function for upgrading from versions without index mapping.
+     *      Safe to call multiple times (idempotent). Should be called immediately after upgrade.
+     *      Only owner can call this function.
+     */
+    function migrateAttesterIndices() external onlyOwner {
+        address[] memory attesters = registeredAttesters;
+        for (uint256 i = 0; i < attesters.length; i++) {
+            if (attesterIndex[attesters[i]] != i) {
+                attesterIndex[attesters[i]] = i;
+            }
+        }
     }
 
     /**
