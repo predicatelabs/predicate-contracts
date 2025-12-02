@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.12;
+pragma solidity 0.8.28;
 
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -19,19 +19,49 @@ import {IPredicateRegistry, Statement, Attestation} from "./interfaces/IPredicat
  * @custom:security Uses ERC-1967 upgradeable proxy pattern via Ownable2StepUpgradeable
  */
 contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
-    // storage
+    /// @notice Array of all registered attester addresses
+    /// @dev Maintains a list of all attesters who can sign attestations
     address[] public registeredAttesters;
+
+    /// @notice Mapping from attester address to registration status
+    /// @dev Returns true if the address is a registered attester
     mapping(address => bool) public isAttesterRegistered;
+
+    /// @notice Mapping from attester address to their index in the registeredAttesters array
+    /// @dev Used for efficient O(1) lookup during deregistration
     mapping(address => uint256) public attesterIndex;
+
+    /// @notice Mapping from client address to their associated policy ID
+    /// @dev Policy IDs are set by clients via setPolicyID() and used during attestation validation
     mapping(address => string) public clientToPolicy;
+
+    /// @notice Mapping from statement UUID to usage status
+    /// @dev Tracks which statement UUIDs have been used to prevent replay attacks
     mapping(string => bool) public usedStatementUUIDs;
 
-    // events
+    /// @notice Emitted when a new attester is registered
+    /// @param attester The address of the newly registered attester
     event AttesterRegistered(address indexed attester);
+
+    /// @notice Emitted when an attester is deregistered
+    /// @param attester The address of the deregistered attester
     event AttesterDeregistered(address indexed attester);
+
+    /// @notice Emitted when a client sets or updates their policy ID
+    /// @param client The address of the client setting the policy
+    /// @param setter The address that called setPolicyID (typically same as client)
+    /// @param policy The policy identifier being set
+    /// @param timestamp The block timestamp when the policy was set
     event PolicySet(address indexed client, address indexed setter, string policy, uint256 timestamp);
 
-    // statement validation event
+    /// @notice Emitted when a statement is successfully validated
+    /// @param msgSender The original transaction sender
+    /// @param target The target contract address
+    /// @param attester The attester who signed the attestation
+    /// @param msgValue The ETH value sent with the transaction
+    /// @param policy The policy ID used for validation
+    /// @param uuid The unique identifier for the statement
+    /// @param expiration The expiration timestamp of the attestation
     event StatementValidated(
         address indexed msgSender,
         address indexed target,
