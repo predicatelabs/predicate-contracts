@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.12;
+pragma solidity 0.8.28;
 
 import {IPredicateRegistry, Attestation, Statement} from "../interfaces/IPredicateRegistry.sol";
 import "../interfaces/IPredicateClient.sol";
@@ -45,9 +45,13 @@ abstract contract PredicateClient is IPredicateClient {
         0x804776a84f3d03ad8442127b1451e2fbbb6a715c681d6a83c9e9fca787b99300;
 
     /// @notice Emitted when the PredicateRegistry address is updated
+    /// @param oldRegistry The previous PredicateRegistry contract address
+    /// @param newRegistry The new PredicateRegistry contract address
     event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
     /// @notice Emitted when the policy ID is updated
+    /// @param oldPolicyID The previous policy identifier
+    /// @param newPolicyID The new policy identifier
     event PredicatePolicyIDUpdated(string oldPolicyID, string newPolicyID);
 
     function _getPredicateClientStorage() private pure returns (PredicateClientStorage storage $) {
@@ -76,7 +80,7 @@ abstract contract PredicateClient is IPredicateClient {
      * @notice Updates the policy ID for this contract
      * @dev Updates local storage and registers with PredicateRegistry.
      *      Should typically be restricted to owner/admin.
-     *      Emits PredicatePolicyIDUpdated event.
+     *      Emits PredicatePolicyIDUpdated event only when the policy actually changes.
      * @param _policyID The new policy identifier to set
      */
     function _setPolicyID(
@@ -84,11 +88,20 @@ abstract contract PredicateClient is IPredicateClient {
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         string memory oldPolicyID = $.policy;
-        $.policy = _policyID;
-        $.registry.setPolicyID(_policyID);
-        emit PredicatePolicyIDUpdated(oldPolicyID, _policyID);
+
+        // Only update if policy has changed
+        if (keccak256(bytes(oldPolicyID)) != keccak256(bytes(_policyID))) {
+            $.policy = _policyID;
+            $.registry.setPolicyID(_policyID);
+            emit PredicatePolicyIDUpdated(oldPolicyID, _policyID);
+        }
     }
 
+    /**
+     * @notice Returns the current policy ID for this contract
+     * @dev Returns the policy identifier stored in ERC-7201 namespaced storage
+     * @return policyID The policy identifier associated with this contract
+     */
     function getPolicyID() external view returns (string memory policyID) {
         return _getPolicyID();
     }
@@ -100,7 +113,7 @@ abstract contract PredicateClient is IPredicateClient {
     /**
      * @notice Updates the PredicateRegistry address
      * @dev Should typically be restricted to owner/admin for security.
-     *      Emits PredicateRegistryUpdated event.
+     *      Emits PredicateRegistryUpdated event only when the registry actually changes.
      * @param _registryAddress The new PredicateRegistry contract address
      * @custom:security Changing registry is sensitive - ensure proper access control
      */
@@ -109,10 +122,19 @@ abstract contract PredicateClient is IPredicateClient {
     ) internal {
         PredicateClientStorage storage $ = _getPredicateClientStorage();
         address oldRegistry = address($.registry);
-        $.registry = IPredicateRegistry(_registryAddress);
-        emit PredicateRegistryUpdated(oldRegistry, _registryAddress);
+
+        // Only update if registry has changed
+        if (oldRegistry != _registryAddress) {
+            $.registry = IPredicateRegistry(_registryAddress);
+            emit PredicateRegistryUpdated(oldRegistry, _registryAddress);
+        }
     }
 
+    /**
+     * @notice Returns the current PredicateRegistry contract address
+     * @dev Returns the registry address stored in ERC-7201 namespaced storage
+     * @return The address of the PredicateRegistry contract used for attestation validation
+     */
     function getRegistry() external view returns (address) {
         return _getRegistry();
     }
