@@ -128,14 +128,14 @@ abstract contract PredicateClient is IPredicateClient {
         // Only update if registry has changed
         if (oldRegistry != _registryAddress) {
             $.registry = IPredicateRegistry(_registryAddress);
-            
+
             // Re-register cached policy with new registry to prevent desynchronization
             // This ensures off-chain attesters can query the new registry and get the correct policy
             string memory cachedPolicy = $.policy;
             if (bytes(cachedPolicy).length > 0) {
                 $.registry.setPolicyID(cachedPolicy);
             }
-            
+
             emit PredicateRegistryUpdated(oldRegistry, _registryAddress);
         }
     }
