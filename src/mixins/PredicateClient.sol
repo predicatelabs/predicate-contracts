@@ -114,6 +114,7 @@ abstract contract PredicateClient is IPredicateClient {
     /**
      * @notice Updates the PredicateRegistry address
      * @dev Should typically be restricted to owner/admin for security.
+     *      Automatically re-registers the cached policy with the new registry to prevent desynchronization.
      *      Emits PredicateRegistryUpdated event only when the registry actually changes.
      * @param _registryAddress The new PredicateRegistry contract address
      * @custom:security Changing registry is sensitive - ensure proper access control
@@ -127,6 +128,14 @@ abstract contract PredicateClient is IPredicateClient {
         // Only update if registry has changed
         if (oldRegistry != _registryAddress) {
             $.registry = IPredicateRegistry(_registryAddress);
+            
+            // Re-register cached policy with new registry to prevent desynchronization
+            // This ensures off-chain attesters can query the new registry and get the correct policy
+            string memory cachedPolicy = $.policy;
+            if (bytes(cachedPolicy).length > 0) {
+                $.registry.setPolicyID(cachedPolicy);
+            }
+            
             emit PredicateRegistryUpdated(oldRegistry, _registryAddress);
         }
     }
