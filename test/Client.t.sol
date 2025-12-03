@@ -106,7 +106,8 @@ contract MetaCoinTest is PredicateRegistrySetup {
     }
 
     function testPolicyIDUpdatedEventEmitted() public {
-        vm.expectEmit(true, true, true, true);
+        // PredicatePolicyIDUpdated has 0 indexed params, 2 non-indexed params (oldPolicyID, newPolicyID)
+        vm.expectEmit(false, false, false, true);
         emit PredicatePolicyIDUpdated(policyOne, policyTwo);
 
         vm.prank(clientOwner);
@@ -126,11 +127,13 @@ contract MetaCoinTest is PredicateRegistrySetup {
 
         // Expect both events: policy re-registration happens first, then registry update
         // PolicySet event from re-registration (emitted first, inside setPolicyID call)
-        vm.expectEmit(true, false, false, false);
+        // PolicySet has 1 indexed param (client), 1 non-indexed param (policy)
+        vm.expectEmit(true, false, false, true);
         emit PolicySet(address(client), policyOne);
 
         // Then PredicateRegistryUpdated event (emitted after)
-        vm.expectEmit(true, true, true, true);
+        // PredicateRegistryUpdated has 2 indexed params (oldRegistry, newRegistry), 0 non-indexed params
+        vm.expectEmit(true, true, false, false);
         emit PredicateRegistryUpdated(address(predicateRegistry), address(newRegistry));
 
         vm.prank(clientOwner);
@@ -152,7 +155,8 @@ contract MetaCoinTest is PredicateRegistrySetup {
         vm.stopPrank();
 
         // Expect only PredicateRegistryUpdated event (no PolicySet because policy is empty)
-        vm.expectEmit(true, true, true, true);
+        // PredicateRegistryUpdated has 2 indexed params (oldRegistry, newRegistry), 0 non-indexed params
+        vm.expectEmit(true, true, false, false);
         emit PredicateRegistryUpdated(address(predicateRegistry), address(newRegistry));
 
         // Should NOT emit PolicySet event - verify by checking that PolicySet is not in emitted events
