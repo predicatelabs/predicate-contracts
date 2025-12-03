@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {IPredicateRegistry, Attestation, Statement} from "../interfaces/IPredicateRegistry.sol";
-import "../interfaces/IPredicateClient.sol";
+import {IPredicateClient, PredicateClient__Unauthorized} from "../interfaces/IPredicateClient.sol";
 
 /**
  * @title PredicateClient
@@ -30,6 +30,7 @@ import "../interfaces/IPredicateClient.sol";
  *     }
  * }
  * ```
+ * @custom:security-contact contact@predicate.io
  */
 abstract contract PredicateClient is IPredicateClient {
     /// @notice Struct to contain stateful values for PredicateClient-type contracts

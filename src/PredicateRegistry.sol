@@ -17,6 +17,7 @@ import {IPredicateRegistry, Statement, Attestation} from "./interfaces/IPredicat
  *      - UUID-based replay protection
  *      - ECDSA signature verification using OpenZeppelin
  * @custom:security Uses ERC-1967 upgradeable proxy pattern via Ownable2StepUpgradeable
+ * @custom:security-contact contact@predicate.io
  */
 contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     /// @notice Array of all registered attester addresses
@@ -49,10 +50,8 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
 
     /// @notice Emitted when a client sets or updates their policy ID
     /// @param client The address of the client setting the policy
-    /// @param setter The address that called setPolicyID (typically same as client)
     /// @param policy The policy identifier being set
-    /// @param timestamp The block timestamp when the policy was set
-    event PolicySet(address indexed client, address indexed setter, string policy, uint256 timestamp);
+    event PolicySet(address indexed client, string policy);
 
     /// @notice Emitted when a statement is successfully validated
     /// @param msgSender The original transaction sender
@@ -159,10 +158,10 @@ contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
      * @param _policyID The unique identifier for the policy to associate with msg.sender
      */
     function setPolicyID(
-        string memory _policyID
+        string calldata _policyID
     ) external {
         clientToPolicy[msg.sender] = _policyID;
-        emit PolicySet(msg.sender, msg.sender, _policyID, block.timestamp);
+        emit PolicySet(msg.sender, _policyID);
     }
 
     /**
