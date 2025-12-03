@@ -30,7 +30,7 @@ import {IPredicateClient, PredicateClient__Unauthorized} from "../interfaces/IPr
  *     }
  * }
  * ```
- * @custom:security-contact security@predicate.io
+ * @custom:security-contact contact@predicate.io
  */
 abstract contract PredicateClient is IPredicateClient {
     /// @notice Struct to contain stateful values for PredicateClient-type contracts

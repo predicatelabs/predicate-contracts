@@ -17,7 +17,7 @@ import {IPredicateRegistry, Statement, Attestation} from "./interfaces/IPredicat
  *      - UUID-based replay protection
  *      - ECDSA signature verification using OpenZeppelin
  * @custom:security Uses ERC-1967 upgradeable proxy pattern via Ownable2StepUpgradeable
- * @custom:security-contact security@predicate.io
+ * @custom:security-contact contact@predicate.io
  */
 contract PredicateRegistry is IPredicateRegistry, Ownable2StepUpgradeable {
     /// @notice Array of all registered attester addresses
