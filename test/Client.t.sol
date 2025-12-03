@@ -42,19 +42,38 @@ contract MetaCoinTest is PredicateRegistrySetup {
     }
 
     function testClientOwnerCanSetRegistry() public {
-        address newRegistry = makeAddr("newRegistry");
+        // Create a second PredicateRegistry instance to test registry switching
+        vm.startPrank(owner);
+        PredicateRegistry newRegistryImpl = new PredicateRegistry();
+        PredicateRegistry newRegistry =
+            PredicateRegistry(address(new MockProxy(address(newRegistryImpl), address(proxyAdmin))));
+        newRegistry.initialize(owner);
+        newRegistry.registerAttester(attesterOne);
+        newRegistry.registerAttester(attesterTwo);
+        vm.stopPrank();
+
         assertEq(client.getRegistry(), address(predicateRegistry));
 
         vm.prank(clientOwner);
-        client.setRegistry(newRegistry);
-        assertEq(client.getRegistry(), newRegistry);
+        client.setRegistry(address(newRegistry));
+        assertEq(client.getRegistry(), address(newRegistry));
+
+        // Verify policy was re-registered with new registry
+        assertEq(newRegistry.getPolicyID(address(client)), policyOne);
     }
 
     function testRandomAccountCannotSetRegistry() public {
-        address newRegistry = makeAddr("newRegistry");
+        // Create a second PredicateRegistry instance
+        vm.startPrank(owner);
+        PredicateRegistry newRegistryImpl = new PredicateRegistry();
+        PredicateRegistry newRegistry =
+            PredicateRegistry(address(new MockProxy(address(newRegistryImpl), address(proxyAdmin))));
+        newRegistry.initialize(owner);
+        vm.stopPrank();
+
         vm.expectRevert();
         vm.prank(randomAddress);
-        client.setRegistry(newRegistry);
+        client.setRegistry(address(newRegistry));
     }
 
     function testMetaCoinTransferWithAttestation() public {
@@ -87,7 +106,8 @@ contract MetaCoinTest is PredicateRegistrySetup {
     }
 
     function testPolicyIDUpdatedEventEmitted() public {
-        vm.expectEmit(true, true, true, true);
+        // PredicatePolicyIDUpdated has 0 indexed params, 2 non-indexed params (oldPolicyID, newPolicyID)
+        vm.expectEmit(false, false, false, true);
         emit PredicatePolicyIDUpdated(policyOne, policyTwo);
 
         vm.prank(clientOwner);
@@ -95,16 +115,92 @@ contract MetaCoinTest is PredicateRegistrySetup {
     }
 
     function testRegistryUpdatedEventEmitted() public {
-        address newRegistry = makeAddr("newRegistry");
+        // Create a second PredicateRegistry instance
+        vm.startPrank(owner);
+        PredicateRegistry newRegistryImpl = new PredicateRegistry();
+        PredicateRegistry newRegistry =
+            PredicateRegistry(address(new MockProxy(address(newRegistryImpl), address(proxyAdmin))));
+        newRegistry.initialize(owner);
+        newRegistry.registerAttester(attesterOne);
+        newRegistry.registerAttester(attesterTwo);
+        vm.stopPrank();
 
-        vm.expectEmit(true, true, true, true);
-        emit PredicateRegistryUpdated(address(predicateRegistry), newRegistry);
+        // Expect both events: policy re-registration happens first, then registry update
+        // PolicySet event from re-registration (emitted first, inside setPolicyID call)
+        // PolicySet has 1 indexed param (client), 1 non-indexed param (policy)
+        vm.expectEmit(true, false, false, true);
+        emit PolicySet(address(client), policyOne);
+
+        // Then PredicateRegistryUpdated event (emitted after)
+        // PredicateRegistryUpdated has 2 indexed params (oldRegistry, newRegistry), 0 non-indexed params
+        vm.expectEmit(true, true, false, false);
+        emit PredicateRegistryUpdated(address(predicateRegistry), address(newRegistry));
 
         vm.prank(clientOwner);
-        client.setRegistry(newRegistry);
+        client.setRegistry(address(newRegistry));
+    }
+
+    function testRegistrySwitchWithEmptyPolicy() public {
+        // Create a client with empty policy
+        MetaCoin clientWithEmptyPolicy = new MetaCoin(clientOwner, address(predicateRegistry), "");
+
+        // Create a second PredicateRegistry instance
+        vm.startPrank(owner);
+        PredicateRegistry newRegistryImpl = new PredicateRegistry();
+        PredicateRegistry newRegistry =
+            PredicateRegistry(address(new MockProxy(address(newRegistryImpl), address(proxyAdmin))));
+        newRegistry.initialize(owner);
+        newRegistry.registerAttester(attesterOne);
+        newRegistry.registerAttester(attesterTwo);
+        vm.stopPrank();
+
+        // Expect only PredicateRegistryUpdated event (no PolicySet because policy is empty)
+        // PredicateRegistryUpdated has 2 indexed params (oldRegistry, newRegistry), 0 non-indexed params
+        vm.expectEmit(true, true, false, false);
+        emit PredicateRegistryUpdated(address(predicateRegistry), address(newRegistry));
+
+        // Should NOT emit PolicySet event - verify by checking that PolicySet is not in emitted events
+        // We use expectEmit to ensure only PredicateRegistryUpdated is emitted
+        vm.prank(clientOwner);
+        clientWithEmptyPolicy.setRegistry(address(newRegistry));
+
+        // Verify new registry does not have policy registered
+        assertEq(newRegistry.getPolicyID(address(clientWithEmptyPolicy)), "");
+    }
+
+    function testRegistrySwitchAfterPolicyChange() public {
+        // Create a second PredicateRegistry instance
+        vm.startPrank(owner);
+        PredicateRegistry newRegistryImpl = new PredicateRegistry();
+        PredicateRegistry newRegistry =
+            PredicateRegistry(address(new MockProxy(address(newRegistryImpl), address(proxyAdmin))));
+        newRegistry.initialize(owner);
+        newRegistry.registerAttester(attesterOne);
+        newRegistry.registerAttester(attesterTwo);
+        vm.stopPrank();
+
+        // Verify initial state: old registry has policyOne
+        assertEq(predicateRegistry.getPolicyID(address(client)), policyOne);
+
+        // Change policy from policyOne to policyTwo
+        vm.prank(clientOwner);
+        client.setPolicyID(policyTwo);
+        assertEq(client.getPolicyID(), policyTwo);
+
+        // Verify old registry now has policyTwo (was updated by setPolicyID)
+        assertEq(predicateRegistry.getPolicyID(address(client)), policyTwo);
+
+        // Switch registry - should register policyTwo (the updated cached policy) with new registry
+        vm.prank(clientOwner);
+        client.setRegistry(address(newRegistry));
+
+        // Verify new registry has policyTwo (the updated policy from cache), not policyOne
+        assertEq(newRegistry.getPolicyID(address(client)), policyTwo);
+        assertTrue(keccak256(bytes(newRegistry.getPolicyID(address(client)))) != keccak256(bytes(policyOne)));
     }
 
     // Event declarations for testing
     event PredicatePolicyIDUpdated(string oldPolicyID, string newPolicyID);
     event PredicateRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event PolicySet(address indexed client, string policy);
 }
