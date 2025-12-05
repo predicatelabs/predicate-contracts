@@ -5,17 +5,17 @@ import { ethers } from 'ethers';
 // CONFIG – FILL THESE IN
 // ---------------------------
 
-// Deployed MetaCoin contract address
-const META_COIN_ADDRESS = '0xYOUR_METACOIN_ADDRESS_HERE';
+// Deployed MetaCoin contract address (sepolia)
+const META_COIN_ADDRESS = '0x9D7C525cc84771E148FdB9Db4412c7450405d8ac';
 
 // The EVM receiver of the MetaCoin transfer (the `_receiver` argument)
-const RECEIVER_ADDRESS = '0xRECEIVER_ADDRESS_HERE';
+const RECEIVER_ADDRESS = '0x38f6001e8ac11240f903CBa56aFF72A1425ae371';
 
 // Solana address to validate (32-byte public key as hex, 0x + 64 chars).
 // Base58: 8SfpAAUkA4E1ZTSzXiAR51f1iGuVQU4r7kiNUxh7GpVM
 // This MUST match what your policy expects and is passed as bytes32 onchain.
-const SOLANA_ADDRESS_BYTES32 =
-  '0x6e9536fc5afc72c1d40c97c39a749b7f257fecbd38b554a28ae92f70fae72600';
+const SOLANA_ADDRESS =
+  '8SfpAAUkA4E1ZTSzXiAR51f1iGuVQU4r7kiNUxh7GpVM';
 
 // Internal function that Predicate sees (must match the abi.encodeWithSignature string)
 const FUNCTION_SIGNATURE = '_sendCoin(address,bytes32)';
@@ -66,10 +66,10 @@ async function main() {
   console.log('Using MetaCoin at:', contractAddress);
   console.log('Sender wallet:', wallet.address);
   console.log('Receiver:', RECEIVER_ADDRESS);
-  console.log('Solana address (bytes32):', SOLANA_ADDRESS_BYTES32);
+  console.log('Solana address (bytes32):', SOLANA_ADDRESS);
 
   // 1. Encode the internal function + args exactly as the contract does
-  const functionArgs = [RECEIVER_ADDRESS, SOLANA_ADDRESS_BYTES32];
+  const functionArgs = [RECEIVER_ADDRESS, SOLANA_ADDRESS];
 
   const data = packFunctionArgs(FUNCTION_SIGNATURE, functionArgs);
 
@@ -81,7 +81,7 @@ async function main() {
     msg_value: '0',
 
     // New fields required by Predicate API for address extraction
-    address_to_validate: SOLANA_ADDRESS_BYTES32,
+    address_to_validate: SOLANA_ADDRESS,
     function_signature: FUNCTION_SIGNATURE,
   };
 
@@ -123,7 +123,7 @@ async function main() {
 
   const tx = await contract.sendCoin(
     RECEIVER_ADDRESS,
-    SOLANA_ADDRESS_BYTES32,
+    SOLANA_ADDRESS,
     [
       predicateMessage.taskId,
       expireBy,

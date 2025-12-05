@@ -27,6 +27,8 @@
   },
   "homepage": "https://github.com/PredicateLabs/predicate-contracts#readme",
   "dependencies": {
+    "@predicate/core": "^0.1.5",
+    "ethers": "^6.16.0",
     "fs": "^0.0.1-security",
     "hardhat": "^2.22.14",
     "hardhat-preprocessor": "^0.1.5",
