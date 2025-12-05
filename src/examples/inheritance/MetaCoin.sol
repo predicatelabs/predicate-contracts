@@ -18,15 +18,19 @@ contract MetaCoin is PredicateClient, Ownable {
         _initPredicateClient(_serviceManager, _policyID);
     }
 
-    function sendCoin(address _receiver, uint256 _amount, PredicateMessage calldata _message) external payable {
-        bytes memory encodedSigAndArgs = abi.encodeWithSignature("_sendCoin(address,uint256)", _receiver, _amount);
+    /// @notice Sends 1 MetaCoin to `_receiver`, authorized via Predicate.
+    /// @param _receiver EVM address receiving the MetaCoin.
+    /// @param solanaAddress 32-byte Solana public key associated with this transfer.
+    function sendCoin(address _receiver, bytes32 solanaAddress, PredicateMessage calldata _message) external payable {
+        bytes memory encodedSigAndArgs =
+            abi.encodeWithSignature("_sendCoin(address,bytes32)", _receiver, solanaAddress);
         require(
             _authorizeTransaction(_message, encodedSigAndArgs, msg.sender, msg.value),
             "MetaCoin: unauthorized transaction"
         );
 
         // business logic function that is protected
-        _sendCoin(_receiver, _amount);
+        _sendCoin(_receiver, 1);
     }
 
     function setPolicy(
