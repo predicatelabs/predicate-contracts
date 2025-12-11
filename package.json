@@ -14,7 +14,14 @@
   "scripts": {
     "test": "forge test -v",
     "fmt:check": "forge fmt --check",
-    "fmt:fix": "forge fmt"
+    "fmt:fix": "forge fmt",
+    "ops:events": "ts-node scripts/operatorEvents.ts",
+    "ops:format": "ts-node scripts/formatOperatorEvents.ts",
+    "ops:extract": "ts-node scripts/extractOperatorsToDeregister.ts",
+    "ops:deregister": "ts-node scripts/deregisterOperators.ts",
+    "events:index": "ts-node getAndSend.ts",
+    "events:backfill": "MODE=backfill ts-node getAndSend.ts",
+    "events:tail": "MODE=tail ts-node getAndSend.ts"
   },
   "repository": {
     "type": "git",
@@ -27,11 +34,15 @@
   },
   "homepage": "https://github.com/PredicateLabs/predicate-contracts#readme",
   "dependencies": {
+    "@predicate/core": "^0.1.5",
+    "bs58": "^6.0.0",
+    "ethers": "^6.13.2",
     "fs": "^0.0.1-security",
     "hardhat": "^2.22.14",
     "hardhat-preprocessor": "^0.1.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "viem": "^2.9.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-foundry": "^1.1.2",
