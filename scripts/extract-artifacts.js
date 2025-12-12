@@ -14,6 +14,7 @@ const contracts = [
   'PredicateProtected',
   'IPredicateProtected',
   'MetaCoin',
+  'TransparentUpgradeableProxy',
 ];
 
 const artifactsDir = 'artifacts';
@@ -25,11 +26,20 @@ if (!fs.existsSync(artifactsDir)) {
 }
 
 const extractedContracts = [];
+let compilerMetadataExtracted = false;
 
 // Process each contract
 for (const contractName of contracts) {
-  // Foundry flattens structure by contract name
-  const jsonFile = path.join(outDir, `${contractName}.sol`, `${contractName}.json`);
+  // Foundry creates artifacts based on directory structure
+  // For MetaCoin, we want the inheritance pattern version specifically
+  let jsonFile;
+  if (contractName === 'MetaCoin') {
+    // MetaCoin from inheritance pattern: src/examples/inheritance/MetaCoin.sol
+    jsonFile = path.join(outDir, 'inheritance', `${contractName}.sol`, `${contractName}.json`);
+  } else {
+    // Default: Foundry flattens structure by contract name
+    jsonFile = path.join(outDir, `${contractName}.sol`, `${contractName}.json`);
+  }
 
   // Check if the artifact file exists
   if (!fs.existsSync(jsonFile)) {
@@ -43,6 +53,33 @@ for (const contractName of contracts) {
     // Read and parse the artifact file
     const artifactContent = fs.readFileSync(jsonFile, 'utf8');
     const artifact = JSON.parse(artifactContent);
+
+    // Extract compiler metadata (only once, from first contract)
+    if (!compilerMetadataExtracted && artifact.metadata) {
+      try {
+        const metadata = JSON.parse(artifact.metadata);
+        const compilerInfo = {
+          compiler: {
+            version: metadata.compiler?.version || 'unknown',
+          },
+          settings: {
+            optimizer: {
+              enabled: metadata.settings?.optimizer?.enabled || false,
+              runs: metadata.settings?.optimizer?.runs || 200,
+            },
+            evmVersion: metadata.settings?.evmVersion || 'default',
+            viaIR: metadata.settings?.viaIR || false,
+          },
+        };
+        
+        const compilerMetadataFile = path.join(artifactsDir, 'compiler-metadata.json');
+        fs.writeFileSync(compilerMetadataFile, JSON.stringify(compilerInfo, null, 2));
+        console.log(`✓ Extracted compiler metadata`);
+        compilerMetadataExtracted = true;
+      } catch (error) {
+        console.log(`⚠ Could not parse compiler metadata: ${error.message}`);
+      }
+    }
 
     // Extract ABI and bytecode
     const abi = artifact.abi;
