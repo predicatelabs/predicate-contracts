@@ -36,20 +36,16 @@ type ExtendedPredicateRequest = PredicateRequest & {
 
 async function main() {
     const contractAddress = await contract.getAddress();
-
-    // _deposit(bytes32) takes only the depositor identifier (bytes32)
-    const depositorBytes32 = solanaAddressToHex(SOLANA_ADDRESS_STRING);
-    const functionArgs = [depositorBytes32];
+    const functionArgs = [solanaAddressToHex(SOLANA_ADDRESS_STRING)];
     const data = packFunctionArgs(FUNCTION_SIGNATURE, functionArgs);
 
     const request: ExtendedPredicateRequest = {
         from: wallet.address,
         to: contractAddress,
-        data, // Hex encoded data 
-        msg_value: '0',
-        // The Predicate API validates the Solana address embedded in the calldata
-        address_to_validate: SOLANA_ADDRESS_STRING,
-        function_signature: FUNCTION_SIGNATURE,
+        data, 
+        msg_value: '0', 
+        address_to_validate: SOLANA_ADDRESS_STRING, // e.g., 8SfpAAUkA4E1ZTSzXiAR51f1iGuVQU4r7kiNUxh7GpVM
+        function_signature: FUNCTION_SIGNATURE, // e.g., `_deposit(bytes32)`
       };
 
 
@@ -62,6 +58,7 @@ async function main() {
 
     const predicateMessage = signaturesToBytes(evaluationResult);
 
+    const depositorBytes32 = solanaAddressToHex(SOLANA_ADDRESS_STRING);
     // Call Depositor.deposit(bytes32, PredicateMessage)
     const tx = await contract.deposit(
       depositorBytes32,

@@ -22,7 +22,7 @@ contract Depositor is PredicateClient, Ownable {
         bytes memory encodedSigAndArgs = abi.encodeWithSignature("_deposit(bytes32)", _depositor);
         require(
             _authorizeTransaction(_message, encodedSigAndArgs, msg.sender, msg.value),
-            "MetaCoin: unauthorized transaction"
+            "unauthorized transaction"
         );
     }
 
