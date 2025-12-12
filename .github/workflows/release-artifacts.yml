@@ -1,0 +1,185 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name to attach artifacts to (e.g., v1.0.0). The tag must exist in the repository.'
+        required: true
+        type: string
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Determined tag: $TAG"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install gh CLI
+        run: |
+          type -p curl >/dev/null || sudo apt install curl -y
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Extract contract artifacts
+        id: extract
+        run: |
+          node scripts/extract-artifacts.js
+
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+
+      - name: Create release if it doesn't exist
+        id: create-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          
+          # Check if release already exists
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists - will add artifacts to existing release"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "release_action=update" >> $GITHUB_OUTPUT
+          else
+            echo "Creating new release $TAG"
+            # Verify the tag exists in the repository
+            if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "Error: Tag $TAG does not exist in the repository"
+              echo "Available tags:"
+              git tag | head -10
+              exit 1
+            fi
+            
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "Release $TAG" \
+              --notes "Contract artifacts for $TAG" \
+              --draft=false \
+              --prerelease=false
+            
+            if [ $? -eq 0 ]; then
+              echo "Successfully created release $TAG"
+              echo "exists=false" >> $GITHUB_OUTPUT
+              echo "release_action=create" >> $GITHUB_OUTPUT
+            else
+              echo "Warning: Failed to create release (may have been created concurrently)"
+              echo "exists=true" >> $GITHUB_OUTPUT
+              echo "release_action=update" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Upload artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          RELEASE_ACTION="${{ steps.create-release.outputs.release_action }}"
+          
+          # Verify release exists
+          if ! gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Error: Release $TAG does not exist and could not be created"
+            exit 1
+          fi
+          
+          echo "Release action: $RELEASE_ACTION"
+          echo "Tag: $TAG"
+          echo ""
+          
+          # Upload each contract's artifacts
+          if [ -d "artifacts" ] && [ "$(ls -A artifacts)" ]; then
+            # Create a list of files to upload
+            find artifacts -type f > /tmp/artifacts_list.txt
+            
+            upload_count=0
+            failed_count=0
+            skipped_count=0
+            
+            # Process each file
+            while IFS= read -r artifact_file; do
+              filename=$(basename "$artifact_file")
+              contract_name=$(basename $(dirname "$artifact_file"))
+              
+              # Create a descriptive name for the asset
+              asset_name="${contract_name}/${filename}"
+              
+              echo "Uploading $artifact_file as $asset_name"
+              
+              # Use --clobber to overwrite existing assets if they exist
+              upload_output=$(gh release upload "$TAG" "$artifact_file" \
+                --repo "${{ github.repository }}" \
+                --clobber \
+                --name "$asset_name" 2>&1)
+              upload_exit_code=$?
+              
+              if [ $upload_exit_code -eq 0 ]; then
+                echo "✓ Successfully uploaded $asset_name"
+                upload_count=$((upload_count + 1))
+              elif echo "$upload_output" | grep -q "already exists"; then
+                echo "⚠ Asset $asset_name already exists (skipped, use --clobber to overwrite)"
+                skipped_count=$((skipped_count + 1))
+              else
+                echo "✗ Failed to upload $asset_name"
+                echo "  Error: $upload_output"
+                failed_count=$((failed_count + 1))
+              fi
+            done < /tmp/artifacts_list.txt
+            
+            rm -f /tmp/artifacts_list.txt
+            
+            echo ""
+            echo "=========================================="
+            echo "Upload Summary:"
+            echo "  Tag: $TAG"
+            echo "  Release action: $RELEASE_ACTION"
+            echo "  Files uploaded: $upload_count"
+            echo "  Files skipped (already exist): $skipped_count"
+            echo "  Files failed: $failed_count"
+            echo "  Contracts processed: $(find artifacts -mindepth 1 -maxdepth 1 -type d | wc -l)"
+            echo "=========================================="
+            
+            if [ $failed_count -gt 0 ]; then
+              echo "Error: Some files failed to upload"
+              exit 1
+            fi
+            
+            if [ $upload_count -eq 0 ] && [ $skipped_count -gt 0 ]; then
+              echo "Note: All artifacts already exist on the release. Use --clobber to overwrite."
+            fi
+          else
+            echo "Error: No artifacts found to upload"
+            exit 1
+          fi
