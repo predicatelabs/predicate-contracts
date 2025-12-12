@@ -18,26 +18,32 @@ jobs:
       contents: write
     
     steps:
-      - name: Determine tag name
+      - name: Determine tag name and workflow branch
         id: tag
         env:
           INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             TAG="$INPUT_TAG"
+            # For workflow_dispatch, use the branch where workflow is running
+            WORKFLOW_REF="${{ github.ref }}"
           else
             TAG="${GITHUB_REF#refs/tags/}"
+            # For tag pushes, use default branch (main) to get script
+            # The script must exist in the default branch for workflow_dispatch to work anyway
+            WORKFLOW_REF="main"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "workflow_ref=$WORKFLOW_REF" >> $GITHUB_OUTPUT
           echo "Determined tag: $TAG"
+          echo "Workflow ref for script: $WORKFLOW_REF"
 
       - name: Checkout workflow branch (to get script)
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-          # Checkout the branch/ref where the workflow is running (not the tag)
-          ref: ${{ github.ref }}
+          ref: ${{ steps.tag.outputs.workflow_ref }}
 
       - name: Save extraction script
         run: |
@@ -137,6 +143,9 @@ jobs:
             # Create a list of files to upload
             find artifacts -type f > /tmp/artifacts_list.txt
             
+            # Create temporary directory for renamed files
+            mkdir -p /tmp/release-assets
+            
             upload_count=0
             failed_count=0
             
@@ -146,14 +155,20 @@ jobs:
               contract_name=$(basename $(dirname "$artifact_file"))
               
               # Create a descriptive name for the asset
-              # GitHub CLI uses #label syntax after filename to set display name
+              # Copy file to temp location with desired name for upload
               asset_name="${contract_name}/${filename}"
-              file_with_label="${artifact_file}#${asset_name}"
+              temp_asset_path="/tmp/release-assets/${asset_name}"
+              
+              # Create subdirectory structure in temp location
+              mkdir -p "$(dirname "$temp_asset_path")"
+              
+              # Copy file to temp location with desired name
+              cp "$artifact_file" "$temp_asset_path"
               
               echo "Uploading $artifact_file as $asset_name"
               
               # Use --clobber to overwrite existing assets if they exist
-              upload_output=$(gh release upload "$TAG" "$file_with_label" \
+              upload_output=$(gh release upload "$TAG" "$temp_asset_path" \
                 --repo "${{ github.repository }}" \
                 --clobber 2>&1)
               upload_exit_code=$?
@@ -168,7 +183,9 @@ jobs:
               fi
             done < /tmp/artifacts_list.txt
             
+            # Cleanup
             rm -f /tmp/artifacts_list.txt
+            rm -rf /tmp/release-assets
             
             echo ""
             echo "=========================================="
