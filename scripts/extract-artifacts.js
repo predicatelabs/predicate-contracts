@@ -14,6 +14,7 @@ const contracts = [
   'PredicateProtected',
   'IPredicateProtected',
   'MetaCoin',
+  'TransparentUpgradeableProxy',
 ];
 
 const artifactsDir = 'artifacts';
