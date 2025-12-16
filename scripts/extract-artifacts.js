@@ -14,6 +14,7 @@ const contracts = [
   'PredicateProtected',
   'IPredicateProtected',
   'MetaCoin',
+  'PredicateHolding',
   'TransparentUpgradeableProxy',
 ];
 
@@ -31,11 +32,16 @@ let compilerMetadataExtracted = false;
 // Process each contract
 for (const contractName of contracts) {
   // Foundry creates artifacts based on directory structure
-  // For MetaCoin, we want the inheritance pattern version specifically
+  // For contracts in inheritance examples, check inheritance directory first, then default
   let jsonFile;
   if (contractName === 'MetaCoin') {
     // MetaCoin from inheritance pattern: src/examples/inheritance/MetaCoin.sol
     jsonFile = path.join(outDir, 'inheritance', `${contractName}.sol`, `${contractName}.json`);
+  } else if (contractName === 'PredicateHolding') {
+    // PredicateHolding may be in default location or inheritance directory
+    const defaultPath = path.join(outDir, `${contractName}.sol`, `${contractName}.json`);
+    const inheritancePath = path.join(outDir, 'inheritance', `${contractName}.sol`, `${contractName}.json`);
+    jsonFile = fs.existsSync(defaultPath) ? defaultPath : inheritancePath;
   } else {
     // Default: Foundry flattens structure by contract name
     jsonFile = path.join(outDir, `${contractName}.sol`, `${contractName}.json`);
@@ -81,6 +87,23 @@ for (const contractName of contracts) {
       }
     }
 
+    // Extract source file information from metadata for verification
+    let sourceFile = 'unknown';
+    let compilationTarget = null;
+    if (artifact.metadata) {
+      try {
+        const metadata = JSON.parse(artifact.metadata);
+        compilationTarget = metadata.settings?.compilationTarget || {};
+        // Get the source file from compilation target (most reliable)
+        const targetKeys = Object.keys(compilationTarget);
+        if (targetKeys.length > 0) {
+          sourceFile = targetKeys[0]; // First key is the source file path
+        }
+      } catch (error) {
+        // Ignore metadata parsing errors for source info
+      }
+    }
+
     // Extract ABI and bytecode
     const abi = artifact.abi;
     const bytecode = artifact.bytecode?.object || artifact.bytecode || '';
@@ -91,6 +114,16 @@ for (const contractName of contracts) {
     if (!fs.existsSync(contractArtifactDir)) {
       fs.mkdirSync(contractArtifactDir, { recursive: true });
     }
+
+    // Save source metadata for this contract
+    const sourceMetadata = {
+      contractName: contractName,
+      artifactPath: jsonFile,
+      sourceFile: sourceFile,
+      compilationTarget: compilationTarget,
+    };
+    const sourceMetadataFile = path.join(contractArtifactDir, `${contractName}.source.json`);
+    fs.writeFileSync(sourceMetadataFile, JSON.stringify(sourceMetadata, null, 2));
 
     // Always save ABI (even for interfaces)
     if (abi && Array.isArray(abi) && abi.length > 0) {
@@ -103,7 +136,16 @@ for (const contractName of contracts) {
     if (bytecode && bytecode !== 'null' && bytecode !== '0x' && bytecode.length > 10) {
       const bytecodeFile = path.join(contractArtifactDir, `${contractName}.bytecode`);
       fs.writeFileSync(bytecodeFile, bytecode);
-      console.log(`✓ Extracted bytecode for ${contractName}`);
+      
+      // Calculate bytecode hash for verification (first 16 chars of keccak256)
+      const crypto = require('crypto');
+      const bytecodeHash = crypto.createHash('sha256').update(bytecode).digest('hex').substring(0, 16);
+      
+      console.log(`✓ Extracted bytecode for ${contractName} (length: ${bytecode.length}, hash: ${bytecodeHash})`);
+      console.log(`  Source: ${sourceFile}`);
+      if (compilationTarget && Object.keys(compilationTarget).length > 0) {
+        console.log(`  Compilation target: ${JSON.stringify(compilationTarget)}`);
+      }
 
       // Save deployed bytecode if it exists
       if (

@@ -74,6 +74,7 @@ The Inheritance pattern directly extends the Predicate client functionality thro
 
 **Key components:**
 - `MetaCoin.sol`: Inherits from `PredicateClient` to gain validation capabilities
+- `PredicateHolding.sol`: Minimal example that holds Predicate configuration without business logic
 
 **How it works:**
 1. The contract inherits from `PredicateClient`
