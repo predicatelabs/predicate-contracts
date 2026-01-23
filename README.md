@@ -1,233 +1,79 @@
-# predicate-contracts 
+# predicate-contracts
+Predicate is programmable policy infrastructure for onchain financial products in regulated markets. It allows developers to enforce custom compliance rules at the smart contract level. This repository holds the official solidity contracts for [Predicate's](https://predicate.io) Application Compliance offering. 
 
-Solidity library for creating compliant smart contracts application (e.g. Uniswap V4 hooks) using the Predicate network.
+## How It Works
 
-## Overview
+![Predicate Application Compliance Flow](images/system.png)
 
-Predicate Contracts v2 provides a simplified, production-ready implementation for on-chain compliance verification through attestation-based validation. This version features:
+**Full integration guide:** [docs.predicate.io](https://docs.predicate.io/v2/applications/smart-contracts)
 
-- **Simplified Architecture**: Single `PredicateRegistry` contract replacing complex ServiceManager
-- **Easy Integration**: `PredicateClient` mixin for seamless integration into your contracts
-- **Multiple Patterns**: Inheritance and Proxy patterns for different use cases
-- **Enhanced Security**: ERC-7201 namespaced storage and statement-based validation
-- **Production Ready**: Comprehensive test coverage and audit-ready code
+## Repository Structure
 
-See [OVERVIEW.md](./OVERVIEW.md) for detailed technical documentation.
+```
+src/
+├── PredicateRegistry.sol       # Core registry contract (Predicate-owned)
+│                               # - Attester management
+│                               # - Attestation verification
+│                               # - UUID-based replay protection
+│
+├── mixins/
+│   └── PredicateClient.sol     # Inherit this in your contracts
+│                               # - _initPredicateClient() for setup
+│                               # - _authorizeTransaction() for validation
+│                               # - ERC-7201 namespaced storage
+│
+├── interfaces/
+│   ├── IPredicateRegistry.sol  # Registry interface + Statement/Attestation structs
+│   └── IPredicateClient.sol    # Client interface
+│
+└── examples/                   # Reference implementations
+    ├── inheritance/            # Direct inheritance pattern
+    └── proxy/                  # Proxy pattern for separation of concerns
+```
 
-## Quick Start
+## Installation
 
-### For Smart Contract Developers
+### Foundry
 
-Integrate Predicate validation into your contract in 3 steps:
+```bash
+forge install PredicateLabs/predicate-contracts
+```
+
+### npm
+
+```bash
+npm install @predicate/contracts
+```
+
+## Quick Example
 
 ```solidity
-// 1. Import and inherit PredicateClient
-import {PredicateClient} from "@predicate/mixins/PredicateClient.sol";
-import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
+import {PredicateClient} from "@predicate/contracts/src/mixins/PredicateClient.sol";
+import {Attestation} from "@predicate/contracts/src/interfaces/IPredicateRegistry.sol";
 
-contract MyContract is PredicateClient {
-    
-    // 2. Initialize in constructor
-    constructor(address _registry, string memory _policy) {
-        _initPredicateClient(_registry, _policy);
+contract MyVault is PredicateClient {
+    constructor(address _registry, string memory _policyID) {
+        _initPredicateClient(_registry, _policyID);
     }
-    
-    // 3. Add attestation parameter and validate
-    function protectedFunction(
-        address recipient,
-        uint256 amount,
-        Attestation calldata _attestation  // Add this
-    ) external payable {
-        // Encode the internal function call
-        bytes memory encodedSigAndArgs = abi.encodeWithSignature(
-            "_internalFunction(address,uint256)", 
-            recipient, 
-            amount
-        );
-        
-        // Validate the attestation
-        require(
-            _authorizeTransaction(_attestation, encodedSigAndArgs, msg.sender, msg.value),
-            "MyContract: unauthorized transaction"
-        );
-        
-        // Execute business logic
-        _internalFunction(recipient, amount);
-    }
-    
-    function _internalFunction(address recipient, uint256 amount) internal {
-        // Your business logic here
+
+    function deposit(uint256 amount, Attestation calldata attestation) external payable {
+        bytes memory encoded = abi.encodeWithSignature("_deposit(uint256)", amount);
+        require(_authorizeTransaction(attestation, encoded, msg.sender, msg.value), "Unauthorized");
+        // ... business logic
     }
 }
 ```
 
-See `src/examples/` for complete working examples.
-
-## Integration Patterns
-
-Predicate v2 supports multiple integration patterns:
-
-### 1. Inheritance Pattern (Recommended for most use cases)
-- **Location**: `src/examples/inheritance/`
-- **Best for**: Direct control, minimal dependencies
-- Contract directly inherits `PredicateClient`
-- Lowest gas cost, most straightforward
-
-### 2. Proxy Pattern (Recommended for separation of concerns)
-- **Location**: `src/examples/proxy/`
-- **Best for**: Clean separation, upgradeability
-- Separate proxy contract handles validation
-- Business logic contract remains simple
-
-See [src/examples/README.md](./src/examples/README.md) for detailed pattern documentation.
-
-## Architecture
-
-- **PredicateRegistry**: Core registry managing attesters, policies, and validation
-- **PredicateClient**: Mixin contract for customer integration  
-- **Statement**: Data structure representing a transaction to be validated
-- **Attestation**: Signed approval from an authorized attester
-
-```
-User Transaction
-     ↓
-Your Contract (with PredicateClient)
-     ↓
-_authorizeTransaction()
-     ↓
-PredicateRegistry.validateAttestation()
-     ↓
-Verify signature & policy
-     ↓
-Execute business logic
-```
-
-## Key Concepts
-
-### Statement (formerly Task)
-A `Statement` represents a claim about a transaction to be executed:
-- UUID for replay protection
-- Transaction parameters (sender, target, value, encoded function call)
-- Policy identifier
-- Expiration timestamp
-
-### Attestation
-An `Attestation` is a signed approval from an authorized attester:
-- Matching UUID from the statement
-- Attester address
-- ECDSA signature over the statement hash
-- Expiration timestamp
-
-### Events for Monitoring
-
-Predicate v2 emits comprehensive events for off-chain monitoring:
-
-**PredicateRegistry events:**
-- `AttesterRegistered` / `AttesterDeregistered` - Attester management
-- `PolicySet` - Policy changes (emitted when client calls `setPolicyID()`)
-- `StatementValidated` - Successful attestation validations
-
-**PredicateClient events** (from your contract):
-- `PredicatePolicyIDUpdated` - Track policy changes in your contract
-- `PredicateRegistryUpdated` - Alert on registry address changes (security-critical)
-
-**Note:** Transaction authorization is tracked via `StatementValidated` from PredicateRegistry (no duplicate event needed).
-
-These events enable:
-- 📊 Analytics and usage tracking
-- 🔍 Audit trails and compliance monitoring
-- ⚠️ Security alerts (unexpected policy/registry changes)
-- 🐛 Debugging and transaction analysis
-
-## Migration from v1
-
-v2 introduces several improvements over v1:
-
-| Feature | v1 | v2 |
-|---------|----|----|
-| Architecture | Multiple ServiceManager components | Single PredicateRegistry |
-| Validation | Quorum-based | Single attester signature |
-| Policies | Complex objects | Simple string identifiers |
-| Replay Protection | Block-based nonces | UUID-based with expiration |
-| Client Integration | Direct calls | PredicateClient mixin |
-
-See [OVERVIEW.md](./OVERVIEW.md#migration-guide-for-v1--v2) for detailed migration guide.
-
-## Installation
-
-This repository depends on some submodules. Please run the following command before testing. 
-
-```bash
-git submodule update --init --recursive
-```
-
-### Foundry 
-
-```shell
-$ forge install PredicateLabs/predicate-contracts 
-```
-
-### Node
-
-```bash
-npm install @predicate/predicate-contracts
-```
-
-
-## Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
 ## Documentation
 
-- **[OVERVIEW.md](./OVERVIEW.md)** - Complete technical overview of v2 architecture
-- **[PLAN.md](./PLAN.md)** - Pre-deployment checklist and task tracking
-- **[src/examples/README.md](./src/examples/README.md)** - Integration patterns guide
-- **[src/examples/](./src/examples/)** - Working code examples
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-- All tests pass: `forge test`
-- Code is formatted: `forge fmt`
-- Changes are documented
+- **Integration Guide:** [docs.predicate.io/v2/applications/smart-contracts](https://docs.predicate.io/v2/applications/smart-contracts)
+- **Supported Chains:** [docs.predicate.io/v2/applications/supported-chains](https://docs.predicate.io/v2/applications/supported-chains)
+- **API Reference:** [docs.predicate.io/api-reference](https://docs.predicate.io/api-reference/introduction)
 
 ## License
 
 See [LICENSE](./LICENSE) for details.
 
-## Disclaimer 
+## Disclaimer
 
-This library is provided as-is, without any guarantees or warranties. Use at your own risk.
+This software is provided as-is. Use at your own risk.
