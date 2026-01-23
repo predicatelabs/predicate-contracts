@@ -3,7 +3,7 @@ Predicate is programmable policy infrastructure for onchain financial products i
 
 ## How It Works
 
-![Predicate Application Compliance Flow](images/system.png)
+![Predicate Application Compliance Flow](https://raw.githubusercontent.com/PredicateLabs/predicate-contracts/main/images/system.png)
 
 **Full integration guide:** [docs.predicate.io](https://docs.predicate.io/v2/applications/smart-contracts)
 
