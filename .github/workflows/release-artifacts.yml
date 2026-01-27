@@ -18,18 +18,45 @@ jobs:
       contents: write
     
     steps:
-      - name: Determine tag name
+      - name: Determine tag name and workflow branch
         id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+            TAG="$INPUT_TAG"
+            # For workflow_dispatch, use the branch where workflow is running
+            WORKFLOW_REF="${{ github.ref }}"
           else
             TAG="${GITHUB_REF#refs/tags/}"
+            # For tag pushes, use default branch (main) to get script
+            # The script must exist in the default branch for workflow_dispatch to work anyway
+            WORKFLOW_REF="main"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "workflow_ref=$WORKFLOW_REF" >> $GITHUB_OUTPUT
           echo "Determined tag: $TAG"
+          echo "Workflow ref for script: $WORKFLOW_REF"
 
-      - name: Checkout repository
+      - name: Checkout workflow branch (to get script)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          ref: ${{ steps.tag.outputs.workflow_ref }}
+
+      - name: Save extraction script
+        run: |
+          # Save the script to a temp location that won't be affected by tag checkout
+          mkdir -p /tmp/workflow-scripts
+          if [ -f "scripts/extract-artifacts.js" ]; then
+            cp scripts/extract-artifacts.js /tmp/workflow-scripts/extract-artifacts.js
+            echo "✓ Saved script from workflow branch"
+          else
+            echo "Warning: scripts/extract-artifacts.js not found in workflow branch"
+          fi
+
+      - name: Checkout code at tag
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -39,33 +66,25 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Install gh CLI
-        run: |
-          type -p curl >/dev/null || sudo apt install curl -y
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-          && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-          && sudo apt update \
-          && sudo apt install gh -y
-
       - name: Build contracts
         run: forge build
 
       - name: Extract contract artifacts
         id: extract
         run: |
-          node scripts/extract-artifacts.js
-
-      - name: Authenticate GitHub CLI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          # Use the script from the workflow branch (saved earlier)
+          if [ -f "/tmp/workflow-scripts/extract-artifacts.js" ]; then
+            echo "Using script from workflow branch"
+            node /tmp/workflow-scripts/extract-artifacts.js
+          else
+            echo "Error: Extraction script not found. Make sure scripts/extract-artifacts.js exists in your workflow branch."
+            exit 1
+          fi
 
       - name: Create release if it doesn't exist
         id: create-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           
@@ -104,7 +123,7 @@ jobs:
 
       - name: Upload artifacts to release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           RELEASE_ACTION="${{ steps.create-release.outputs.release_action }}"
@@ -124,9 +143,11 @@ jobs:
             # Create a list of files to upload
             find artifacts -type f > /tmp/artifacts_list.txt
             
+            # Create temporary directory for renamed files
+            mkdir -p /tmp/release-assets
+            
             upload_count=0
             failed_count=0
-            skipped_count=0
             
             # Process each file
             while IFS= read -r artifact_file; do
@@ -134,23 +155,27 @@ jobs:
               contract_name=$(basename $(dirname "$artifact_file"))
               
               # Create a descriptive name for the asset
+              # Copy file to temp location with desired name for upload
               asset_name="${contract_name}/${filename}"
+              temp_asset_path="/tmp/release-assets/${asset_name}"
+              
+              # Create subdirectory structure in temp location
+              mkdir -p "$(dirname "$temp_asset_path")"
+              
+              # Copy file to temp location with desired name
+              cp "$artifact_file" "$temp_asset_path"
               
               echo "Uploading $artifact_file as $asset_name"
               
               # Use --clobber to overwrite existing assets if they exist
-              upload_output=$(gh release upload "$TAG" "$artifact_file" \
+              upload_output=$(gh release upload "$TAG" "$temp_asset_path" \
                 --repo "${{ github.repository }}" \
-                --clobber \
-                --name "$asset_name" 2>&1)
+                --clobber 2>&1)
               upload_exit_code=$?
               
               if [ $upload_exit_code -eq 0 ]; then
                 echo "✓ Successfully uploaded $asset_name"
                 upload_count=$((upload_count + 1))
-              elif echo "$upload_output" | grep -q "already exists"; then
-                echo "⚠ Asset $asset_name already exists (skipped, use --clobber to overwrite)"
-                skipped_count=$((skipped_count + 1))
               else
                 echo "✗ Failed to upload $asset_name"
                 echo "  Error: $upload_output"
@@ -158,7 +183,9 @@ jobs:
               fi
             done < /tmp/artifacts_list.txt
             
+            # Cleanup
             rm -f /tmp/artifacts_list.txt
+            rm -rf /tmp/release-assets
             
             echo ""
             echo "=========================================="
@@ -166,7 +193,6 @@ jobs:
             echo "  Tag: $TAG"
             echo "  Release action: $RELEASE_ACTION"
             echo "  Files uploaded: $upload_count"
-            echo "  Files skipped (already exist): $skipped_count"
             echo "  Files failed: $failed_count"
             echo "  Contracts processed: $(find artifacts -mindepth 1 -maxdepth 1 -type d | wc -l)"
             echo "=========================================="
@@ -176,8 +202,9 @@ jobs:
               exit 1
             fi
             
-            if [ $upload_count -eq 0 ] && [ $skipped_count -gt 0 ]; then
-              echo "Note: All artifacts already exist on the release. Use --clobber to overwrite."
+            if [ $upload_count -eq 0 ]; then
+              echo "Warning: No files were uploaded"
+              exit 1
             fi
           else
             echo "Error: No artifacts found to upload"
