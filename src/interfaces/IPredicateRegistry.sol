@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.28;
+pragma solidity ^0.8.4;
 
 /**
  * @notice Struct that bundles together a statement's parameters for validation
