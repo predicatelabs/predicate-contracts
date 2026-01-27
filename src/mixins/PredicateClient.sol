@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.28;
+pragma solidity ^0.8.4;
 
 import {IPredicateRegistry, Attestation, Statement} from "../interfaces/IPredicateRegistry.sol";
 import {IPredicateClient, PredicateClient__Unauthorized} from "../interfaces/IPredicateClient.sol";
