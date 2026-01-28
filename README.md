@@ -17,10 +17,12 @@ src/
 │                               # - UUID-based replay protection
 │
 ├── mixins/
-│   └── PredicateClient.sol     # Inherit this in your contracts
-│                               # - _initPredicateClient() for setup
-│                               # - _authorizeTransaction() for validation
-│                               # - ERC-7201 namespaced storage
+│   ├── PredicateClient.sol     # Full-featured client (WHO + WHAT validation)
+│   │                           # - _authorizeTransaction(attestation, encoded, sender, value)
+│   │
+│   └── BasicPredicateClient.sol # Simplified client (WHO-only validation)
+│                               # - _authorizeTransaction(attestation, sender)
+│                               # - Use when policies only validate sender identity
 │
 ├── interfaces/
 │   ├── IPredicateRegistry.sol  # Registry interface + Statement/Attestation structs
@@ -46,6 +48,26 @@ npm install @predicate/contracts
 ```
 
 ## Quick Example
+
+**BasicPredicateClient** - Use when your policy only validates WHO is calling (sender identity):
+
+```solidity
+import {BasicPredicateClient} from "@predicate/contracts/src/mixins/BasicPredicateClient.sol";
+import {Attestation} from "@predicate/contracts/src/interfaces/IPredicateRegistry.sol";
+
+contract MyVault is BasicPredicateClient {
+    constructor(address _registry, string memory _policyID) {
+        _initPredicateClient(_registry, _policyID);
+    }
+
+    function deposit(uint256 amount, Attestation calldata attestation) external payable {
+        require(_authorizeTransaction(attestation, msg.sender), "Unauthorized");
+        // ... business logic
+    }
+}
+```
+
+**PredicateClient** - Use when your policy also validates WHAT is being done (function, args, value):
 
 ```solidity
 import {PredicateClient} from "@predicate/contracts/src/mixins/PredicateClient.sol";
