@@ -1,0 +1,70 @@
+name: Publish Contracts
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.0.0 or 1.0.0-prerelease)'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive  # Foundry dependencies use git submodules
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        run: forge build --build-info --sizes
+
+      - name: Run tests
+        run: forge test -vvv
+
+      - name: Install Contrafactory CLI
+        uses: jaxxstorm/action-install-gh-release@v2.1.0
+        with:
+          repo: pendergraft/contrafactory
+          extension-matching: disable
+          rename-to: contrafactory
+          chmod: 0755
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish (dry run)
+        env:
+          CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
+        run: contrafactory publish --version ${{ steps.version.outputs.version }} --dry-run
+
+      - name: Publish
+        env:
+          CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
+        run: |
+          OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} 2>&1) || true
+          echo "$OUTPUT"
+          # Fail on real errors, but not if every failure is VERSION_EXISTS
+          if echo "$OUTPUT" | grep -q "failed"; then
+            NON_EXISTS_FAILURES=$(echo "$OUTPUT" | grep "^   X" | grep -v "VERSION_EXISTS" || true)
+            if [ -n "$NON_EXISTS_FAILURES" ]; then
+              echo "::error::Publish failed with errors other than VERSION_EXISTS"
+              exit 1
+            fi
+            echo "::warning::All packages already published at this version — skipping."
+          fi
