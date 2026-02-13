@@ -48,13 +48,13 @@ jobs:
 
       - name: Publish (dry run)
         env:
-          CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
         run: contrafactory publish --version ${{ steps.version.outputs.version }} --dry-run
 
       - name: Publish
         env:
-          CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
         run: |
           OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} 2>&1) || true
