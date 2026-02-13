@@ -30,17 +30,12 @@ jobs:
         run: forge test -vvv
 
       - name: Install Contrafactory CLI
-        run: |
-          VERSION=${CONTRAFACTORY_CLI_VERSION:-latest}
-          if [ "$VERSION" = "latest" ]; then
-            DOWNLOAD_URL=$(curl -s https://api.github.com/repos/pendergraft/contrafactory/releases/latest \
-              | jq -r '.assets[] | select(.name | test("linux-amd64$")) | .browser_download_url')
-          else
-            DOWNLOAD_URL="https://github.com/pendergraft/contrafactory/releases/download/${VERSION}/contrafactory-linux-amd64"
-          fi
-          curl -sL "$DOWNLOAD_URL" -o /usr/local/bin/contrafactory
-          chmod +x /usr/local/bin/contrafactory
-          contrafactory --version
+        uses: jaxxstorm/action-install-gh-release@v2.1.0
+        with:
+          repo: pendergraft/contrafactory
+          extension-matching: disable
+          rename-to: contrafactory
+          chmod: 0755
 
       - name: Determine version
         id: version
