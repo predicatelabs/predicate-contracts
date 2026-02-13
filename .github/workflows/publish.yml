@@ -1,13 +1,3 @@
-# Example GitHub Actions workflow for publishing Foundry contracts to Contrafactory.
-#
-# Copy this file to .github/workflows/publish.yml in your Foundry project.
-#
-# Required repository secrets:
-#   CONTRAFACTORY_API_KEY - API key for the Contrafactory registry
-#
-# Optional repository variables:
-#   CONTRAFACTORY_SERVER  - Registry URL (defaults to https://contrafactory.prod.predicate.ninja)
-
 name: Publish Contracts
 
 on:
