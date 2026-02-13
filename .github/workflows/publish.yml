@@ -1,0 +1,74 @@
+# Example GitHub Actions workflow for publishing Foundry contracts to Contrafactory.
+#
+# Copy this file to .github/workflows/publish.yml in your Foundry project.
+#
+# Required repository secrets:
+#   CONTRAFACTORY_API_KEY - API key for the Contrafactory registry
+#
+# Optional repository variables:
+#   CONTRAFACTORY_SERVER  - Registry URL (defaults to https://contrafactory.prod.predicate.ninja)
+
+name: Publish Contracts
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive  # Foundry dependencies use git submodules
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        run: forge build --build-info --sizes
+
+      - name: Run tests
+        run: forge test -vvv
+
+      - name: Install Contrafactory CLI
+        run: |
+          VERSION=${CONTRAFACTORY_CLI_VERSION:-latest}
+          if [ "$VERSION" = "latest" ]; then
+            DOWNLOAD_URL=$(curl -s https://api.github.com/repos/pendergraft/contrafactory/releases/latest \
+              | jq -r '.assets[] | select(.name | test("linux-amd64$")) | .browser_download_url')
+          else
+            DOWNLOAD_URL="https://github.com/pendergraft/contrafactory/releases/download/${VERSION}/contrafactory-linux-amd64"
+          fi
+          curl -sL "$DOWNLOAD_URL" -o /usr/local/bin/contrafactory
+          chmod +x /usr/local/bin/contrafactory
+          contrafactory --version
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Publish (dry run)
+        env:
+          CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
+        run: contrafactory publish --version ${{ steps.version.outputs.version }} --dry-run
+
+      - name: Publish
+        env:
+          CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
+        run: |
+          OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} 2>&1) || true
+          echo "$OUTPUT"
+          # Fail on real errors, but not if every failure is VERSION_EXISTS
+          if echo "$OUTPUT" | grep -q "failed"; then
+            NON_EXISTS_FAILURES=$(echo "$OUTPUT" | grep "^   X" | grep -v "VERSION_EXISTS" || true)
+            if [ -n "$NON_EXISTS_FAILURES" ]; then
+              echo "::error::Publish failed with errors other than VERSION_EXISTS"
+              exit 1
+            fi
+            echo "::warning::All packages already published at this version — skipping."
+          fi
