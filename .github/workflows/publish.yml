@@ -37,17 +37,26 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Save contrafactory config
+      - name: Save config from workflow branch
         run: |
+          mkdir -p /tmp/workflow-config
+
           if [ -f "contrafactory.toml" ]; then
-            cp contrafactory.toml /tmp/contrafactory.toml
-            echo "Saved contrafactory.toml from workflow branch"
+            cp contrafactory.toml /tmp/workflow-config/contrafactory.toml
+            echo "Saved contrafactory.toml"
           elif [ -f "cf.toml" ]; then
-            cp cf.toml /tmp/contrafactory.toml
-            echo "Saved cf.toml from workflow branch"
+            cp cf.toml /tmp/workflow-config/contrafactory.toml
+            echo "Saved cf.toml"
           else
             echo "::error::No contrafactory.toml or cf.toml found on workflow branch"
             exit 1
+          fi
+
+          if [ -f ".foundry-version" ]; then
+            cp .foundry-version /tmp/workflow-config/.foundry-version
+            echo "Saved .foundry-version ($(cat .foundry-version))"
+          else
+            echo "::warning::No .foundry-version found on workflow branch"
           fi
 
       - name: Checkout code at tag
@@ -57,17 +66,36 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
 
-      - name: Restore contrafactory config
+      - name: Restore config from workflow branch
+        id: config
         run: |
           if [ -f "contrafactory.toml" ]; then
             echo "Tag already has contrafactory.toml — using it"
           else
-            cp /tmp/contrafactory.toml contrafactory.toml
+            cp /tmp/workflow-config/contrafactory.toml contrafactory.toml
             echo "Tag missing contrafactory.toml — restored from workflow branch"
           fi
 
+          if [ -f ".foundry-version" ]; then
+            echo "Tag already has .foundry-version — using it"
+          elif [ -f "/tmp/workflow-config/.foundry-version" ]; then
+            cp /tmp/workflow-config/.foundry-version .foundry-version
+            echo "Tag missing .foundry-version — restored from workflow branch"
+          fi
+
+          if [ -f ".foundry-version" ]; then
+            FOUNDRY_VERSION=$(cat .foundry-version | tr -d '[:space:]')
+          else
+            FOUNDRY_VERSION="stable"
+            echo "::warning::No .foundry-version found — falling back to stable"
+          fi
+          echo "foundry_version=$FOUNDRY_VERSION" >> $GITHUB_OUTPUT
+          echo "Foundry version: $FOUNDRY_VERSION"
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ steps.config.outputs.foundry_version }}
 
       - name: Build contracts
         run: forge build --build-info --sizes
