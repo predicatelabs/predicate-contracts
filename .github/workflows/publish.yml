@@ -6,8 +6,8 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to publish (e.g. 1.0.0 or 1.0.0-prerelease)'
+      tag:
+        description: 'Tag to publish (e.g. v1.0.0). The tag must already exist in the repository.'
         required: true
         type: string
 
@@ -16,9 +16,26 @@ jobs:
     name: Build & Publish
     runs-on: ubuntu-latest
     steps:
+      - name: Determine tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG"
+          echo "Version: ${TAG#v}"
+
       - uses: actions/checkout@v4
         with:
-          submodules: recursive  # Foundry dependencies use git submodules
+          submodules: recursive
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -37,27 +54,18 @@ jobs:
           rename-to: contrafactory
           chmod: 0755
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Publish (dry run)
         env:
           CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
-        run: contrafactory publish --version ${{ steps.version.outputs.version }} --dry-run
+        run: contrafactory publish --version ${{ steps.tag.outputs.version }} --dry-run
 
       - name: Publish
         env:
           CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
         run: |
-          OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} 2>&1) || true
+          OUTPUT=$(contrafactory publish --version ${{ steps.tag.outputs.version }} 2>&1) || true
           echo "$OUTPUT"
           # Fail on real errors, but not if every failure is VERSION_EXISTS
           if echo "$OUTPUT" | grep -q "failed"; then
