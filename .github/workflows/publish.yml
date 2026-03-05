@@ -50,14 +50,14 @@ jobs:
         env:
           CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
-        run: contrafactory publish --version ${{ steps.version.outputs.version }} --dry-run
+        run: contrafactory publish --version ${{ steps.version.outputs.version }} --project predicate-contracts --dry-run
 
       - name: Publish
         env:
           CONTRAFACTORY_SERVER: ${{ vars.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
         run: |
-          OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} 2>&1) || true
+          OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} --project predicate-contracts 2>&1) || true
           echo "$OUTPUT"
           # Fail on real errors, but not if every failure is VERSION_EXISTS
           if echo "$OUTPUT" | grep -q "failed"; then
