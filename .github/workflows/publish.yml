@@ -31,11 +31,40 @@ jobs:
           echo "Tag: $TAG"
           echo "Version: ${TAG#v}"
 
-      - uses: actions/checkout@v4
+      - name: Checkout workflow branch
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Save contrafactory config
+        run: |
+          if [ -f "contrafactory.toml" ]; then
+            cp contrafactory.toml /tmp/contrafactory.toml
+            echo "Saved contrafactory.toml from workflow branch"
+          elif [ -f "cf.toml" ]; then
+            cp cf.toml /tmp/contrafactory.toml
+            echo "Saved cf.toml from workflow branch"
+          else
+            echo "::error::No contrafactory.toml or cf.toml found on workflow branch"
+            exit 1
+          fi
+
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
+
+      - name: Restore contrafactory config
+        run: |
+          if [ -f "contrafactory.toml" ]; then
+            echo "Tag already has contrafactory.toml — using it"
+          else
+            cp /tmp/contrafactory.toml contrafactory.toml
+            echo "Tag missing contrafactory.toml — restored from workflow branch"
+          fi
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
