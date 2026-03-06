@@ -91,7 +91,8 @@ jobs:
           if [ -f "/tmp/workflow-config/remappings.txt" ]; then
             if [ -f "remappings.txt" ]; then
               BEFORE=$(wc -l < remappings.txt)
-              # Append any entries from the workflow branch that the tag is missing
+              # Ensure trailing newline before appending
+              sed -i -e '$a\' remappings.txt
               while IFS= read -r line; do
                 [ -z "$line" ] && continue
                 if ! grep -qxF "$line" remappings.txt; then
