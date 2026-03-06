@@ -59,6 +59,11 @@ jobs:
             echo "::warning::No .foundry-version found on workflow branch"
           fi
 
+          if [ -f "remappings.txt" ]; then
+            cp remappings.txt /tmp/workflow-config/remappings.txt
+            echo "Saved remappings.txt ($(wc -l < remappings.txt) entries)"
+          fi
+
       - name: Checkout code at tag
         uses: actions/checkout@v4
         with:
@@ -81,6 +86,25 @@ jobs:
           elif [ -f "/tmp/workflow-config/.foundry-version" ]; then
             cp /tmp/workflow-config/.foundry-version .foundry-version
             echo "Tag missing .foundry-version — restored from workflow branch"
+          fi
+
+          if [ -f "/tmp/workflow-config/remappings.txt" ]; then
+            if [ -f "remappings.txt" ]; then
+              BEFORE=$(wc -l < remappings.txt)
+              # Append any entries from the workflow branch that the tag is missing
+              while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                if ! grep -qxF "$line" remappings.txt; then
+                  echo "$line" >> remappings.txt
+                  echo "  Added missing remapping: $line"
+                fi
+              done < /tmp/workflow-config/remappings.txt
+              AFTER=$(wc -l < remappings.txt)
+              echo "remappings.txt: $BEFORE → $AFTER entries"
+            else
+              cp /tmp/workflow-config/remappings.txt remappings.txt
+              echo "Tag missing remappings.txt — restored from workflow branch"
+            fi
           fi
 
           if [ -f ".foundry-version" ]; then
