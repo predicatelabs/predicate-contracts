@@ -2,6 +2,22 @@
 
 This directory contains example implementations demonstrating different patterns for integrating Predicate in your smart contracts. Each pattern offers a different approach with its own trade-offs in terms of complexity, gas efficiency, and modularity.
 
+## Compliance Types
+
+Predicate supports two complementary compliance approaches:
+
+### Application Compliance
+Enforcement via off-chain Predicate attestations validated on-chain. Policies define rules (WHO can act, WHAT they can do, WHEN they can do it), and the application validates attestations before executing transactions.
+
+**Examples:** `inheritance/BasicVault.sol`, `inheritance/AdvancedVault.sol`, `inheritance/MetaCoin.sol`
+
+### Asset Compliance
+Enforcement at the asset level. The asset itself (e.g., a token) has built-in compliance controls like account freezing that block certain addresses from interacting with the asset.
+
+**Examples:** `asset-compliance/FreezableToken.sol`
+
+These approaches can be used independently or combined for defense-in-depth.
+
 ## Integration Patterns Diagram
 
 ![Integration Patterns](./integration-patterns.png)
@@ -91,10 +107,37 @@ The Inheritance pattern directly extends the Predicate client functionality thro
 - Requires more manual validation code
 - May be harder to upgrade validation logic
 
+### 4. Asset Compliance Pattern
+
+**Location:** `src/examples/asset-compliance/`
+
+The Asset Compliance pattern enforces compliance directly at the asset level, independent of Predicate attestations.
+
+**Key components:**
+- `FreezableToken.sol`: Token that inherits `Freezable` to enable account freezing
+
+**How it works:**
+1. The asset inherits from `Freezable`
+2. Protected functions call `_revertIfFrozen()` to block frozen accounts
+3. A freeze manager (role-based) can freeze/unfreeze accounts
+
+**Benefits:**
+- Immediate on-chain enforcement (no off-chain dependency)
+- Simple integration via inheritance
+- Useful for emergency account blocking
+
+**Drawbacks:**
+- Less flexible than policy-based rules
+- Requires on-chain transactions to update freeze status
+
 ## Choosing the Right Pattern
 
+**For Application Compliance:**
 - **Use the Inheritance pattern** when you need direct control over the validation process and want to minimize contract dependencies. This is the **recommended approach** for most use cases.
 - **Use the Proxy pattern** when you need a clean separation of concerns and potentially upgradable validation logic. This provides maximum flexibility.
 - ~~**Wrapper pattern**~~ - **Deprecated in v2**. Use Inheritance or Proxy patterns instead.
+
+**For Asset Compliance:**
+- **Use the Asset Compliance pattern** when you need immediate on-chain enforcement (e.g., freezing sanctioned accounts). Can be combined with Application Compliance for defense-in-depth.
 
 Each pattern can be adapted to suit your specific needs and security requirements.
