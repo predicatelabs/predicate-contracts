@@ -63,12 +63,12 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
     }
 
     /// @inheritdoc IFreezable
-    function unfreeze(address account) external onlyRole(FREEZE_MANAGER_ROLE) {
+    function unfreeze(address account) external virtual onlyRole(FREEZE_MANAGER_ROLE) {
         _unfreeze(_getFreezableStorageLocation(), account);
     }
 
     /// @inheritdoc IFreezable
-    function unfreezeAccounts(address[] calldata accounts) external onlyRole(FREEZE_MANAGER_ROLE) {
+    function unfreezeAccounts(address[] calldata accounts) external virtual onlyRole(FREEZE_MANAGER_ROLE) {
         FreezableStorageStruct storage $ = _getFreezableStorageLocation();
 
         for (uint256 i; i < accounts.length; ++i) {
