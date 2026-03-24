@@ -25,7 +25,10 @@ contract FreezableToken is Freezable {
      * @param _owner Address that receives initial tokens and can freeze/unfreeze accounts.
      * @param _initialSupply Initial token supply minted to owner.
      */
-    constructor(address _owner, uint256 _initialSupply) {
+    constructor(
+        address _owner,
+        uint256 _initialSupply
+    ) {
         require(_owner != address(0), "FreezableToken: zero address owner");
 
         // Grant freeze manager role to owner (equivalent to __Freezable_init)
@@ -41,7 +44,10 @@ contract FreezableToken is Freezable {
      * @param _to Recipient address.
      * @param _amount Amount to transfer.
      */
-    function transfer(address _to, uint256 _amount) external {
+    function transfer(
+        address _to,
+        uint256 _amount
+    ) external {
         // Asset compliance: block frozen accounts
         _revertIfFrozen(msg.sender);
         _revertIfFrozen(_to);
@@ -59,7 +65,9 @@ contract FreezableToken is Freezable {
      * @param _account Address to query.
      * @return Token balance.
      */
-    function balanceOf(address _account) external view returns (uint256) {
+    function balanceOf(
+        address _account
+    ) external view returns (uint256) {
         return balances[_account];
     }
 }

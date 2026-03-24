@@ -47,28 +47,36 @@ interface IFreezable {
      * @dev MUST only be callable by the FREEZE_MANAGER_ROLE.
      * @param account The address of the account to freeze.
      */
-    function freeze(address account) external;
+    function freeze(
+        address account
+    ) external;
 
     /**
      * @notice Freezes multiple accounts.
      * @dev MUST only be callable by the FREEZE_MANAGER_ROLE.
      * @param accounts The list of addresses to freeze.
      */
-    function freezeAccounts(address[] calldata accounts) external;
+    function freezeAccounts(
+        address[] calldata accounts
+    ) external;
 
     /**
      * @notice Unfreezes an account.
      * @dev MUST only be callable by the FREEZE_MANAGER_ROLE.
      * @param account The address of the account to unfreeze.
      */
-    function unfreeze(address account) external;
+    function unfreeze(
+        address account
+    ) external;
 
     /**
      * @notice Unfreezes multiple accounts.
      * @dev MUST only be callable by the FREEZE_MANAGER_ROLE.
      * @param accounts The list of addresses to unfreeze.
      */
-    function unfreezeAccounts(address[] calldata accounts) external;
+    function unfreezeAccounts(
+        address[] calldata accounts
+    ) external;
 
     /* ============ View/Pure Functions ============ */
 
@@ -80,5 +88,7 @@ interface IFreezable {
      * @param account The address of the account to check.
      * @return True if the account is frozen, false otherwise.
      */
-    function isFrozen(address account) external view returns (bool);
+    function isFrozen(
+        address account
+    ) external view returns (bool);
 }

@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.26;
 
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
-import { IFreezable } from "./interfaces/IFreezable.sol";
+import {IFreezable} from "./interfaces/IFreezable.sol";
 
 abstract contract FreezableStorageLayout {
     /// @custom:storage-location erc7201:M0.storage.Freezable
@@ -41,7 +41,9 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @notice Initializes the contract with the given freeze manager.
      * @param freezeManager The address of a freeze manager.
      */
-    function __Freezable_init(address freezeManager) internal onlyInitializing {
+    function __Freezable_init(
+        address freezeManager
+    ) internal onlyInitializing {
         if (freezeManager == address(0)) revert ZeroFreezeManager();
         _grantRole(FREEZE_MANAGER_ROLE, freezeManager);
     }
@@ -49,12 +51,16 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
     /* ============ Interactive Functions ============ */
 
     /// @inheritdoc IFreezable
-    function freeze(address account) external virtual onlyRole(FREEZE_MANAGER_ROLE) {
+    function freeze(
+        address account
+    ) external virtual onlyRole(FREEZE_MANAGER_ROLE) {
         _freeze(_getFreezableStorageLocation(), account);
     }
 
     /// @inheritdoc IFreezable
-    function freezeAccounts(address[] calldata accounts) external virtual onlyRole(FREEZE_MANAGER_ROLE) {
+    function freezeAccounts(
+        address[] calldata accounts
+    ) external virtual onlyRole(FREEZE_MANAGER_ROLE) {
         FreezableStorageStruct storage $ = _getFreezableStorageLocation();
 
         for (uint256 i; i < accounts.length; ++i) {
@@ -63,12 +69,16 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
     }
 
     /// @inheritdoc IFreezable
-    function unfreeze(address account) external onlyRole(FREEZE_MANAGER_ROLE) {
+    function unfreeze(
+        address account
+    ) external onlyRole(FREEZE_MANAGER_ROLE) {
         _unfreeze(_getFreezableStorageLocation(), account);
     }
 
     /// @inheritdoc IFreezable
-    function unfreezeAccounts(address[] calldata accounts) external onlyRole(FREEZE_MANAGER_ROLE) {
+    function unfreezeAccounts(
+        address[] calldata accounts
+    ) external onlyRole(FREEZE_MANAGER_ROLE) {
         FreezableStorageStruct storage $ = _getFreezableStorageLocation();
 
         for (uint256 i; i < accounts.length; ++i) {
@@ -79,7 +89,9 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
     /* ============ View/Pure Functions ============ */
 
     /// @inheritdoc IFreezable
-    function isFrozen(address account) public view returns (bool) {
+    function isFrozen(
+        address account
+    ) public view returns (bool) {
         return _getFreezableStorageLocation().isFrozen[account];
     }
 
@@ -90,7 +102,10 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @param $ The storage location of the freezable contract.
      * @param account The account to freeze.
      */
-    function _freeze(FreezableStorageStruct storage $, address account) internal {
+    function _freeze(
+        FreezableStorageStruct storage $,
+        address account
+    ) internal {
         // Return early if the account is already frozen
         if ($.isFrozen[account]) return;
 
@@ -104,7 +119,10 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @param $ The storage location of the freezable contract.
      * @param account The account to unfreeze.
      */
-    function _unfreeze(FreezableStorageStruct storage $, address account) internal {
+    function _unfreeze(
+        FreezableStorageStruct storage $,
+        address account
+    ) internal {
         // Return early if the account is not frozen
         if (!$.isFrozen[account]) return;
 
@@ -121,7 +139,10 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @param $ The storage location of the freezable contract.
      * @param account The account to check.
      */
-    function _revertIfFrozen(FreezableStorageStruct storage $, address account) internal view {
+    function _revertIfFrozen(
+        FreezableStorageStruct storage $,
+        address account
+    ) internal view {
         if ($.isFrozen[account]) revert AccountFrozen(account);
     }
 
@@ -130,7 +151,9 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @dev Called by inheriting contracts to check if an account is frozen.
      * @param account The account to check.
      */
-    function _revertIfFrozen(address account) internal view {
+    function _revertIfFrozen(
+        address account
+    ) internal view {
         if (_getFreezableStorageLocation().isFrozen[account]) revert AccountFrozen(account);
     }
 
@@ -140,7 +163,10 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @param $ The storage location of the freezable contract.
      * @param account The account to check.
      */
-    function _revertIfNotFrozen(FreezableStorageStruct storage $, address account) internal view {
+    function _revertIfNotFrozen(
+        FreezableStorageStruct storage $,
+        address account
+    ) internal view {
         if (!$.isFrozen[account]) revert AccountNotFrozen(account);
     }
 
@@ -149,7 +175,9 @@ abstract contract Freezable is IFreezable, FreezableStorageLayout, AccessControl
      * @dev Called by inheriting contracts to check if an account is not frozen.
      * @param account The account to check.
      */
-    function _revertIfNotFrozen(address account) internal view {
+    function _revertIfNotFrozen(
+        address account
+    ) internal view {
         if (!_getFreezableStorageLocation().isFrozen[account]) revert AccountNotFrozen(account);
     }
 }
