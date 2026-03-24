@@ -1,5 +1,5 @@
 # predicate-contracts
-Predicate is programmable policy infrastructure for onchain financial products in regulated markets. It allows developers to enforce custom compliance rules at the smart contract level. This repository holds the official solidity contracts for [Predicate's](https://predicate.io) Application Compliance offering. 
+Predicate is programmable policy infrastructure for onchain financial products in regulated markets. It allows developers to enforce custom compliance rules at the smart contract level. This repository holds the official solidity contracts for [Predicate's](https://predicate.io) Application Compliance and Asset Compliance offerings. 
 
 ## How It Works
 
@@ -16,6 +16,10 @@ src/
 │                               # - Attestation verification
 │                               # - UUID-based replay protection
 │
+├── Freezable.sol               # Abstract contract for account freezing (Asset Compliance)
+│                               # - Role-based freeze management
+│                               # - ERC-7201 namespaced storage
+│
 ├── mixins/
 │   ├── PredicateClient.sol     # Full-featured client (WHO + WHAT validation)
 │   │                           # - _authorizeTransaction(attestation, encoded, sender, value)
@@ -26,11 +30,13 @@ src/
 │
 ├── interfaces/
 │   ├── IPredicateRegistry.sol  # Registry interface + Statement/Attestation structs
-│   └── IPredicateClient.sol    # Client interface
+│   ├── IPredicateClient.sol    # Client interface
+│   └── IFreezable.sol          # Freezable interface for Asset Compliance
 │
 └── examples/                   # Reference implementations
-    ├── inheritance/            # Direct inheritance pattern
-    └── proxy/                  # Proxy pattern for separation of concerns
+    ├── inheritance/            # Direct inheritance pattern (Application Compliance)
+    ├── proxy/                  # Proxy pattern for separation of concerns
+    └── asset-compliance/       # Asset Compliance pattern (account freezing)
 ```
 
 ## Installation
@@ -88,7 +94,8 @@ contract MyVault is PredicateClient {
 
 ## Documentation
 
-- **Integration Guide:** [docs.predicate.io/v2/applications/smart-contracts](https://docs.predicate.io/v2/applications/smart-contracts)
+- **Application Compliance:** [docs.predicate.io/v2/applications/smart-contracts](https://docs.predicate.io/v2/applications/smart-contracts)
+- **Asset Compliance:** [docs.predicate.io/v2/assets/overview](https://docs.predicate.io/v2/assets/overview)
 - **Supported Chains:** [docs.predicate.io/v2/applications/supported-chains](https://docs.predicate.io/v2/applications/supported-chains)
 - **API Reference:** [docs.predicate.io/api-reference](https://docs.predicate.io/api-reference/introduction)
 
