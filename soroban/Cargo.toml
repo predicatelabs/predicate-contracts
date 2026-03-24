@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "predicate-client",
+    "predicate-registry",
+    "test-stablecoin",
+]
+
+[workspace.dependencies]
+soroban-sdk = "25.3.0"
+soroban-token-sdk = "25.3.0"
+predicate-client = { path = "predicate-client" }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
