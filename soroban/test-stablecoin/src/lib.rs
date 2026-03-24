@@ -170,6 +170,10 @@ impl TestStablecoinContract {
         let admin = require_admin(&env);
         env.storage().instance().set(&DataKey::Admin, &new_admin);
 
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
+
         #[allow(deprecated)]
         TokenUtils::new(&env).events().set_admin(admin, new_admin);
     }
@@ -179,6 +183,10 @@ impl TestStablecoinContract {
         env.storage()
             .instance()
             .set(&DataKey::ComplianceAdmin, &new_admin);
+
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
 
         #[allow(deprecated)]
         env.events()
@@ -215,6 +223,10 @@ impl TestStablecoinContract {
         let to_balance = read_balance(&env, &to);
         write_balance(&env, &to, to_balance + amount);
 
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
+
         #[allow(deprecated)]
         TokenUtils::new(&env).events().transfer(from, to, amount);
     }
@@ -233,6 +245,10 @@ impl TestStablecoinContract {
 
         let to_balance = read_balance(&env, &to);
         write_balance(&env, &to, to_balance + amount);
+
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
 
         #[allow(deprecated)]
         TokenUtils::new(&env).events().transfer(from, to, amount);
@@ -268,6 +284,10 @@ impl TestStablecoinContract {
         assert!(balance >= amount, "insufficient balance");
         write_balance(&env, &from, balance - amount);
 
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
+
         #[allow(deprecated)]
         TokenUtils::new(&env).events().burn(from, amount);
     }
@@ -282,6 +302,10 @@ impl TestStablecoinContract {
         let balance = read_balance(&env, &from);
         assert!(balance >= amount, "insufficient balance");
         write_balance(&env, &from, balance - amount);
+
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
 
         #[allow(deprecated)]
         TokenUtils::new(&env).events().burn(from, amount);
@@ -315,6 +339,10 @@ impl TestStablecoinContract {
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &true);
 
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
+
         #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("freeze"), compliance_admin), account);
@@ -325,6 +353,10 @@ impl TestStablecoinContract {
         env.storage()
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &false);
+
+        env.storage()
+            .instance()
+            .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
 
         #[allow(deprecated)]
         env.events()
@@ -403,11 +435,10 @@ mod test {
     #[should_panic]
     fn test_mint_not_admin() {
         let env = Env::default();
+        env.mock_all_auths();
         let contract_id = env.register(TestStablecoinContract, ());
         let client = TestStablecoinContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
-
-        env.mock_all_auths();
         client.initialize(
             &admin,
             &6u32,
@@ -415,8 +446,21 @@ mod test {
             &String::from_str(&env, "TUSD"),
         );
 
-        // mock_all_auths is sticky — use should_panic workaround
-        panic!("authorization required");
+        // Fresh env without mocked auths — mint requires admin auth
+        let env2 = Env::default();
+        let contract_id2 = env2.register(TestStablecoinContract, ());
+        let client2 = TestStablecoinContractClient::new(&env2, &contract_id2);
+        let admin2 = Address::generate(&env2);
+        // TODO: soroban-sdk 25 sticky mock_all_auths prevents clearing auths on the
+        // same Env; fresh Env used so admin auth is not satisfied, causing a panic.
+        client2.initialize(
+            &admin2,
+            &6u32,
+            &String::from_str(&env2, "Test USD"),
+            &String::from_str(&env2, "TUSD"),
+        );
+        let user = Address::generate(&env2);
+        client2.mint(&user, &1000i128);
     }
 
     // ─── Transfer Tests ──────────────────────────────────────────────────
@@ -542,11 +586,10 @@ mod test {
     #[should_panic]
     fn test_set_compliance_admin_not_admin() {
         let env = Env::default();
+        env.mock_all_auths();
         let contract_id = env.register(TestStablecoinContract, ());
         let client = TestStablecoinContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
-
-        env.mock_all_auths();
         client.initialize(
             &admin,
             &6u32,
@@ -554,8 +597,21 @@ mod test {
             &String::from_str(&env, "TUSD"),
         );
 
-        // mock_all_auths is sticky — use should_panic workaround
-        panic!("authorization required");
+        // Fresh env without mocked auths — set_compliance_admin requires admin auth
+        let env2 = Env::default();
+        let contract_id2 = env2.register(TestStablecoinContract, ());
+        let client2 = TestStablecoinContractClient::new(&env2, &contract_id2);
+        let admin2 = Address::generate(&env2);
+        // TODO: soroban-sdk 25 sticky mock_all_auths prevents clearing auths on the
+        // same Env; fresh Env used so admin auth is not satisfied, causing a panic.
+        client2.initialize(
+            &admin2,
+            &6u32,
+            &String::from_str(&env2, "Test USD"),
+            &String::from_str(&env2, "TUSD"),
+        );
+        let new_compliance = Address::generate(&env2);
+        client2.set_compliance_admin(&new_compliance);
     }
 
     // ─── Allowance Tests ─────────────────────────────────────────────────
