@@ -21,3 +21,6 @@ cache
 
 *.DS_Store
 .idea/
+
+# Superpowers docs
+docs/superpowers/
