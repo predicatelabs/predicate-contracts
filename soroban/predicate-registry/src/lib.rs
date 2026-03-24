@@ -263,6 +263,38 @@ impl PredicateRegistryContract {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+mod test_wrapper {
+    use predicate_client::{authorize_transaction, Attestation};
+    use soroban_sdk::{contract, contractimpl, Address, Bytes, Env, String};
+
+    #[contract]
+    pub struct TestWrapperContract;
+
+    #[contractimpl]
+    impl TestWrapperContract {
+        pub fn call_authorize(
+            env: Env,
+            registry: Address,
+            attestation: Attestation,
+            encoded_args: Bytes,
+            sender: Address,
+            value: i128,
+            policy: String,
+        ) {
+            authorize_transaction(
+                &env,
+                &registry,
+                &attestation,
+                &encoded_args,
+                &sender,
+                value,
+                &policy,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod test {
     extern crate alloc;
 
@@ -661,5 +693,66 @@ mod test {
         };
 
         client.validate_attestation(&statement, &attestation);
+    }
+
+    // ─── Integration Test: authorize_transaction via wrapper ─────────────
+
+    #[test]
+    fn test_authorize_transaction_integration() {
+        use test_wrapper::{TestWrapperContract, TestWrapperContractClient};
+
+        let (env, registry_client, _owner) = setup();
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 100;
+        });
+
+        // 1. Create attester keypair and register the public key
+        let (pubkey, signing_key) = create_keypair(&env, 77);
+        registry_client.register_attester(&pubkey);
+
+        // 2. Deploy the wrapper contract — its address will become `target`
+        let wrapper_id = env.register(TestWrapperContract, ());
+        let wrapper_client = TestWrapperContractClient::new(&env, &wrapper_id);
+
+        // 3. Build the Statement with target = wrapper contract address
+        //    (authorize_transaction sets target = env.current_contract_address(),
+        //     which will be wrapper_id when called from the wrapper)
+        let sender = Address::generate(&env);
+        let encoded_args = Bytes::new(&env);
+        let policy = String::from_str(&env, "policy-integration");
+        let uuid = String::from_str(&env, "uuid-integration-1");
+        let expiration = 500u64;
+
+        let statement = Statement {
+            uuid: uuid.clone(),
+            msg_sender: sender.clone(),
+            target: wrapper_id.clone(),
+            msg_value: 0i128,
+            encoded_sig_and_args: encoded_args.clone(),
+            policy: policy.clone(),
+            expiration,
+        };
+
+        // 4. Sign the statement
+        let signature = sign_statement(&env, &signing_key, &statement);
+
+        let attestation = Attestation {
+            uuid: uuid.clone(),
+            expiration,
+            attester: pubkey,
+            signature,
+        };
+
+        // 5. Call via the wrapper — this triggers the cross-contract call to
+        //    registry's validate_attestation
+        wrapper_client.call_authorize(
+            &registry_client.address,
+            &attestation,
+            &encoded_args,
+            &sender,
+            &0i128,
+            &policy,
+        );
     }
 }
