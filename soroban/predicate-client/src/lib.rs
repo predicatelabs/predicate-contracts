@@ -23,7 +23,7 @@ pub struct Statement {
 pub struct Attestation {
     pub uuid: String,
     pub expiration: u64,
-    pub attester: BytesN<32>, // Ed25519 public key
+    pub attester: BytesN<32>,  // Ed25519 public key
     pub signature: BytesN<64>, // Ed25519 signature
 }
 
@@ -84,8 +84,8 @@ pub fn authorize_transaction(
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{Address, Bytes, Env};
     use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::{Address, Bytes, Env};
 
     #[test]
     fn test_statement_construction() {
@@ -124,7 +124,10 @@ mod test {
         // The first 32 bytes are the network_id
         let network_id = env.ledger().network_id();
         for i in 0..32u32 {
-            assert_eq!(serialized.get(i).unwrap(), network_id.to_array()[i as usize]);
+            assert_eq!(
+                serialized.get(i).unwrap(),
+                network_id.to_array()[i as usize]
+            );
         }
     }
 

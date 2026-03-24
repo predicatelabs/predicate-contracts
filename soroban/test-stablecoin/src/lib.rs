@@ -85,7 +85,13 @@ fn read_allowance(env: &Env, from: &Address, spender: &Address) -> AllowanceData
     }
 }
 
-fn write_allowance(env: &Env, from: &Address, spender: &Address, amount: i128, expiration_ledger: u32) {
+fn write_allowance(
+    env: &Env,
+    from: &Address,
+    spender: &Address,
+    amount: i128,
+    expiration_ledger: u32,
+) {
     let key = DataKey::Allowance(from.clone(), spender.clone());
     let allowance = AllowanceData {
         amount,
@@ -94,7 +100,9 @@ fn write_allowance(env: &Env, from: &Address, spender: &Address, amount: i128, e
     env.storage().temporary().set(&key, &allowance);
     if amount > 0 && expiration_ledger >= env.ledger().sequence() {
         let live_for = expiration_ledger - env.ledger().sequence() + 1;
-        env.storage().temporary().extend_ttl(&key, live_for, live_for);
+        env.storage()
+            .temporary()
+            .extend_ttl(&key, live_for, live_for);
     }
 }
 
@@ -106,7 +114,13 @@ fn spend_allowance(env: &Env, from: &Address, spender: &Address, amount: i128) {
     if allowance.expiration_ledger < env.ledger().sequence() {
         panic!("allowance expired");
     }
-    write_allowance(env, from, spender, allowance.amount - amount, allowance.expiration_ledger);
+    write_allowance(
+        env,
+        from,
+        spender,
+        allowance.amount - amount,
+        allowance.expiration_ledger,
+    );
 }
 
 fn require_admin(env: &Env) -> Address {
@@ -167,10 +181,8 @@ impl TestStablecoinContract {
             .set(&DataKey::ComplianceAdmin, &new_admin);
 
         #[allow(deprecated)]
-        env.events().publish(
-            (symbol_short!("comp_adm"), admin),
-            new_admin,
-        );
+        env.events()
+            .publish((symbol_short!("comp_adm"), admin), new_admin);
     }
 
     pub fn mint(env: Env, to: Address, amount: i128) {
@@ -226,7 +238,13 @@ impl TestStablecoinContract {
         TokenUtils::new(&env).events().transfer(from, to, amount);
     }
 
-    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+    pub fn approve(
+        env: Env,
+        from: Address,
+        spender: Address,
+        amount: i128,
+        expiration_ledger: u32,
+    ) {
         from.require_auth();
         assert!(
             expiration_ledger >= env.ledger().sequence(),
@@ -298,10 +316,8 @@ impl TestStablecoinContract {
             .set(&DataKey::Frozen(account.clone()), &true);
 
         #[allow(deprecated)]
-        env.events().publish(
-            (symbol_short!("freeze"), compliance_admin),
-            account,
-        );
+        env.events()
+            .publish((symbol_short!("freeze"), compliance_admin), account);
     }
 
     pub fn unfreeze(env: Env, account: Address) {
@@ -311,10 +327,8 @@ impl TestStablecoinContract {
             .set(&DataKey::Frozen(account.clone()), &false);
 
         #[allow(deprecated)]
-        env.events().publish(
-            (symbol_short!("unfreeze"), compliance_admin),
-            account,
-        );
+        env.events()
+            .publish((symbol_short!("unfreeze"), compliance_admin), account);
     }
 
     pub fn is_frozen(env: Env, account: Address) -> bool {

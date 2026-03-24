@@ -42,9 +42,7 @@ impl PredicateRegistryContract {
         {
             panic!("already initialized");
         }
-        env.storage()
-            .instance()
-            .set(&DataKey::Initialized, &true);
+        env.storage().instance().set(&DataKey::Initialized, &true);
         env.storage().instance().set(&DataKey::Owner, &owner);
 
         let empty_list: Vec<BytesN<32>> = Vec::new(&env);
@@ -246,11 +244,7 @@ impl PredicateRegistryContract {
             .instance()
             .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP_AMOUNT);
 
-        if env
-            .storage()
-            .persistent()
-            .has(&DataKey::AttestersList)
-        {
+        if env.storage().persistent().has(&DataKey::AttestersList) {
             env.storage().persistent().extend_ttl(
                 &DataKey::AttestersList,
                 LEDGER_THRESHOLD,
@@ -318,9 +312,7 @@ mod test {
     ) -> BytesN<64> {
         let message = predicate_client::serialize_statement(env, statement);
         let len = message.len() as usize;
-        let buf: alloc::vec::Vec<u8> = (0..len)
-            .map(|i| message.get(i as u32).unwrap())
-            .collect();
+        let buf: alloc::vec::Vec<u8> = (0..len).map(|i| message.get(i as u32).unwrap()).collect();
         let sig = signing_key.sign(&buf);
         BytesN::from_array(env, &sig.to_bytes())
     }
