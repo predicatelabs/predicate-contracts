@@ -68,3 +68,30 @@ jobs:
             fi
             echo "::warning::All packages already published at this version — skipping."
           fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Stellar CLI
+        run: cargo install stellar-cli --locked
+
+      - name: Build Soroban contracts
+        run: cd soroban && stellar contract build
+
+      - name: Publish Soroban artifacts
+        env:
+          CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
+        run: |
+          # Note: Exact contrafactory CLI commands for WASM artifacts need
+          # coordination with Contrafactory team. Placeholder commands below.
+          echo "TODO: Publish stellar-test-stablecoin WASM"
+          echo "TODO: Publish stellar-predicate-registry WASM"
+          # contrafactory publish stellar-test-stablecoin \
+          #   --artifact wasm:soroban/target/wasm32-unknown-unknown/release/test_stablecoin.wasm \
+          #   --version ${{ steps.version.outputs.version }}
+          # contrafactory publish stellar-predicate-registry \
+          #   --artifact wasm:soroban/target/wasm32-unknown-unknown/release/predicate_registry.wasm \
+          #   --version ${{ steps.version.outputs.version }}
