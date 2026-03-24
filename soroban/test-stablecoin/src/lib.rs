@@ -1,5 +1,6 @@
 #![no_std]
 
+// MuxedAddress, Symbol, Vec are used by OZ's #[contractimpl(contracttrait)] macro expansions
 use soroban_sdk::{
     contract, contracterror, contractimpl, symbol_short, Address, Env, MuxedAddress, String,
     Symbol, Vec,
@@ -290,5 +291,45 @@ mod test {
         client.approve(&admin, &spender, &500_000i128, &1000u32);
         client.block_user(&admin, &manager);
         client.burn_from(&spender, &admin, &100i128);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_non_admin_cannot_mint() {
+        let e = Env::default();
+        // Set up contract without mocking auths globally
+        let admin = Address::generate(&e);
+        let manager = Address::generate(&e);
+        let name = String::from_str(&e, "Test USD");
+        let symbol = String::from_str(&e, "TUSD");
+        let address = e.register(
+            TestStablecoinContract,
+            (name, symbol, &admin, &manager, 1_000_000i128),
+        );
+        let client = TestStablecoinContractClient::new(&e, &address);
+        let user = Address::generate(&e);
+
+        // Call mint without any auth mocked — should fail
+        client.mint(&user, &1000i128);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_non_manager_cannot_block() {
+        let e = Env::default();
+        let admin = Address::generate(&e);
+        let manager = Address::generate(&e);
+        let name = String::from_str(&e, "Test USD");
+        let symbol = String::from_str(&e, "TUSD");
+        let address = e.register(
+            TestStablecoinContract,
+            (name, symbol, &admin, &manager, 1_000_000i128),
+        );
+        let client = TestStablecoinContractClient::new(&e, &address);
+        let user = Address::generate(&e);
+        let not_manager = Address::generate(&e);
+
+        // Call block_user with a non-manager operator — should fail
+        client.block_user(&user, &not_manager);
     }
 }
