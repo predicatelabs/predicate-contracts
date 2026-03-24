@@ -10,7 +10,7 @@ Add Soroban (Stellar) smart contracts to the predicate-contracts repository: a f
 
 ## Approach
 
-From-scratch implementation using `soroban-sdk 25.3.0` and `soroban-token-sdk 25.3.0`. No OpenZeppelin Stellar library — the freeze/RBAC logic is straightforward and keeping it self-contained avoids a new dependency on a young library. The stablecoin is a pure Soroban contract (not wrapping a Classic asset), giving full control over freeze logic without Classic trustline complexity.
+Implementation using `soroban-sdk 25.3.0` for the registry/client, and **OpenZeppelin Stellar Contracts 0.6.0** (`stellar-tokens`, `stellar-access`, `stellar-macros`) for the test-stablecoin. OZ provides audited `FungibleToken`, `FungibleBlockList`, `FungibleBurnable`, and `AccessControl` traits with built-in freeze enforcement, TTL management, and SEP-41 compliance. The stablecoin is a pure Soroban contract (not wrapping a Classic asset).
 
 ## Directory Structure
 
@@ -165,65 +165,82 @@ Prepend `env.ledger().network_id()` (the SHA-256 hash of the network passphrase,
 
 **Purpose:** SAC-compatible token with freeze/compliance support. Demonstrates Track 1 (Asset Compliance) for Stellar.
 
-### Storage Layout
+**Built on:** OpenZeppelin Stellar Contracts 0.6.0 — `FungibleToken` with `BlockList` extension, `FungibleBurnable`, and `AccessControl`.
 
-| Key | Storage Type | Value |
-|-----|-------------|-------|
-| `admin` | Instance | `Address` |
-| `compliance_admin` | Instance | `Address` |
-| `name` | Instance | `String` |
-| `symbol` | Instance | `String` |
-| `decimals` | Instance | `u32` (always 6) |
-| `balance:{addr}` | Persistent | `i128` |
-| `allowance:{from}:{spender}` | Temporary | `AllowanceData { amount: i128, expiration_ledger: u32 }` |
-| `frozen:{addr}` | Persistent | `bool` |
+### Dependencies
+
+```toml
+[dependencies]
+soroban-sdk = { workspace = true }
+stellar-tokens = "0.6.0"
+stellar-access = "0.6.0"
+stellar-macros = "0.6.0"
+```
+
+### Architecture
+
+Instead of implementing token logic from scratch, the contract uses OZ's trait-based composition:
+
+- **`FungibleToken`** (with `ContractType = BlockList`) — Provides `transfer`, `transfer_from`, `approve`, `allowance`, `balance`, `decimals`, `name`, `symbol`, `total_supply`. The `BlockList` type automatically enforces block checks on all transfers, approvals, burns.
+- **`FungibleBlockList`** — Provides `block_user`, `unblock_user`, `blocked`. These are the freeze/unfreeze equivalents.
+- **`FungibleBurnable`** — Provides `burn`, `burn_from`.
+- **`AccessControl`** — OZ's role-based access control. Used to create a `"manager"` role (the compliance admin) that can block/unblock users.
 
 ### RBAC
 
-Two roles:
+Two roles via OZ's `AccessControl`:
 
-**admin** (set at initialization):
-- `mint(to, amount)` — Create new tokens
-- `set_compliance_admin(new_admin)` — Designate the compliance admin
-- `set_admin(new_admin)` — Transfer admin role
+**admin** (set at construction):
+- Can mint (via `Base::mint` in constructor or a custom `mint` function)
+- Can grant/revoke the manager role
+- Controls access control administration
 
-**compliance_admin** (set by admin):
-- `freeze(account)` — Block all transfers to/from account
-- `unfreeze(account)` — Restore transfer ability
-- This will be Predicate's enforcement wallet in production
+**manager** (compliance admin, granted by admin):
+- `block_user(user, operator)` — Block an account (blocks transfers, approvals, burns to/from)
+- `unblock_user(user, operator)` — Unblock an account
+- Protected via `#[only_role(operator, "manager")]` macro
 
-### Token Interface (SAC-compatible)
+### Contract Interface
 
-**Initialization:**
-- `initialize(env, admin: Address, decimal: u32, name: String, symbol: String)` — Set up the token. Panics if already initialized.
+**Construction (via `__constructor`):**
+- `__constructor(env, name: String, symbol: String, admin: Address, manager: Address, initial_supply: i128)` — Sets metadata (6 decimals), sets admin, grants manager role, mints initial supply to admin.
 
-**Standard Token Functions:**
-- `mint(env, to: Address, amount: i128)` — Admin-only. Mint to any address.
-- `transfer(env, from: Address, to: Address, amount: i128)` — Requires `from.require_auth()`. Checks freeze on both `from` and `to`.
-- `transfer_from(env, spender: Address, from: Address, to: Address, amount: i128)` — Allowance-based transfer. Checks freeze on both `from` and `to`.
-- `approve(env, from: Address, spender: Address, amount: i128, expiration_ledger: u32)` — Set spending allowance.
-- `burn(env, from: Address, amount: i128)` — Requires `from.require_auth()`. Burns tokens.
-- `burn_from(env, spender: Address, from: Address, amount: i128)` — Allowance-based burn.
-- `balance(env, id: Address) -> i128` — Get balance.
-- `allowance(env, from: Address, spender: Address) -> i128` — Get allowance.
+**Standard Token Functions (auto-provided by `FungibleToken` trait):**
+- `transfer(env, from: Address, to: MuxedAddress, amount: i128)` — Blocked users cannot send or receive.
+- `transfer_from(env, spender: Address, from: Address, to: Address, amount: i128)` — Blocked users cannot be source or destination.
+- `approve(env, owner: Address, spender: Address, amount: i128, live_until_ledger: u32)` — Blocked users cannot approve.
+- `balance(env, account: Address) -> i128`
+- `allowance(env, owner: Address, spender: Address) -> i128`
+- `total_supply(env) -> i128`
 - `decimals(env) -> u32` — Returns 6.
-- `name(env) -> String` — Token name.
-- `symbol(env) -> String` — Token symbol.
+- `name(env) -> String`
+- `symbol(env) -> String`
 
-**Compliance Functions:**
-- `freeze(env, account: Address)` — Compliance admin only. Sets frozen flag.
-- `unfreeze(env, account: Address)` — Compliance admin only. Clears frozen flag.
-- `is_frozen(env, account: Address) -> bool` — Public query.
-- `set_compliance_admin(env, new_admin: Address)` — Admin only.
+**Burn Functions (auto-provided by `FungibleBurnable` trait):**
+- `burn(env, from: Address, amount: i128)` — Blocked users cannot burn.
+- `burn_from(env, spender: Address, from: Address, amount: i128)` — Cannot burn from blocked users.
 
-**Freeze enforcement:** `transfer`, `transfer_from`, `burn`, and `burn_from` all panic if the source account is frozen. This prevents frozen accounts from reducing their balance during compliance investigations. `mint` is not affected by freeze — the admin can still mint to frozen accounts. Transfers to frozen recipients are also blocked.
+**Compliance Functions (from `FungibleBlockList` trait):**
+- `block_user(env, user: Address, operator: Address)` — Manager-only. Blocks all token operations for user.
+- `unblock_user(env, user: Address, operator: Address)` — Manager-only. Restores user's token operations.
+- `blocked(env, account: Address) -> bool` — Public query.
+
+**Custom mint function:**
+- `mint(env, to: Address, amount: i128)` — Admin-only. Uses `Base::mint` internally.
+
+### Block enforcement
+
+OZ's `BlockList` type automatically intercepts `transfer`, `transfer_from`, `approve`, `burn`, and `burn_from`. Blocked accounts cannot participate in any token operation. This is stricter than the previous spec (which allowed mint to frozen accounts) — with OZ, mint must be implemented as a custom function using `Base::mint` to bypass block checks.
 
 ### Events
 
-Standard Soroban token events plus:
-- `freeze(admin: Address, account: Address)`
-- `unfreeze(admin: Address, account: Address)`
-- `set_compliance_admin(admin: Address, new_compliance_admin: Address)`
+All events are handled by OZ's built-in event emission:
+- Standard token events: `Transfer`, `Approve`, `Mint`, `Burn`
+- Block events: `UserBlocked`, `UserUnblocked`
+
+### TTL Management
+
+Handled internally by OZ's `FungibleToken` implementation using built-in TTL constants (`BALANCE_TTL_THRESHOLD`, `BALANCE_EXTEND_AMOUNT`, `INSTANCE_TTL_THRESHOLD`, `INSTANCE_EXTEND_AMOUNT`). No manual TTL management needed.
 
 ## Testing Strategy
 
@@ -255,23 +272,19 @@ All tests use `soroban-sdk` testutils with `#[cfg(test)]` modules.
 
 | Test | Description |
 |------|-------------|
-| `test_initialize` | Name, symbol, decimals set correctly |
+| `test_constructor` | Name, symbol, decimals, initial supply correct |
 | `test_mint` | Admin mints, balance increases |
-| `test_mint_not_admin` | Non-admin cannot mint (panics) |
 | `test_transfer` | Basic transfer between accounts |
-| `test_transfer_insufficient` | Transfer exceeding balance panics |
-| `test_burn` | Burn reduces balance |
-| `test_freeze_blocks_transfer_from` | Frozen sender cannot transfer |
-| `test_freeze_blocks_transfer_to` | Cannot transfer to frozen recipient |
-| `test_unfreeze_restores_transfer` | Unfrozen account can transfer again |
-| `test_freeze_not_compliance_admin` | Non-compliance-admin cannot freeze (panics) |
-| `test_set_compliance_admin` | Admin can change compliance admin |
-| `test_set_compliance_admin_not_admin` | Non-admin cannot set compliance admin |
+| `test_block_unblock` | Block user, verify blocked, unblock, verify transfers work |
+| `test_blocked_user_cannot_transfer` | Blocked sender cannot transfer |
+| `test_transfer_to_blocked_user` | Cannot transfer to blocked recipient |
+| `test_blocked_user_cannot_approve` | Blocked user cannot set approvals |
 | `test_approve_and_transfer_from` | Allowance-based transfer works |
-| `test_transfer_from_frozen` | Allowance transfer blocked when frozen |
-| `test_mint_to_frozen` | Minting to frozen account succeeds |
-| `test_burn_frozen_account` | Frozen account cannot burn (panics) |
-| `test_double_initialize` | Calling initialize twice panics |
+| `test_transfer_from_blocked_user` | Cannot transfer_from a blocked source |
+| `test_transfer_from_to_blocked_user` | Cannot transfer_from to a blocked recipient |
+| `test_burn` | Burn reduces balance |
+| `test_blocked_user_cannot_burn` | Blocked user cannot burn |
+| `test_burn_from_blocked_user` | Cannot burn_from a blocked account |
 
 ### predicate-client tests
 
@@ -285,7 +298,7 @@ All tests use `soroban-sdk` testutils with `#[cfg(test)]` modules.
 Soroban persistent storage entries that are not extended will eventually become archived and inaccessible. Both contracts should extend TTLs on critical storage entries during write operations:
 
 - **predicate-registry:** Extend attester entries and the attesters list when registering/deregistering. Extend UUID entries when marking them spent. Also provide an `extend_ttl(env)` admin function for bulk TTL extension of critical state.
-- **test-stablecoin:** Extend balance entries on mint/transfer. Extend instance storage (admin, compliance_admin, metadata) via `env.storage().instance().extend_ttl()` on state-changing operations.
+- **test-stablecoin:** TTL management is handled automatically by OZ's `FungibleToken` implementation.
 
 Operational TTL extension via `stellar contract extend` is also available as a fallback.
 
