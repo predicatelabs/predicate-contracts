@@ -12,8 +12,8 @@ on:
         type: string
 
 jobs:
-  publish:
-    name: Build & Publish
+  publish-foundry:
+    name: Build & Publish (Foundry)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,3 +68,103 @@ jobs:
             fi
             echo "::warning::All packages already published at this version — skipping."
           fi
+
+  publish-soroban:
+    name: Build & Publish (Soroban)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            soroban/target
+          key: ${{ runner.os }}-cargo-publish-${{ hashFiles('soroban/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-publish-
+
+      - name: Build Soroban contracts
+        run: cd soroban && cargo build --release --target wasm32-unknown-unknown
+
+      - name: Run tests
+        run: cd soroban && cargo test
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish Soroban contracts
+        env:
+          CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
+          CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          WASM_DIR="soroban/target/wasm32-unknown-unknown/release"
+          RUST_VERSION=$(rustc --version | awk '{print $2}')
+
+          for wasm_file in "$WASM_DIR"/*.wasm; do
+            [ -f "$wasm_file" ] || continue
+            # Derive package name from filename (e.g. test_stablecoin.wasm -> test-stablecoin)
+            filename=$(basename "$wasm_file" .wasm)
+            pkg_name=$(echo "$filename" | tr '_' '-')
+
+            echo "Publishing $pkg_name@$VERSION..."
+            BYTECODE=$(xxd -p "$wasm_file" | tr -d '\n')
+
+            # Build JSON payload via jq to handle large bytecode safely
+            PAYLOAD=$(jq -n \
+              --arg chain "stellar" \
+              --arg builder "soroban" \
+              --arg project "predicate-contracts" \
+              --arg name "$pkg_name" \
+              --arg source "soroban/$filename/src/lib.rs" \
+              --arg bytecode "$BYTECODE" \
+              --arg rust "$RUST_VERSION" \
+              --arg sdk "23.5.3" \
+              '{
+                chain: $chain,
+                builder: $builder,
+                project: $project,
+                artifacts: [{
+                  name: $name,
+                  sourcePath: $source,
+                  bytecode: $bytecode
+                }],
+                metadata: {
+                  rust_version: $rust,
+                  soroban_sdk: $sdk
+                }
+              }')
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              "${CONTRAFACTORY_SERVER}/api/v1/packages/${pkg_name}/${VERSION}" \
+              -H "Authorization: Bearer ${CONTRAFACTORY_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            if [ "$HTTP_CODE" = "201" ]; then
+              echo "   OK $pkg_name@$VERSION"
+            elif [ "$HTTP_CODE" = "409" ]; then
+              echo "   SKIP $pkg_name@$VERSION (already exists)"
+            else
+              echo "   FAIL $pkg_name@$VERSION (HTTP $HTTP_CODE)"
+              echo "$BODY"
+              exit 1
+            fi
+          done
