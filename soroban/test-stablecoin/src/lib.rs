@@ -30,11 +30,13 @@ impl TestStablecoinContract {
         symbol: String,
         admin: Address,
         manager: Address,
+        blocker: Address,
         initial_supply: i128,
     ) {
         Base::set_metadata(e, 6, name, symbol);
         access_control::set_admin(e, &admin);
         access_control::grant_role_no_auth(e, &manager, &symbol_short!("manager"), &admin);
+        access_control::grant_role_no_auth(e, &blocker, &symbol_short!("blocker"), &admin);
         Base::mint(e, &admin, initial_supply);
     }
 
@@ -58,13 +60,13 @@ impl FungibleBlockList for TestStablecoinContract {
     }
 
     fn block_user(e: &Env, user: Address, operator: Address) {
-        access_control::ensure_role(e, &symbol_short!("manager"), &operator);
+        access_control::ensure_role(e, &symbol_short!("blocker"), &operator);
         operator.require_auth();
         BlockList::block_user(e, &user)
     }
 
     fn unblock_user(e: &Env, user: Address, operator: Address) {
-        access_control::ensure_role(e, &symbol_short!("manager"), &operator);
+        access_control::ensure_role(e, &symbol_short!("blocker"), &operator);
         operator.require_auth();
         BlockList::unblock_user(e, &user)
     }
@@ -107,25 +109,26 @@ mod test {
 
     use super::*;
 
-    fn setup(e: &Env) -> (Address, Address, TestStablecoinContractClient) {
+    fn setup(e: &Env) -> (Address, Address, Address, TestStablecoinContractClient) {
+        e.mock_all_auths();
         let admin = Address::generate(e);
         let manager = Address::generate(e);
+        let blocker = Address::generate(e);
         let name = String::from_str(e, "Test USD");
         let symbol = String::from_str(e, "TUSD");
         let initial_supply = 1_000_000_000i128; // 1000 tokens with 6 decimals
         let address = e.register(
             TestStablecoinContract,
-            (name, symbol, &admin, &manager, initial_supply),
+            (name, symbol, &admin, &manager, &blocker, initial_supply),
         );
         let client = TestStablecoinContractClient::new(e, &address);
-        (admin, manager, client)
+        (admin, blocker, manager, client)
     }
 
     #[test]
     fn test_constructor() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, _manager, client) = setup(&e);
+        let (admin, _blocker, _manager, client) = setup(&e);
 
         assert_eq!(client.decimals(), 6u32);
         assert_eq!(client.name(), String::from_str(&e, "Test USD"));
@@ -136,8 +139,7 @@ mod test {
     #[test]
     fn test_mint() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (_admin, _manager, client) = setup(&e);
+        let (_admin, _blocker, _manager, client) = setup(&e);
         let user = Address::generate(&e);
 
         client.mint(&user, &500_000i128);
@@ -147,8 +149,7 @@ mod test {
     #[test]
     fn test_transfer() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, _manager, client) = setup(&e);
+        let (admin, _blocker, _manager, client) = setup(&e);
         let bob = Address::generate(&e);
 
         client.transfer(&admin, &bob, &100_000i128);
@@ -159,16 +160,15 @@ mod test {
     #[test]
     fn test_block_unblock() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
         let user = Address::generate(&e);
 
         // Block user
-        client.block_user(&user, &manager);
+        client.block_user(&user, &blocker);
         assert!(client.blocked(&user));
 
         // Unblock user
-        client.unblock_user(&user, &manager);
+        client.unblock_user(&user, &blocker);
         assert!(!client.blocked(&user));
 
         // Transfer works after unblock
@@ -180,12 +180,11 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_blocked_user_cannot_transfer() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
         let user = Address::generate(&e);
 
         client.transfer(&admin, &user, &1000i128);
-        client.block_user(&user, &manager);
+        client.block_user(&user, &blocker);
         client.transfer(&user, &admin, &500i128);
     }
 
@@ -193,11 +192,10 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_transfer_to_blocked_user() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
         let user = Address::generate(&e);
 
-        client.block_user(&user, &manager);
+        client.block_user(&user, &blocker);
         client.transfer(&admin, &user, &500i128);
     }
 
@@ -205,20 +203,18 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_blocked_user_cannot_approve() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (_admin, manager, client) = setup(&e);
+        let (_admin, blocker, _manager, client) = setup(&e);
         let user = Address::generate(&e);
         let spender = Address::generate(&e);
 
-        client.block_user(&user, &manager);
+        client.block_user(&user, &blocker);
         client.approve(&user, &spender, &100i128, &1000u32);
     }
 
     #[test]
     fn test_approve_and_transfer_from() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, _manager, client) = setup(&e);
+        let (admin, _blocker, _manager, client) = setup(&e);
         let spender = Address::generate(&e);
         let recipient = Address::generate(&e);
 
@@ -234,13 +230,12 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_transfer_from_blocked_user() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
         let spender = Address::generate(&e);
         let recipient = Address::generate(&e);
 
         client.approve(&admin, &spender, &500_000i128, &1000u32);
-        client.block_user(&admin, &manager);
+        client.block_user(&admin, &blocker);
         client.transfer_from(&spender, &admin, &recipient, &100i128);
     }
 
@@ -248,21 +243,19 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_transfer_from_to_blocked_user() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
         let spender = Address::generate(&e);
         let recipient = Address::generate(&e);
 
         client.approve(&admin, &spender, &500_000i128, &1000u32);
-        client.block_user(&recipient, &manager);
+        client.block_user(&recipient, &blocker);
         client.transfer_from(&spender, &admin, &recipient, &100i128);
     }
 
     #[test]
     fn test_burn() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, _manager, client) = setup(&e);
+        let (admin, _blocker, _manager, client) = setup(&e);
 
         let before = client.balance(&admin);
         client.burn(&admin, &100_000i128);
@@ -273,10 +266,9 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_blocked_user_cannot_burn() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
 
-        client.block_user(&admin, &manager);
+        client.block_user(&admin, &blocker);
         client.burn(&admin, &100i128);
     }
 
@@ -284,12 +276,11 @@ mod test {
     #[should_panic(expected = "Error(Contract, #114)")]
     fn test_burn_from_blocked_user() {
         let e = Env::default();
-        e.mock_all_auths();
-        let (admin, manager, client) = setup(&e);
+        let (admin, blocker, _manager, client) = setup(&e);
         let spender = Address::generate(&e);
 
         client.approve(&admin, &spender, &500_000i128, &1000u32);
-        client.block_user(&admin, &manager);
+        client.block_user(&admin, &blocker);
         client.burn_from(&spender, &admin, &100i128);
     }
 
@@ -300,11 +291,12 @@ mod test {
         // Set up contract without mocking auths globally
         let admin = Address::generate(&e);
         let manager = Address::generate(&e);
+        let blocker = Address::generate(&e);
         let name = String::from_str(&e, "Test USD");
         let symbol = String::from_str(&e, "TUSD");
         let address = e.register(
             TestStablecoinContract,
-            (name, symbol, &admin, &manager, 1_000_000i128),
+            (name, symbol, &admin, &manager, &blocker, 1_000_000i128),
         );
         let client = TestStablecoinContractClient::new(&e, &address);
         let user = Address::generate(&e);
@@ -315,21 +307,22 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_non_manager_cannot_block() {
+    fn test_non_blocker_cannot_block() {
         let e = Env::default();
         let admin = Address::generate(&e);
         let manager = Address::generate(&e);
+        let blocker = Address::generate(&e);
         let name = String::from_str(&e, "Test USD");
         let symbol = String::from_str(&e, "TUSD");
         let address = e.register(
             TestStablecoinContract,
-            (name, symbol, &admin, &manager, 1_000_000i128),
+            (name, symbol, &admin, &manager, &blocker, 1_000_000i128),
         );
         let client = TestStablecoinContractClient::new(&e, &address);
         let user = Address::generate(&e);
-        let not_manager = Address::generate(&e);
+        let not_blocker = Address::generate(&e);
 
-        // Call block_user with a non-manager operator — should fail
-        client.block_user(&user, &not_manager);
+        // Call block_user with a non-blocker operator — should fail
+        client.block_user(&user, &not_blocker);
     }
 }
