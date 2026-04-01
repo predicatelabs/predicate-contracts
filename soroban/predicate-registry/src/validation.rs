@@ -1,5 +1,5 @@
-use soroban_sdk::{symbol_short, Address, Bytes, BytesN, Env, String};
 use soroban_sdk::xdr::ToXdr;
+use soroban_sdk::{symbol_short, Address, Bytes, BytesN, Env, String};
 
 use crate::types::{Attestation, RegistryError, Statement};
 
@@ -80,7 +80,9 @@ pub fn validate(
 
     // 7. Mark UUID as spent
     e.storage().persistent().set(&uuid_key, &true);
-    e.storage().persistent().extend_ttl(&uuid_key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+    e.storage()
+        .persistent()
+        .extend_ttl(&uuid_key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
 
     // 8. Emit event
     #[allow(deprecated)]

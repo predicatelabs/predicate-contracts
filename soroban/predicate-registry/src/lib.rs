@@ -28,7 +28,11 @@ impl PredicateRegistryContract {
     }
 
     /// Transfer contract ownership. Only the current owner may call this.
-    pub fn transfer_ownership(e: &Env, current_owner: Address, new_owner: Address) -> Result<(), RegistryError> {
+    pub fn transfer_ownership(
+        e: &Env,
+        current_owner: Address,
+        new_owner: Address,
+    ) -> Result<(), RegistryError> {
         require_owner(e, &current_owner)?;
         e.storage().instance().set(&OWNER, &new_owner);
         Ok(())
@@ -328,7 +332,8 @@ mod test {
             signature,
         };
 
-        let result = client.validate_attestation(&statement, &attestation, &network, &client.address);
+        let result =
+            client.validate_attestation(&statement, &attestation, &network, &client.address);
         assert!(result);
     }
 

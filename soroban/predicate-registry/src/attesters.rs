@@ -41,19 +41,25 @@ pub fn register(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
     // Store the vec
     e.storage().instance().set(&ATTESTERS_KEY, &attesters);
     // Mark as registered
-    e.storage()
-        .persistent()
-        .set(&att_reg_key(attester), &true);
-    e.storage().persistent().extend_ttl(&att_reg_key(attester), PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+    e.storage().persistent().set(&att_reg_key(attester), &true);
+    e.storage().persistent().extend_ttl(
+        &att_reg_key(attester),
+        PERSISTENT_TTL_THRESHOLD,
+        PERSISTENT_TTL_EXTEND,
+    );
     // Store index
-    e.storage()
-        .persistent()
-        .set(&att_idx_key(attester), &index);
-    e.storage().persistent().extend_ttl(&att_idx_key(attester), PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+    e.storage().persistent().set(&att_idx_key(attester), &index);
+    e.storage().persistent().extend_ttl(
+        &att_idx_key(attester),
+        PERSISTENT_TTL_THRESHOLD,
+        PERSISTENT_TTL_EXTEND,
+    );
 
     #[allow(deprecated)]
-    e.events()
-        .publish((symbol_short!("attester"), symbol_short!("reg")), attester.clone());
+    e.events().publish(
+        (symbol_short!("attester"), symbol_short!("reg")),
+        attester.clone(),
+    );
 
     Ok(())
 }
@@ -99,9 +105,7 @@ pub fn deregister(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
     // Store updated vec
     e.storage().instance().set(&ATTESTERS_KEY, &attesters);
     // Remove registration flag
-    e.storage()
-        .persistent()
-        .set(&att_reg_key(attester), &false);
+    e.storage().persistent().set(&att_reg_key(attester), &false);
     // Remove index
     e.storage().persistent().remove(&att_idx_key(attester));
 
