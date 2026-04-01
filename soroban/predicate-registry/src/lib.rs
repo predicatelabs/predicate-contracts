@@ -66,6 +66,21 @@ impl PredicateRegistryContract {
     pub fn get_policy_id(e: &Env, client: Address) -> String {
         policy::get(e, &client)
     }
+
+    /// Compute SHA-256 hash of a statement for attester signing.
+    pub fn hash_statement(e: &Env, statement: Statement, network: String) -> BytesN<32> {
+        validation::compute_hash(e, &statement, &network)
+    }
+
+    /// Validate an attestation against a statement.
+    pub fn validate_attestation(
+        e: &Env,
+        statement: Statement,
+        attestation: Attestation,
+        network: String,
+    ) -> Result<bool, RegistryError> {
+        validation::validate(e, &statement, &attestation, &network)
+    }
 }
 
 /// Internal helper: require that `caller` is the stored owner.
@@ -86,9 +101,10 @@ pub(crate) fn require_owner(e: &Env, caller: &Address) -> Result<(), RegistryErr
 mod test {
     extern crate std;
 
-    use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
+    use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, BytesN, Env};
 
     use super::*;
+    use crate::types::{Attestation, Statement};
 
     fn setup(e: &Env) -> (Address, PredicateRegistryContractClient) {
         let owner = Address::generate(e);
@@ -223,5 +239,227 @@ mod test {
         client.set_policy_id(&caller, &p1);
         client.set_policy_id(&caller, &p2);
         assert_eq!(client.get_policy_id(&caller), p2);
+    }
+
+    // --- Validation tests ---
+
+    /// Helper: create an ed25519 signing key and return (signing_key, pub_key_bytes)
+    fn generate_ed25519_keypair(e: &Env) -> (ed25519_dalek::SigningKey, BytesN<32>) {
+        use ed25519_dalek::SigningKey;
+        use rand::rngs::OsRng;
+        let sk = SigningKey::generate(&mut OsRng);
+        let pk_bytes = sk.verifying_key().to_bytes();
+        (sk, BytesN::from_array(e, &pk_bytes))
+    }
+
+    /// Helper: sign a hash (BytesN<32>) with an ed25519 signing key, returning BytesN<64>
+    fn sign_hash(e: &Env, sk: &ed25519_dalek::SigningKey, hash: &BytesN<32>) -> BytesN<64> {
+        use ed25519_dalek::Signer;
+        let sig = sk.sign(&hash.to_array());
+        BytesN::from_array(e, &sig.to_bytes())
+    }
+
+    #[test]
+    fn test_validate_attestation_happy_path() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "Test SDF Network ; September 2015");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-happy"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            encoded_sig_and_args: BytesN::from_array(&e, &[0xAAu8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature,
+        };
+
+        let result = client.validate_attestation(&statement, &attestation, &network);
+        assert!(result);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #4)")]
+    fn test_validate_expired_attestation() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        // Set ledger timestamp to something > 0 so expiration=0 is expired
+        e.ledger().set_timestamp(100);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-expired"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: 0,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: 0,
+            attester: pub_key,
+            signature,
+        };
+
+        client.validate_attestation(&statement, &attestation, &network);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #5)")]
+    fn test_validate_uuid_replay() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-replay"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature,
+        };
+
+        // First call succeeds
+        client.validate_attestation(&statement, &attestation, &network);
+        // Second call should fail with UuidAlreadyUsed
+        client.validate_attestation(&statement, &attestation, &network);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #6)")]
+    fn test_validate_uuid_mismatch() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-A"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-B"), // mismatch
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature,
+        };
+
+        client.validate_attestation(&statement, &attestation, &network);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #7)")]
+    fn test_validate_expiration_mismatch() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-exp"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration + 100, // mismatch
+            attester: pub_key,
+            signature,
+        };
+
+        client.validate_attestation(&statement, &attestation, &network);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn test_validate_unregistered_attester() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (_owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        // NOT registering attester
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-unreg"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature,
+        };
+
+        client.validate_attestation(&statement, &attestation, &network);
     }
 }
