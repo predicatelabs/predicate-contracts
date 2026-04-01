@@ -27,6 +27,13 @@ impl PredicateRegistryContract {
         e.storage().instance().get(&OWNER).unwrap()
     }
 
+    /// Transfer contract ownership. Only the current owner may call this.
+    pub fn transfer_ownership(e: &Env, current_owner: Address, new_owner: Address) -> Result<(), RegistryError> {
+        require_owner(e, &current_owner)?;
+        e.storage().instance().set(&OWNER, &new_owner);
+        Ok(())
+    }
+
     /// Register a new attester. Only the contract owner may call this.
     pub fn register_attester(
         e: &Env,
@@ -68,18 +75,25 @@ impl PredicateRegistryContract {
     }
 
     /// Compute SHA-256 hash of a statement for attester signing.
+    /// This is the "hashStatementWithExpiry" equivalent — attesters sign this hash.
     pub fn hash_statement(e: &Env, statement: Statement, network: String) -> BytesN<32> {
         validation::compute_hash(e, &statement, &network)
     }
 
     /// Validate an attestation against a statement.
+    ///
+    /// The `caller` parameter implements the hashStatementSafe pattern:
+    /// it replaces `statement.target` with the actual caller address before
+    /// verifying the signature, preventing cross-contract replay attacks.
+    /// In Soroban, the calling contract should pass `e.current_contract_address()`.
     pub fn validate_attestation(
         e: &Env,
         statement: Statement,
         attestation: Attestation,
         network: String,
+        caller: Address,
     ) -> Result<bool, RegistryError> {
-        validation::validate(e, &statement, &attestation, &network)
+        validation::validate(e, &statement, &attestation, &network, &caller)
     }
 }
 
@@ -241,6 +255,31 @@ mod test {
         assert_eq!(client.get_policy_id(&caller), p2);
     }
 
+    // --- Ownership transfer tests ---
+
+    #[test]
+    fn test_transfer_ownership() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let new_owner = Address::generate(&e);
+
+        client.transfer_ownership(&owner, &new_owner);
+        assert_eq!(client.owner(), new_owner);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1)")]
+    fn test_non_owner_cannot_transfer() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (_owner, client) = setup(&e);
+        let attacker = Address::generate(&e);
+        let new_owner = Address::generate(&e);
+
+        client.transfer_ownership(&attacker, &new_owner);
+    }
+
     // --- Validation tests ---
 
     /// Helper: create an ed25519 signing key and return (signing_key, pub_key_bytes)
@@ -273,7 +312,8 @@ mod test {
             uuid: soroban_sdk::String::from_str(&e, "uuid-happy"),
             msg_sender: Address::generate(&e),
             target: client.address.clone(),
-            encoded_sig_and_args: BytesN::from_array(&e, &[0xAAu8; 32]),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0xAAu8; 32]),
             policy: soroban_sdk::String::from_str(&e, "x-test"),
             expiration: e.ledger().timestamp() + 600,
         };
@@ -288,7 +328,7 @@ mod test {
             signature,
         };
 
-        let result = client.validate_attestation(&statement, &attestation, &network);
+        let result = client.validate_attestation(&statement, &attestation, &network, &client.address);
         assert!(result);
     }
 
@@ -310,7 +350,8 @@ mod test {
             uuid: soroban_sdk::String::from_str(&e, "uuid-expired"),
             msg_sender: Address::generate(&e),
             target: client.address.clone(),
-            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
             policy: soroban_sdk::String::from_str(&e, "x-test"),
             expiration: 0,
         };
@@ -325,7 +366,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network);
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
     }
 
     #[test]
@@ -343,7 +384,8 @@ mod test {
             uuid: soroban_sdk::String::from_str(&e, "uuid-replay"),
             msg_sender: Address::generate(&e),
             target: client.address.clone(),
-            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
             policy: soroban_sdk::String::from_str(&e, "x-test"),
             expiration: e.ledger().timestamp() + 600,
         };
@@ -359,9 +401,9 @@ mod test {
         };
 
         // First call succeeds
-        client.validate_attestation(&statement, &attestation, &network);
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
         // Second call should fail with UuidAlreadyUsed
-        client.validate_attestation(&statement, &attestation, &network);
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
     }
 
     #[test]
@@ -379,7 +421,8 @@ mod test {
             uuid: soroban_sdk::String::from_str(&e, "uuid-A"),
             msg_sender: Address::generate(&e),
             target: client.address.clone(),
-            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
             policy: soroban_sdk::String::from_str(&e, "x-test"),
             expiration: e.ledger().timestamp() + 600,
         };
@@ -394,7 +437,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network);
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
     }
 
     #[test]
@@ -412,7 +455,8 @@ mod test {
             uuid: soroban_sdk::String::from_str(&e, "uuid-exp"),
             msg_sender: Address::generate(&e),
             target: client.address.clone(),
-            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
             policy: soroban_sdk::String::from_str(&e, "x-test"),
             expiration: e.ledger().timestamp() + 600,
         };
@@ -427,7 +471,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network);
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
     }
 
     #[test]
@@ -445,7 +489,8 @@ mod test {
             uuid: soroban_sdk::String::from_str(&e, "uuid-unreg"),
             msg_sender: Address::generate(&e),
             target: client.address.clone(),
-            encoded_sig_and_args: BytesN::from_array(&e, &[0u8; 32]),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
             policy: soroban_sdk::String::from_str(&e, "x-test"),
             expiration: e.ledger().timestamp() + 600,
         };
@@ -460,6 +505,46 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network);
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
+    }
+
+    #[test]
+    #[should_panic] // ed25519_verify panics on bad signature
+    fn test_validate_invalid_signature() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        // Register attester A
+        let (sk_a, pub_key_a) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key_a);
+
+        // Also register attester B (so it's registered) but sign with A's key
+        let (_sk_b, pub_key_b) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key_b);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-badsig"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        // Sign with key A but claim attester is key B
+        let signature = sign_hash(&e, &sk_a, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key_b, // wrong attester for this signature
+            signature,
+        };
+
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
     }
 }

@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, BytesN, String};
+use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, String};
 
 /// Mirrors the EVM Statement struct.
 /// Describes a transaction to be authorized.
@@ -11,8 +11,14 @@ pub struct Statement {
     pub msg_sender: Address,
     /// Target contract address
     pub target: Address,
-    /// Encoded function call data
-    pub encoded_sig_and_args: BytesN<32>,
+    /// Value sent with the transaction (token amount).
+    /// Equivalent to EVM's msg.value — included in signed digest so
+    /// attesters can constrain transaction value.
+    pub msg_value: i128,
+    /// Encoded function signature and arguments — variable-length to match
+    /// the EVM `bytes encodedSigAndArgs` field. Callers may pass the raw
+    /// call data or a hash of it.
+    pub encoded_sig_and_args: Bytes,
     /// Policy identifier (e.g. "x-a1b2c3d4e5f6g7h8")
     pub policy: String,
     /// Deadline ledger timestamp
@@ -32,6 +38,9 @@ pub struct Attestation {
     /// Ed25519 signature (64 bytes)
     pub signature: BytesN<64>,
 }
+
+// TODO: Replace events().publish() with #[contractevent] when available in a future SDK version.
+// soroban-sdk 23.5.3 does not support #[contractevent].
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]

@@ -2,6 +2,10 @@ use soroban_sdk::{symbol_short, BytesN, Env, Vec};
 
 use crate::types::RegistryError;
 
+/// TTL for persistent storage entries: ~30 days in ledger close intervals (~5s each)
+const PERSISTENT_TTL_THRESHOLD: u32 = 518_400; // 30 days
+const PERSISTENT_TTL_EXTEND: u32 = 518_400;
+
 // Storage keys
 const ATTESTERS_KEY: soroban_sdk::Symbol = symbol_short!("atts");
 
@@ -40,11 +44,14 @@ pub fn register(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
     e.storage()
         .persistent()
         .set(&att_reg_key(attester), &true);
+    e.storage().persistent().extend_ttl(&att_reg_key(attester), PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
     // Store index
     e.storage()
         .persistent()
         .set(&att_idx_key(attester), &index);
+    e.storage().persistent().extend_ttl(&att_idx_key(attester), PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
 
+    #[allow(deprecated)]
     e.events()
         .publish((symbol_short!("attester"), symbol_short!("reg")), attester.clone());
 
@@ -98,6 +105,7 @@ pub fn deregister(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
     // Remove index
     e.storage().persistent().remove(&att_idx_key(attester));
 
+    #[allow(deprecated)]
     e.events().publish(
         (symbol_short!("attester"), symbol_short!("dereg")),
         attester.clone(),
