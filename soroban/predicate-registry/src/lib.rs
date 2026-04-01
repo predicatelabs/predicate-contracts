@@ -5,7 +5,7 @@ mod policy;
 mod types;
 mod validation;
 
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
 pub use types::{Attestation, RegistryError, Statement};
 
@@ -55,6 +55,16 @@ impl PredicateRegistryContract {
     /// Return all registered attesters.
     pub fn get_registered_attesters(e: &Env) -> Vec<BytesN<32>> {
         attesters::get_all(e)
+    }
+
+    /// Set the policy ID for the calling address.
+    pub fn set_policy_id(e: &Env, caller: Address, policy_id: String) {
+        policy::set(e, &caller, &policy_id);
+    }
+
+    /// Get the policy ID for a client address.
+    pub fn get_policy_id(e: &Env, client: Address) -> String {
+        policy::get(e, &client)
     }
 }
 
@@ -176,5 +186,42 @@ mod test {
         let attester = generate_attester_key(&e);
 
         client.register_attester(&not_owner, &attester);
+    }
+
+    #[test]
+    fn test_set_and_get_policy() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (_owner, client) = setup(&e);
+        let caller = Address::generate(&e);
+        let policy = soroban_sdk::String::from_str(&e, "x-a1b2c3d4e5f6g7h8");
+
+        client.set_policy_id(&caller, &policy);
+        assert_eq!(client.get_policy_id(&caller), policy);
+    }
+
+    #[test]
+    fn test_policy_default_empty() {
+        let e = Env::default();
+        let (_owner, client) = setup(&e);
+        let caller = Address::generate(&e);
+
+        let policy = client.get_policy_id(&caller);
+        assert_eq!(policy, soroban_sdk::String::from_str(&e, ""));
+    }
+
+    #[test]
+    fn test_update_policy() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (_owner, client) = setup(&e);
+        let caller = Address::generate(&e);
+
+        let p1 = soroban_sdk::String::from_str(&e, "policy-1");
+        let p2 = soroban_sdk::String::from_str(&e, "policy-2");
+
+        client.set_policy_id(&caller, &p1);
+        client.set_policy_id(&caller, &p2);
+        assert_eq!(client.get_policy_id(&caller), p2);
     }
 }
