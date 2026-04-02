@@ -55,3 +55,88 @@ pub fn authorize_transaction(
 
     e.invoke_contract::<bool>(registry, &Symbol::new(e, "validate_attestation"), args)
 }
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+    use predicate_registry::PredicateRegistryContract;
+    use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
+
+    fn setup_registry(e: &Env) -> (Address, Address) {
+        let owner = Address::generate(e);
+        let registry_addr = e.register(PredicateRegistryContract, (owner.clone(),));
+        (owner, registry_addr)
+    }
+
+    fn generate_ed25519_keypair(e: &Env) -> (ed25519_dalek::SigningKey, BytesN<32>) {
+        use ed25519_dalek::SigningKey;
+        use rand::rngs::OsRng;
+        let sk = SigningKey::generate(&mut OsRng);
+        let pk_bytes = sk.verifying_key().to_bytes();
+        (sk, BytesN::from_array(e, &pk_bytes))
+    }
+
+    fn sign_hash(e: &Env, sk: &ed25519_dalek::SigningKey, hash: &BytesN<32>) -> BytesN<64> {
+        use ed25519_dalek::Signer;
+        let sig = sk.sign(&hash.to_array());
+        BytesN::from_array(e, &sig.to_bytes())
+    }
+
+    #[test]
+    fn test_authorize_transaction_end_to_end() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, registry_addr) = setup_registry(&e);
+        let network = String::from_str(&e, "Test SDF Network ; September 2015");
+
+        // Register an attester via the registry client
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        registry_client.register_attester(&owner, &pub_key);
+
+        // Simulate a downstream contract calling authorize_transaction
+        let msg_sender = Address::generate(&e);
+        let target = Address::generate(&e);
+        let policy = String::from_str(&e, "x-test-policy");
+        let encoded = Bytes::from_slice(&e, &[0xBBu8; 16]);
+        let msg_value: i128 = 1000;
+
+        // Build the statement the same way authorize_transaction will,
+        // then hash+sign it so the registry can verify.
+        let statement = Statement {
+            uuid: String::from_str(&e, "uuid-client-test"),
+            msg_sender: msg_sender.clone(),
+            target: target.clone(),
+            msg_value,
+            encoded_sig_and_args: encoded.clone(),
+            policy: policy.clone(),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = registry_client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature,
+        };
+
+        let result = authorize_transaction(
+            &e,
+            &registry_addr,
+            &attestation,
+            &encoded,
+            &msg_sender,
+            msg_value,
+            &target,
+            &policy,
+            &network,
+        );
+        assert!(result);
+    }
+}

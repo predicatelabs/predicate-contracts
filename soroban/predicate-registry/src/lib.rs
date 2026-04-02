@@ -5,12 +5,15 @@ mod policy;
 mod types;
 mod validation;
 
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
+use soroban_sdk::{
+    contract, contractimpl, symbol_short, Address, BytesN, Env, String, Symbol, Vec,
+};
 
 pub use types::{Attestation, RegistryError, Statement};
 
 // Storage keys
 const OWNER: Symbol = soroban_sdk::symbol_short!("owner");
+const PENDING_OWNER: Symbol = soroban_sdk::symbol_short!("pnd_own");
 
 #[contract]
 pub struct PredicateRegistryContract;
@@ -27,15 +30,51 @@ impl PredicateRegistryContract {
         e.storage().instance().get(&OWNER).unwrap()
     }
 
-    /// Transfer contract ownership. Only the current owner may call this.
+    /// Propose a new owner. Only the current owner may call this.
+    /// The new owner must call `accept_ownership` to finalize the transfer.
+    /// This two-step pattern mirrors EVM's Ownable2StepUpgradeable, preventing
+    /// accidental transfers to wrong addresses.
     pub fn transfer_ownership(
         e: &Env,
         current_owner: Address,
         new_owner: Address,
     ) -> Result<(), RegistryError> {
         require_owner(e, &current_owner)?;
-        e.storage().instance().set(&OWNER, &new_owner);
+        e.storage().instance().set(&PENDING_OWNER, &new_owner);
+        #[allow(deprecated)]
+        e.events().publish(
+            (symbol_short!("owner"), symbol_short!("propose")),
+            (current_owner, new_owner),
+        );
         Ok(())
+    }
+
+    /// Accept a pending ownership transfer. Only the pending owner may call this.
+    pub fn accept_ownership(e: &Env, new_owner: Address) -> Result<(), RegistryError> {
+        let pending: Address = e
+            .storage()
+            .instance()
+            .get(&PENDING_OWNER)
+            .ok_or(RegistryError::Unauthorized)?;
+        if new_owner != pending {
+            return Err(RegistryError::Unauthorized);
+        }
+        new_owner.require_auth();
+
+        let old_owner: Address = e.storage().instance().get(&OWNER).unwrap();
+        e.storage().instance().set(&OWNER, &new_owner);
+        e.storage().instance().remove(&PENDING_OWNER);
+        #[allow(deprecated)]
+        e.events().publish(
+            (symbol_short!("owner"), symbol_short!("transfer")),
+            (old_owner, new_owner),
+        );
+        Ok(())
+    }
+
+    /// Return the pending owner, if any.
+    pub fn pending_owner(e: &Env) -> Option<Address> {
+        e.storage().instance().get(&PENDING_OWNER)
     }
 
     /// Register a new attester. Only the contract owner may call this.
@@ -262,19 +301,26 @@ mod test {
     // --- Ownership transfer tests ---
 
     #[test]
-    fn test_transfer_ownership() {
+    fn test_two_step_ownership_transfer() {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
         let new_owner = Address::generate(&e);
 
+        // Step 1: propose
         client.transfer_ownership(&owner, &new_owner);
+        assert_eq!(client.owner(), owner); // still the old owner
+        assert_eq!(client.pending_owner(), Some(new_owner.clone()));
+
+        // Step 2: accept
+        client.accept_ownership(&new_owner);
         assert_eq!(client.owner(), new_owner);
+        assert_eq!(client.pending_owner(), None);
     }
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1)")]
-    fn test_non_owner_cannot_transfer() {
+    fn test_non_owner_cannot_propose_transfer() {
         let e = Env::default();
         e.mock_all_auths();
         let (_owner, client) = setup(&e);
@@ -282,6 +328,19 @@ mod test {
         let new_owner = Address::generate(&e);
 
         client.transfer_ownership(&attacker, &new_owner);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1)")]
+    fn test_wrong_address_cannot_accept_ownership() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let new_owner = Address::generate(&e);
+        let attacker = Address::generate(&e);
+
+        client.transfer_ownership(&owner, &new_owner);
+        client.accept_ownership(&attacker); // wrong address
     }
 
     // --- Validation tests ---

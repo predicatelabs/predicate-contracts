@@ -1,10 +1,13 @@
+//! Attester registration and deregistration with O(1) swap-and-pop removal.
+//!
+//! The full attester list is stored in instance storage as a `Vec`. This design
+//! assumes a small attester set (fewer than ~50 entries). For larger sets,
+//! consider a persistent-storage-based approach with a separate length counter
+//! to avoid deserializing the entire vector on every operation.
+
 use soroban_sdk::{symbol_short, BytesN, Env, Vec};
 
-use crate::types::RegistryError;
-
-/// TTL for persistent storage entries: ~30 days in ledger close intervals (~5s each)
-const PERSISTENT_TTL_THRESHOLD: u32 = 518_400; // 30 days
-const PERSISTENT_TTL_EXTEND: u32 = 518_400;
+use crate::types::{RegistryError, PERSISTENT_TTL_EXTEND, PERSISTENT_TTL_THRESHOLD};
 
 // Storage keys
 const ATTESTERS_KEY: soroban_sdk::Symbol = symbol_short!("atts");
@@ -104,8 +107,8 @@ pub fn deregister(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
 
     // Store updated vec
     e.storage().instance().set(&ATTESTERS_KEY, &attesters);
-    // Remove registration flag
-    e.storage().persistent().set(&att_reg_key(attester), &false);
+    // Remove registration flag (remove entirely — is_registered uses unwrap_or(false))
+    e.storage().persistent().remove(&att_reg_key(attester));
     // Remove index
     e.storage().persistent().remove(&att_idx_key(attester));
 

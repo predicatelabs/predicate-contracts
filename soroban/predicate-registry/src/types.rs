@@ -1,5 +1,10 @@
 use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, String};
 
+/// TTL for persistent storage entries: ~30 days in ledger close intervals (~5s each).
+/// Shared across all modules to avoid duplication.
+pub(crate) const PERSISTENT_TTL_THRESHOLD: u32 = 518_400;
+pub(crate) const PERSISTENT_TTL_EXTEND: u32 = 518_400;
+
 /// Mirrors the EVM Statement struct.
 /// Describes a transaction to be authorized.
 #[contracttype]

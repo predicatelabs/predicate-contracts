@@ -1,8 +1,6 @@
 use soroban_sdk::{symbol_short, Address, Env, String};
 
-/// TTL for persistent storage entries: ~30 days in ledger close intervals (~5s each)
-const PERSISTENT_TTL_THRESHOLD: u32 = 518_400; // 30 days
-const PERSISTENT_TTL_EXTEND: u32 = 518_400;
+use crate::types::{PERSISTENT_TTL_EXTEND, PERSISTENT_TTL_THRESHOLD};
 
 const POLICY_KEY: soroban_sdk::Symbol = symbol_short!("policy");
 
