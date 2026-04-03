@@ -1,0 +1,16 @@
+[package]
+name = "predicate-client"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+soroban-sdk = "23.5.3"
+predicate-registry = { path = "../predicate-registry" }
+
+[dev-dependencies]
+soroban-sdk = { version = "23.5.3", features = ["testutils"] }
+ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+rand = "0.8.5"

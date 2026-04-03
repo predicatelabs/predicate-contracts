@@ -2,4 +2,6 @@
 resolver = "2"
 members = [
     "test-stablecoin",
+    "predicate-registry",
+    "predicate-client",
 ]
