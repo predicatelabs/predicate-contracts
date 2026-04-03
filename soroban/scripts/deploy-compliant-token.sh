@@ -64,10 +64,23 @@ TOKEN_ID=$(stellar contract deploy \
   -- \
   --admin "$ADMIN_ADDRESS" \
   --registry "$REGISTRY_ID" \
-  --policy_id "\"${POLICY_ID}\"" \
-  --network "\"${NETWORK_PASSPHRASE}\"")
+  --policy_id "$POLICY_ID" \
+  --network "$NETWORK_PASSPHRASE")
 
 echo "Token deployed: $TOKEN_ID"
+
+# --- Register policy with the registry ---
+
+echo ""
+echo "Registering policy '$POLICY_ID' with the registry..."
+stellar contract invoke \
+  --id "$TOKEN_ID" \
+  --source "$IDENTITY" \
+  --network "$NETWORK" \
+  --send=yes \
+  -- \
+  register_policy
+echo "Policy registered."
 
 echo ""
 echo "=== Compliant Token Deployment Complete ==="
