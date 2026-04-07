@@ -6,8 +6,8 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to publish (e.g. 1.0.0 or 1.0.0-prerelease)'
+      tag:
+        description: 'Tag to publish (e.g. v1.0.0). The tag must already exist in the repository.'
         required: true
         type: string
 
@@ -16,12 +16,111 @@ jobs:
     name: Build & Publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Determine tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG"
+          echo "Version: ${TAG#v}"
+
+      - name: Checkout workflow branch
+        uses: actions/checkout@v4
         with:
-          submodules: recursive  # Foundry dependencies use git submodules
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Save config from workflow branch
+        run: |
+          mkdir -p /tmp/workflow-config
+
+          if [ -f "contrafactory.toml" ]; then
+            cp contrafactory.toml /tmp/workflow-config/contrafactory.toml
+            echo "Saved contrafactory.toml"
+          elif [ -f "cf.toml" ]; then
+            cp cf.toml /tmp/workflow-config/contrafactory.toml
+            echo "Saved cf.toml"
+          else
+            echo "::error::No contrafactory.toml or cf.toml found on workflow branch"
+            exit 1
+          fi
+
+          if [ -f ".foundry-version" ]; then
+            cp .foundry-version /tmp/workflow-config/.foundry-version
+            echo "Saved .foundry-version ($(cat .foundry-version))"
+          else
+            echo "::warning::No .foundry-version found on workflow branch"
+          fi
+
+          if [ -f "remappings.txt" ]; then
+            cp remappings.txt /tmp/workflow-config/remappings.txt
+            echo "Saved remappings.txt ($(wc -l < remappings.txt) entries)"
+          fi
+
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
+
+      - name: Restore config from workflow branch
+        id: config
+        run: |
+          if [ -f "contrafactory.toml" ]; then
+            echo "Tag already has contrafactory.toml — using it"
+          else
+            cp /tmp/workflow-config/contrafactory.toml contrafactory.toml
+            echo "Tag missing contrafactory.toml — restored from workflow branch"
+          fi
+
+          if [ -f ".foundry-version" ]; then
+            echo "Tag already has .foundry-version — using it"
+          elif [ -f "/tmp/workflow-config/.foundry-version" ]; then
+            cp /tmp/workflow-config/.foundry-version .foundry-version
+            echo "Tag missing .foundry-version — restored from workflow branch"
+          fi
+
+          if [ -f "/tmp/workflow-config/remappings.txt" ]; then
+            if [ -f "remappings.txt" ]; then
+              BEFORE=$(wc -l < remappings.txt)
+              # Ensure trailing newline before appending
+              sed -i -e '$a\' remappings.txt
+              while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                if ! grep -qxF "$line" remappings.txt; then
+                  echo "$line" >> remappings.txt
+                  echo "  Added missing remapping: $line"
+                fi
+              done < /tmp/workflow-config/remappings.txt
+              AFTER=$(wc -l < remappings.txt)
+              echo "remappings.txt: $BEFORE → $AFTER entries"
+            else
+              cp /tmp/workflow-config/remappings.txt remappings.txt
+              echo "Tag missing remappings.txt — restored from workflow branch"
+            fi
+          fi
+
+          if [ -f ".foundry-version" ]; then
+            FOUNDRY_VERSION=$(cat .foundry-version | tr -d '[:space:]')
+          else
+            FOUNDRY_VERSION="stable"
+            echo "::warning::No .foundry-version found — falling back to stable"
+          fi
+          echo "foundry_version=$FOUNDRY_VERSION" >> $GITHUB_OUTPUT
+          echo "Foundry version: $FOUNDRY_VERSION"
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ steps.config.outputs.foundry_version }}
 
       - name: Build contracts
         run: forge build --build-info --sizes
@@ -37,27 +136,18 @@ jobs:
           rename-to: contrafactory
           chmod: 0755
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Publish (dry run)
         env:
           CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
-        run: contrafactory publish --version ${{ steps.version.outputs.version }} --dry-run
+        run: contrafactory publish --version ${{ steps.tag.outputs.version }} --dry-run
 
       - name: Publish
         env:
           CONTRAFACTORY_SERVER: ${{ secrets.CONTRAFACTORY_SERVER }}
           CONTRAFACTORY_API_KEY: ${{ secrets.CONTRAFACTORY_API_KEY }}
         run: |
-          OUTPUT=$(contrafactory publish --version ${{ steps.version.outputs.version }} 2>&1) || true
+          OUTPUT=$(contrafactory publish --version ${{ steps.tag.outputs.version }} 2>&1) || true
           echo "$OUTPUT"
           # Fail on real errors, but not if every failure is VERSION_EXISTS
           if echo "$OUTPUT" | grep -q "failed"; then
