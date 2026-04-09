@@ -1,9 +1,52 @@
 #![no_std]
 
-/// Re-export registry types for downstream convenience.
-pub use predicate_registry::{Attestation, RegistryError, Statement};
+use soroban_sdk::{
+    contracterror, contracttype, vec, Address, Bytes, BytesN, Env, IntoVal, String, Symbol, Val,
+    Vec,
+};
 
-use soroban_sdk::{vec, Address, Bytes, Env, IntoVal, String, Symbol, Val, Vec};
+// --- Types (mirrored from predicate-registry to avoid linking the contract impl) ---
+
+/// Describes a transaction to be authorized.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Statement {
+    pub uuid: String,
+    pub msg_sender: Address,
+    pub target: Address,
+    pub msg_value: i128,
+    pub encoded_sig_and_args: Bytes,
+    pub policy: String,
+    pub expiration: u64,
+}
+
+/// Ed25519-signed authorization from an attester.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Attestation {
+    pub uuid: String,
+    pub expiration: u64,
+    pub attester: BytesN<32>,
+    pub signature: BytesN<64>,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum RegistryError {
+    Unauthorized = 1,
+    AttesterAlreadyRegistered = 2,
+    AttesterNotRegistered = 3,
+    AttestationExpired = 4,
+    UuidAlreadyUsed = 5,
+    UuidMismatch = 6,
+    ExpirationMismatch = 7,
+    InvalidSignature = 8,
+    NotInitialized = 9,
+    AlreadyInitialized = 10,
+}
+
+// --- Client helper ---
 
 /// Build a Statement and validate it against the Predicate Registry.
 ///
@@ -62,7 +105,7 @@ mod test {
 
     use super::*;
     use predicate_registry::PredicateRegistryContract;
-    use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
+    use soroban_sdk::{testutils::Address as _, Address, Env};
 
     fn setup_registry(e: &Env) -> (Address, Address) {
         let owner = Address::generate(e);
@@ -91,22 +134,19 @@ mod test {
         let (owner, registry_addr) = setup_registry(&e);
         let network = String::from_str(&e, "Test SDF Network ; September 2015");
 
-        // Register an attester via the registry client
         let registry_client =
             predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         registry_client.register_attester(&owner, &pub_key);
 
-        // Simulate a downstream contract calling authorize_transaction
         let msg_sender = Address::generate(&e);
         let target = Address::generate(&e);
         let policy = String::from_str(&e, "x-test-policy");
         let encoded = Bytes::from_slice(&e, &[0xBBu8; 16]);
         let msg_value: i128 = 1000;
 
-        // Build the statement the same way authorize_transaction will,
-        // then hash+sign it so the registry can verify.
-        let statement = Statement {
+        // Build statement matching what authorize_transaction will build
+        let statement = predicate_registry::Statement {
             uuid: String::from_str(&e, "uuid-client-test"),
             msg_sender: msg_sender.clone(),
             target: target.clone(),
@@ -120,8 +160,8 @@ mod test {
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
-            uuid: statement.uuid.clone(),
-            expiration: statement.expiration,
+            uuid: String::from_str(&e, "uuid-client-test"),
+            expiration: e.ledger().timestamp() + 600,
             attester: pub_key,
             signature,
         };

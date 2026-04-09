@@ -4,4 +4,5 @@ members = [
     "test-stablecoin",
     "predicate-registry",
     "predicate-client",
+    "example-compliant-token",
 ]
