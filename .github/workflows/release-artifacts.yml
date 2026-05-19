@@ -79,7 +79,7 @@ jobs:
         run: |
           while IFS="$(printf '\t')" read -r package target; do
             echo "Building $package ($target)"
-            stellar contract build --package "$package" --optimize
+            cargo build --release --target wasm32-unknown-unknown -p "$package"
           done < /tmp/soroban-contracts.tsv
 
       - name: Package release assets
@@ -96,7 +96,16 @@ jobs:
               exit 1
             fi
 
-            cp "$wasm" "$asset_dir/${package}.wasm"
+            stellar contract optimize --wasm "$wasm"
+
+            optimized_wasm="${wasm%.wasm}.optimized.wasm"
+            if [ -f "$optimized_wasm" ]; then
+              release_wasm="$optimized_wasm"
+            else
+              release_wasm="$wasm"
+            fi
+
+            cp "$release_wasm" "$asset_dir/${package}.wasm"
             stellar contract info interface \
               --wasm "$asset_dir/${package}.wasm" \
               --output json-formatted > "$asset_dir/${package}.contractspec.json"
