@@ -21,6 +21,12 @@ pub struct PredicateRegistryContract;
 #[contractimpl]
 impl PredicateRegistryContract {
     /// Initialize the registry with an owner address.
+    ///
+    /// # Arguments
+    ///
+    /// * `owner` - Address with administrative privileges. Can register and
+    ///   deregister attesters, and propose a new owner via the two-step
+    ///   `transfer_ownership` / `accept_ownership` flow.
     pub fn __constructor(e: &Env, owner: Address) {
         e.storage().instance().set(&OWNER, &owner);
     }

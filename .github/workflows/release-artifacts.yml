@@ -40,6 +40,15 @@ jobs:
           submodules: recursive
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
 
+      - name: Stage extract-docs script from workflow ref
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          git cat-file -p "${WORKFLOW_SHA}:soroban/scripts/extract-docs.js" \
+            > /tmp/extract-docs.js
+          chmod +x /tmp/extract-docs.js
+          echo "Staged extract-docs.js from ${WORKFLOW_SHA}"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -109,6 +118,9 @@ jobs:
             stellar contract info interface \
               --wasm "$asset_dir/${package}.wasm" \
               --output json-formatted > "$asset_dir/${package}.contractspec.json"
+            node /tmp/extract-docs.js \
+              "$asset_dir/${package}.contractspec.json" \
+              "$asset_dir/${package}.docs.json"
           done < /tmp/soroban-contracts.tsv
 
           echo "Release assets:"
