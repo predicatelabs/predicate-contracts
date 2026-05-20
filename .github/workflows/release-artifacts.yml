@@ -52,7 +52,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none,wasm32-unknown-unknown
 
       - name: Install Stellar CLI
         uses: stellar/stellar-cli@v26.0.0
@@ -98,17 +98,25 @@ jobs:
           mkdir -p "$asset_dir"
 
           while IFS="$(printf '\t')" read -r package target; do
-            wasm="target/wasm32-unknown-unknown/release/${target}.wasm"
-            optimized_wasm="${wasm%.wasm}.optimized.wasm"
+            release_wasm=""
+            for target_dir in \
+              target/wasm32v1-none/release \
+              target/wasm32-unknown-unknown/release; do
+              if [ -f "$target_dir/${target}.optimized.wasm" ]; then
+                release_wasm="$target_dir/${target}.optimized.wasm"
+                break
+              elif [ -f "$target_dir/${target}.wasm" ]; then
+                release_wasm="$target_dir/${target}.wasm"
+                break
+              fi
+            done
 
-            if [ -f "$optimized_wasm" ]; then
-              release_wasm="$optimized_wasm"
-            elif [ -f "$wasm" ]; then
-              release_wasm="$wasm"
-            else
-              echo "Error: expected WASM not found at $wasm or $optimized_wasm"
+            if [ -z "$release_wasm" ]; then
+              echo "Error: no WASM found for ${target} under target/wasm32v1-none or target/wasm32-unknown-unknown"
               exit 1
             fi
+
+            echo "Using $release_wasm"
 
             cp "$release_wasm" "$asset_dir/${package}.wasm"
             stellar contract info interface \
