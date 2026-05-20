@@ -61,7 +61,10 @@ const SECTION_HEADERS = {
 function parseDoc(doc) {
     if (!doc || typeof doc !== "string") return null;
 
-    const lines = doc.replace(/\r\n/g, "\n").split("\n");
+    const lines = doc
+        .replace(/\r\n/g, "\n")
+        .replace(/\\n/g, "\n")
+        .split("\n");
     const result = { summary: "", args: [], errors: [], events: [] };
     const summaryLines = [];
 

@@ -88,7 +88,7 @@ jobs:
         run: |
           while IFS="$(printf '\t')" read -r package target; do
             echo "Building $package ($target)"
-            cargo build --release --target wasm32-unknown-unknown -p "$package"
+            stellar contract build --package "$package" --optimize
           done < /tmp/soroban-contracts.tsv
 
       - name: Package release assets
@@ -99,19 +99,15 @@ jobs:
 
           while IFS="$(printf '\t')" read -r package target; do
             wasm="target/wasm32-unknown-unknown/release/${target}.wasm"
-
-            if [ ! -f "$wasm" ]; then
-              echo "Error: expected WASM not found at $wasm"
-              exit 1
-            fi
-
-            stellar contract optimize --wasm "$wasm"
-
             optimized_wasm="${wasm%.wasm}.optimized.wasm"
+
             if [ -f "$optimized_wasm" ]; then
               release_wasm="$optimized_wasm"
-            else
+            elif [ -f "$wasm" ]; then
               release_wasm="$wasm"
+            else
+              echo "Error: expected WASM not found at $wasm or $optimized_wasm"
+              exit 1
             fi
 
             cp "$release_wasm" "$asset_dir/${package}.wasm"
