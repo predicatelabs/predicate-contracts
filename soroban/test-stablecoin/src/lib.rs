@@ -24,6 +24,20 @@ pub enum TestStablecoinError {
 
 #[contractimpl]
 impl TestStablecoinContract {
+    /// Deploy the stablecoin and mint the initial supply to `admin`.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Token display name (e.g. "USD Stablecoin").
+    /// * `symbol` - Ticker symbol (e.g. "USDC"). 3-7 characters recommended.
+    /// * `admin` - Address with role-admin privileges. Holds the initial
+    ///   supply and can grant or revoke any role.
+    /// * `manager` - Address granted the `manager` role at deploy time. Can
+    ///   be the same as `admin` for simple deployments.
+    /// * `blocker` - Address granted the `blocker` role at deploy time.
+    ///   Required to call `block_user` and `unblock_user`.
+    /// * `initial_supply` - Tokens minted to `admin` at deploy, in base
+    ///   units. The token uses 6 decimals, so 1 token = 1_000_000.
     pub fn __constructor(
         e: &Env,
         name: String,
