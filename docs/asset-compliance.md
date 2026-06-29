@@ -12,19 +12,27 @@ Code: [`src/examples/asset-compliance/`](../src/examples/asset-compliance/).
 
 Predicate's enforcement address (grant it `FREEZE_MANAGER_ROLE`): `0x363c256D368277BBFaf6EaF65beE123a7AdbA464`
 
-## Role separation
+## Recommended role model
 
-The role you grant Predicate authorizes freeze/unfreeze and nothing else. Mint, burn, seize/clawback, pause, upgrade, and role administration are separate roles you keep. The example token enforces this and tests it.
+The roles a token defines, and who holds them, are ultimately the issuer's choice — it's your contract and your access-control policy. What follows is the pattern we **recommend** and that the example token implements: standard role-based access control with separation of duties, the same least-privilege model regulated stablecoins such as M^0's mUSD, Circle's USDC, and Paxos's USDG follow.
 
-If your token bundles seize or burn into the same role as freeze — for example a single "asset protection" role that gates both `freeze` and a balance-wiping `wipeFrozenAddress` — split it before integrating, so the role Predicate holds can never move or destroy funds.
+The principle: no single key should be able to both freeze an account and move or destroy its funds. Each capability lives in its own role, each role is held by a different key, and a `DEFAULT_ADMIN_ROLE` — ideally a multisig or timelock — administers the others and authorizes upgrades.
 
-| Capability | Role | Granted to Predicate |
-| --- | --- | :---: |
-| Freeze / unfreeze (+ batch) | `FREEZE_MANAGER_ROLE` | yes — only this |
-| Seize / clawback | `FORCED_TRANSFER_MANAGER_ROLE` | no |
-| Pause | `PAUSER_ROLE` | no |
-| Mint / burn | `MINTER_ROLE` / `BURNER_ROLE` | no |
-| Admin / upgrade / roles | `DEFAULT_ADMIN_ROLE` | no |
+| Capability | Role | Recommended holder |
+| --- | --- | --- |
+| Freeze / unfreeze (+ batch) | `FREEZE_MANAGER_ROLE` | Predicate enforcer (and/or issuer ops) |
+| Seize / clawback | `FORCED_TRANSFER_MANAGER_ROLE` | Issuer — separate key from freeze |
+| Pause | `PAUSER_ROLE` | Issuer ops |
+| Mint / burn | `MINTER_ROLE` / `BURNER_ROLE` | Issuer treasury |
+| Admin / upgrade / roles | `DEFAULT_ADMIN_ROLE` | Issuer multisig / timelock |
+
+### The freeze manager role
+
+`FREEZE_MANAGER_ROLE` is the only role you grant Predicate, and the one worth scoping most carefully:
+
+- **Grant it to Predicate's enforcement address and nothing else.** The role authorizes `freeze`, `unfreeze`, and their batch variants only — it cannot mint, burn, seize, pause, upgrade, or administer roles. Freezing is reversible and moves no funds, so an automated holder is low-risk by construction. The example token enforces this boundary and [tests it](../test/asset-compliance/FreezableStablecoin.t.sol).
+- **Keep it separate from seize.** The freeze-then-seize split is deliberate: an automated or shared key freezes a flagged account, and a distinct issuer-held role decides whether to claw the balance back. If your token bundles both into a single "asset protection" role — for example one role that gates `freeze` and a balance-wiping `wipeFrozenAddress` — split it before integrating, so the role Predicate (or any shared key) holds can never move or destroy funds.
+- **You stay in control.** You can hold this role yourself and freeze manually from the dashboard, delegate it to Predicate for automated enforcement, or both. Granting and revoking it is a single `AccessControl` call — see [`GrantFreezeManager.s.sol`](../script/asset-compliance/GrantFreezeManager.s.sol).
 
 ## Examples
 
