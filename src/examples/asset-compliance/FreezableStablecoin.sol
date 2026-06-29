@@ -13,7 +13,7 @@ import {Freezable} from "../../Freezable.sol";
 /**
  * @title FreezableStablecoin
  * @author Predicate Labs, Inc (https://predicate.io)
- * @notice Upgradeable ERC-20 with on-chain freeze enforcement, pause, role-gated mint/burn, and
+ * @notice Upgradeable ERC-20 with onchain freeze enforcement, pause, role-gated mint/burn, and
  *         a forced-transfer seize. Frozen accounts cannot send or receive.
  * @dev Implements {IFreezable} via the {Freezable} base; the freeze check lives in {_update}.
  *      FREEZE_MANAGER_ROLE (granted to Predicate) only freezes and unfreezes; seize, pause,
@@ -175,8 +175,8 @@ contract FreezableStablecoin is
     /**
      * @notice ERC-20 `transferFrom` with an added check that the spender is not frozen.
      * @dev {_update} already blocks a frozen `from` or `to`; this additionally blocks a frozen
-     *      spender from moving a third party's funds, mirroring mUSD / Paxos USDG semantics
-     *      (a sanctioned operator must not be able to initiate transfers it has an allowance for).
+     *      spender from moving a third party's funds (a sanctioned operator must not be able to
+     *      initiate transfers it has an allowance for).
      */
     function transferFrom(
         address from,

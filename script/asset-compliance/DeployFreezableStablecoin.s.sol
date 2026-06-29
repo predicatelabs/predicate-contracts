@@ -9,7 +9,7 @@ import {FreezableStablecoin} from "../../src/examples/asset-compliance/Freezable
 
 /**
  * @title DeployFreezableStablecoin
- * @notice Deploys {FreezableStablecoin} behind an ERC-1967 proxy with least-privilege role holders.
+ * @notice Deploys {FreezableStablecoin} behind an ERC-1967 proxy with separate role holders.
  * @dev By default `FREEZE_MANAGER_ROLE` is assigned to Predicate's freezer so the asset is
  *      enrollment-ready; override any holder via env vars. Seize/mint/burn/pause default to the
  *      admin and should be moved to dedicated issuer keys in production.

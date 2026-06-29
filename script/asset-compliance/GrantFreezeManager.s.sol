@@ -8,7 +8,7 @@ import {FreezableStablecoin} from "../../src/examples/asset-compliance/Freezable
 
 /**
  * @title GrantFreezeManager
- * @notice Grants / revokes / verifies Predicate's freezer on a deployed asset — the on-chain step
+ * @notice Grants / revokes / verifies Predicate's freezer on a deployed asset — the onchain step
  *         that makes a token enforceable by Predicate asset compliance.
  * @dev `FREEZE_MANAGER_ROLE` is the ONLY authority Predicate needs. It is revocable in one
  *      transaction (`revoke`), verifiable (`check`), and never confers seize/mint/burn/pause/upgrade.
