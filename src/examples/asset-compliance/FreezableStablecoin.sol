@@ -17,8 +17,8 @@ import {Freezable} from "../../Freezable.sol";
  *         a forced-transfer seize. Frozen accounts cannot send or receive.
  * @dev Implements {IFreezable} via the {Freezable} base; the freeze check lives in {_update}.
  *      FREEZE_MANAGER_ROLE (granted to Predicate) only freezes and unfreezes; seize, pause,
- *      mint, burn, and upgrades are separate, issuer-held roles. See docs/asset-compliance.md
- *      for the role model and integration steps.
+ *      mint, burn, and upgrades are separate, issuer-held roles. See the README in this
+ *      directory for the role model and integration steps.
  */
 contract FreezableStablecoin is
     ERC20Upgradeable,
