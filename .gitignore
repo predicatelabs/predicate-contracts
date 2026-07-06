@@ -15,6 +15,9 @@ cache_hardhat
 artifacts
 *.lock
 
+# Track the Soroban lockfile for reproducible contract builds
+!soroban/Cargo.lock
+
 #Foundry files
 out
 cache
