@@ -87,7 +87,12 @@ contract FreezableStablecoin is
         address minter,
         address burner
     ) external initializer {
-        if (admin == address(0)) revert ZeroAddress();
+        // Validate every role holder up front: a role granted to address(0) is unrecoverable and
+        // silently disables that capability. freezeManager is checked inside __Freezable_init.
+        if (
+            admin == address(0) || pauser == address(0) || forcedTransferManager == address(0) || minter == address(0)
+                || burner == address(0)
+        ) revert ZeroAddress();
 
         __ERC20_init(name_, symbol_);
         __ERC20Permit_init(name_);

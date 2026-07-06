@@ -10,9 +10,11 @@ import {FreezableStablecoin} from "../../src/examples/asset-compliance/Freezable
 /**
  * @title DeployFreezableStablecoin
  * @notice Deploys {FreezableStablecoin} behind an ERC-1967 proxy with separate role holders.
- * @dev By default `FREEZE_MANAGER_ROLE` is assigned to Predicate's freezer so the asset is
- *      enrollment-ready; override any holder via env vars. Seize/mint/burn/pause default to the
- *      admin and should be moved to dedicated issuer keys in production.
+ * @dev `ADMIN` is required (fail-closed): DEFAULT_ADMIN_ROLE also authorizes upgrades, so it must
+ *      never fall back to an implicit address. By default `FREEZE_MANAGER_ROLE` is assigned to
+ *      Predicate's freezer so the asset is enrollment-ready; override any holder via env vars.
+ *      Seize/mint/burn/pause default to the admin and should be moved to dedicated issuer keys in
+ *      production.
  *
  * Usage:
  *   ADMIN=0x... forge script script/asset-compliance/DeployFreezableStablecoin.s.sol \
@@ -23,7 +25,7 @@ contract DeployFreezableStablecoin is Script {
     address public constant PREDICATE_FREEZER = 0x363c256D368277BBFaf6EaF65beE123a7AdbA464;
 
     function run() external returns (FreezableStablecoin token, address proxy) {
-        address admin = vm.envOr("ADMIN", msg.sender);
+        address admin = vm.envAddress("ADMIN"); // required: never default the upgrade authority
         address freezeManager = vm.envOr("FREEZE_MANAGER", PREDICATE_FREEZER);
         address pauser = vm.envOr("PAUSER", admin);
         address seizeManager = vm.envOr("SEIZE_MANAGER", admin);

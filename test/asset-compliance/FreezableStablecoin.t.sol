@@ -33,6 +33,7 @@ contract FreezableStablecoinTest is Test {
     bytes32 internal roleSeize;
     bytes32 internal rolePause;
     bytes32 internal roleMint;
+    bytes32 internal roleBurn;
     bytes32 internal roleAdmin;
 
     uint256 internal constant INITIAL = 1_000_000e6;
@@ -49,6 +50,7 @@ contract FreezableStablecoinTest is Test {
         roleSeize = token.FORCED_TRANSFER_MANAGER_ROLE();
         rolePause = token.PAUSER_ROLE();
         roleMint = token.MINTER_ROLE();
+        roleBurn = token.BURNER_ROLE();
         roleAdmin = token.DEFAULT_ADMIN_ROLE();
 
         vm.prank(minter);
@@ -152,6 +154,46 @@ contract FreezableStablecoinTest is Test {
         token.forceTransfer(alice, treasury, 1e6);
     }
 
+    function test_seizeBatch_movesFrozenBalances() public {
+        vm.prank(minter);
+        token.mint(bob, 500_000e6);
+
+        address[] memory froms = new address[](2);
+        froms[0] = alice;
+        froms[1] = bob;
+        address[] memory tos = new address[](2);
+        tos[0] = treasury;
+        tos[1] = treasury;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = INITIAL;
+        amounts[1] = 500_000e6;
+
+        vm.prank(predicateFreezer);
+        token.freezeAccounts(froms);
+
+        vm.prank(seizer);
+        token.forceTransfers(froms, tos, amounts);
+
+        assertEq(token.balanceOf(alice), 0);
+        assertEq(token.balanceOf(bob), 0);
+        assertEq(token.balanceOf(treasury), INITIAL + 500_000e6);
+    }
+
+    function test_seizeBatch_revertsOnLengthMismatch() public {
+        address[] memory froms = new address[](2);
+        froms[0] = alice;
+        froms[1] = bob;
+        address[] memory tos = new address[](1);
+        tos[0] = treasury;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1e6;
+        amounts[1] = 1e6;
+
+        vm.prank(seizer);
+        vm.expectRevert(FreezableStablecoin.LengthMismatch.selector);
+        token.forceTransfers(froms, tos, amounts);
+    }
+
     function test_seize_worksWhilePaused() public {
         vm.prank(predicateFreezer);
         token.freeze(alice);
@@ -212,6 +254,14 @@ contract FreezableStablecoinTest is Test {
         token.mint(predicateFreezer, 1e6);
     }
 
+    function test_roleSeparation_freezeManagerCannotBurn() public {
+        vm.prank(predicateFreezer);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, predicateFreezer, roleBurn)
+        );
+        token.burn(alice, 1e6);
+    }
+
     function test_roleSeparation_freezeManagerCannotPause() public {
         vm.prank(predicateFreezer);
         vm.expectRevert(
@@ -254,6 +304,19 @@ contract FreezableStablecoinTest is Test {
             )
         );
         token.freeze(alice);
+    }
+
+    /* ============ Initialization ============ */
+
+    function test_initialize_rejectsZeroRoleHolder() public {
+        FreezableStablecoin impl = new FreezableStablecoin();
+        // minter == address(0): a role granted to the zero address is unrecoverable.
+        bytes memory initData = abi.encodeCall(
+            FreezableStablecoin.initialize,
+            ("Compliant USD", "cUSD", admin, predicateFreezer, pauser, seizer, address(0), burner)
+        );
+        vm.expectRevert(FreezableStablecoin.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), initData);
     }
 
     /* ============ Sanity ============ */
