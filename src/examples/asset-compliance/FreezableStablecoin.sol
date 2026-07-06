@@ -142,10 +142,11 @@ contract FreezableStablecoin is
     /* ============ Seize / Forced Transfer (issuer-only) ============ */
 
     /**
-     * @notice Seizes `amount` from a frozen `from` and moves it to `to`.
+     * @notice Seizes `amount` from a frozen `from` and moves it to a non-frozen `to`.
      * @dev The source MUST already be frozen — this enforces the freeze-then-seize workflow and
      *      keeps the two powers in different hands (Predicate freezes; the issuer seizes).
-     *      Intentionally bypasses the pause and frozen checks (see {_forceTransfer}).
+     *      Runs while the token is paused, but still refuses a frozen recipient and rejects the
+     *      zero address on either side (see {_forceTransfer}).
      */
     function forceTransfer(
         address from,
@@ -198,8 +199,10 @@ contract FreezableStablecoin is
 
     /**
      * @dev Compliance hook for all balance movements (transfers, mints, burns).
-     *      Blocks the movement when the token is paused or when either party is frozen.
-     *      Seizures call `super._update` directly and therefore skip this override on purpose.
+     *      Blocks the movement when the token is paused or when either party is frozen. The
+     *      zero address is exempt from the freeze check so that freezing it cannot brick mint
+     *      (`from == 0`) or burn (`to == 0`). Seizures call `super._update` directly and
+     *      therefore skip this override on purpose.
      */
     function _update(
         address from,
@@ -207,23 +210,25 @@ contract FreezableStablecoin is
         uint256 value
     ) internal override {
         _requireNotPaused();
-        _revertIfFrozen(from);
-        _revertIfFrozen(to);
+        if (from != address(0)) _revertIfFrozen(from);
+        if (to != address(0)) _revertIfFrozen(to);
         super._update(from, to, value);
     }
 
     /**
-     * @dev Executes a seizure. Requires the source to be frozen, then calls `super._update`
-     *      directly to bypass the pause/frozen guards in {_update} — a compliance seizure must
-     *      succeed precisely when the account is frozen (and even while the token is paused).
+     * @dev Executes a seizure. Calls `super._update` directly to bypass the pause guard in
+     *      {_update} — a compliance seizure must succeed even while the token is paused. It
+     *      still upholds the compliance invariants: the source must be frozen, the recipient
+     *      must not be, and neither side may be the zero address (so a seizure can never mint).
      */
     function _forceTransfer(
         address from,
         address to,
         uint256 amount
     ) internal {
-        if (to == address(0)) revert ZeroAddress();
+        if (from == address(0) || to == address(0)) revert ZeroAddress();
         _revertIfNotFrozen(from); // seize only operates on already-frozen accounts
+        _revertIfFrozen(to); // never deliver seized funds to a frozen recipient
         super._update(from, to, amount);
         emit ForcedTransfer(from, to, amount);
     }

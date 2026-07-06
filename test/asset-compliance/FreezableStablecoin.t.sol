@@ -132,6 +132,26 @@ contract FreezableStablecoinTest is Test {
         token.forceTransfer(alice, treasury, 1e6);
     }
 
+    function test_seize_rejectsZeroFromSource() public {
+        // Even if address(0) were frozen, a seizure from it must never mint via super._update.
+        vm.prank(predicateFreezer);
+        token.freeze(address(0));
+        vm.prank(seizer);
+        vm.expectRevert(FreezableStablecoin.ZeroAddress.selector);
+        token.forceTransfer(address(0), treasury, 1e6);
+    }
+
+    function test_seize_blocksFrozenRecipient() public {
+        vm.startPrank(predicateFreezer);
+        token.freeze(alice);
+        token.freeze(treasury);
+        vm.stopPrank();
+
+        vm.prank(seizer);
+        vm.expectRevert(abi.encodeWithSelector(IFreezable.AccountFrozen.selector, treasury));
+        token.forceTransfer(alice, treasury, 1e6);
+    }
+
     function test_seize_worksWhilePaused() public {
         vm.prank(predicateFreezer);
         token.freeze(alice);
@@ -141,6 +161,23 @@ contract FreezableStablecoinTest is Test {
         vm.prank(seizer);
         token.forceTransfer(alice, treasury, INITIAL);
         assertEq(token.balanceOf(treasury), INITIAL);
+    }
+
+    /* ============ Freezing address(0) must not brick supply management ============ */
+
+    function test_mintBurn_unaffectedByFrozenZeroAddress() public {
+        vm.prank(predicateFreezer);
+        token.freeze(address(0));
+
+        // mint routes through _update with from == address(0); it must still succeed.
+        vm.prank(minter);
+        token.mint(bob, 5e6);
+        assertEq(token.balanceOf(bob), 5e6);
+
+        // burn routes through _update with to == address(0); it must still succeed.
+        vm.prank(burner);
+        token.burn(alice, 5e6);
+        assertEq(token.balanceOf(alice), INITIAL - 5e6);
     }
 
     /* ============ Pause ============ */
