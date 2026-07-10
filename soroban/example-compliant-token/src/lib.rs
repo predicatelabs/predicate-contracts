@@ -20,6 +20,7 @@ const BALANCE: Symbol = symbol_short!("balance");
 pub enum TokenError {
     InsufficientBalance = 1,
     InvalidAmount = 2,
+    RegistryNotConfigured = 3,
 }
 
 /// A minimal token contract that requires Predicate attestation for transfers.
@@ -36,29 +37,47 @@ impl CompliantTokenContract {
     ///
     /// # Arguments
     /// * `admin` - Token admin who can mint
-    /// * `registry` - Address of the deployed PredicateRegistry contract
+    /// * `registry` - Address of the deployed PredicateRegistry contract, or `None` to
+    ///   deploy without one (e.g. on a network with no registry yet). Attach later with
+    ///   [`set_registry`]. Until a registry is set, `register_policy` and `transfer` fail.
     /// * `policy_id` - Policy identifier (e.g. "x-a1b2c3d4e5f6g7h8")
     /// * `network` - Stellar network passphrase (e.g. "Test SDF Network ; September 2015")
     pub fn __constructor(
         e: &Env,
         admin: Address,
-        registry: Address,
+        registry: Option<Address>,
         policy_id: String,
         network: String,
     ) {
         e.storage().instance().set(&ADMIN, &admin);
-        e.storage().instance().set(&REGISTRY, &registry);
+        if let Some(registry) = registry {
+            e.storage().instance().set(&REGISTRY, &registry);
+        }
         e.storage().instance().set(&POLICY, &policy_id);
         e.storage().instance().set(&NETWORK, &network);
     }
 
+    /// Attach (or replace) the Predicate Registry this token uses. Admin only.
+    /// Enables `register_policy` and compliant `transfer`s on a token that was
+    /// deployed without a registry.
+    pub fn set_registry(e: &Env, registry: Address) {
+        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
+        admin.require_auth();
+        e.storage().instance().set(&REGISTRY, &registry);
+    }
+
     /// Register this contract's policy with the Predicate Registry.
     /// Call this once after deployment. The admin must authorize.
-    pub fn register_policy(e: &Env) {
+    /// Fails with `RegistryNotConfigured` if no registry has been set.
+    pub fn register_policy(e: &Env) -> Result<(), TokenError> {
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
 
-        let registry: Address = e.storage().instance().get(&REGISTRY).unwrap();
+        let registry: Address = e
+            .storage()
+            .instance()
+            .get(&REGISTRY)
+            .ok_or(TokenError::RegistryNotConfigured)?;
         let policy_id: String = e.storage().instance().get(&POLICY).unwrap();
 
         let args: soroban_sdk::Vec<soroban_sdk::Val> = soroban_sdk::vec![
@@ -67,6 +86,7 @@ impl CompliantTokenContract {
             soroban_sdk::IntoVal::into_val(&policy_id, e),
         ];
         e.invoke_contract::<()>(&registry, &Symbol::new(e, "set_policy_id"), args);
+        Ok(())
     }
 
     /// Mint tokens to an address. Admin only, no attestation required.
@@ -97,6 +117,13 @@ impl CompliantTokenContract {
             return Err(TokenError::InvalidAmount);
         }
 
+        // Fail safe before moving any tokens: a compliant transfer requires a registry.
+        let registry: Address = e
+            .storage()
+            .instance()
+            .get(&REGISTRY)
+            .ok_or(TokenError::RegistryNotConfigured)?;
+
         // Check balance
         let from_key = (BALANCE, from.clone());
         let balance: i128 = e.storage().persistent().get(&from_key).unwrap_or(0);
@@ -105,7 +132,6 @@ impl CompliantTokenContract {
         }
 
         // --- Predicate compliance check ---
-        let registry: Address = e.storage().instance().get(&REGISTRY).unwrap();
         let policy: String = e.storage().instance().get(&POLICY).unwrap();
         let network: String = e.storage().instance().get(&NETWORK).unwrap();
 
@@ -150,9 +176,9 @@ impl CompliantTokenContract {
         e.storage().persistent().get(&key).unwrap_or(0)
     }
 
-    /// Query the registry address.
-    pub fn registry(e: &Env) -> Address {
-        e.storage().instance().get(&REGISTRY).unwrap()
+    /// Query the registry address, or `None` if no registry has been set yet.
+    pub fn registry(e: &Env) -> Option<Address> {
+        e.storage().instance().get(&REGISTRY)
     }
 
     /// Query the policy ID.
@@ -208,7 +234,7 @@ mod test {
             CompliantTokenContract,
             (
                 admin.clone(),
-                registry_addr.clone(),
+                Some(registry_addr.clone()),
                 policy_id.clone(),
                 network.clone(),
             ),
@@ -284,7 +310,7 @@ mod test {
             CompliantTokenContract,
             (
                 admin.clone(),
-                registry_addr.clone(),
+                Some(registry_addr.clone()),
                 policy_id.clone(),
                 network.clone(),
             ),
@@ -307,5 +333,67 @@ mod test {
         };
 
         token.transfer(&alice, &bob, &100, &attestation);
+    }
+
+    /// Deploy with no registry: token carries the policy id, mint/balance work,
+    /// but register_policy and transfer fail safe until a registry is attached.
+    #[test]
+    fn test_no_registry_placeholder() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let network = String::from_str(&e, "Test SDF Network ; September 2015");
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let admin = Address::generate(&e);
+
+        // Deploy with NO registry
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (
+                admin.clone(),
+                None::<Address>,
+                policy_id.clone(),
+                network.clone(),
+            ),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+
+        // registry() is None, but the policy id is still stored
+        assert_eq!(token.registry(), None);
+        assert_eq!(token.policy_id(), policy_id);
+
+        // mint + balance work without a registry
+        let alice = Address::generate(&e);
+        let bob = Address::generate(&e);
+        token.mint(&alice, &1000);
+        assert_eq!(token.balance(&alice), 1000);
+
+        // register_policy fails safe: no registry to call
+        assert_eq!(
+            token.try_register_policy(),
+            Err(Ok(TokenError::RegistryNotConfigured))
+        );
+
+        // transfer fails safe BEFORE moving any tokens
+        let attestation = Attestation {
+            uuid: String::from_str(&e, "placeholder"),
+            expiration: e.ledger().timestamp() + 600,
+            attester: BytesN::from_array(&e, &[0u8; 32]),
+            signature: BytesN::from_array(&e, &[0u8; 64]),
+        };
+        assert_eq!(
+            token.try_transfer(&alice, &bob, &100, &attestation),
+            Err(Ok(TokenError::RegistryNotConfigured))
+        );
+        assert_eq!(token.balance(&alice), 1000);
+        assert_eq!(token.balance(&bob), 0);
+
+        // Attach a real registry later, then register_policy succeeds
+        let registry_owner = Address::generate(&e);
+        let registry_addr = e.register(PredicateRegistryContract, (registry_owner.clone(),));
+        token.set_registry(&registry_addr);
+        assert_eq!(token.registry(), Some(registry_addr.clone()));
+        token.register_policy();
     }
 }
