@@ -21,7 +21,6 @@ const BALANCE: Symbol = symbol_short!("balance");
 pub enum TokenError {
     InsufficientBalance = 1,
     InvalidAmount = 2,
-    NotAuthorized = 3,
 }
 
 /// A minimal token contract that requires Predicate attestation for transfers.
@@ -117,7 +116,13 @@ impl CompliantTokenContract {
         // for one recipient could be redirected to any other recipient.
         let encoded_call = encode_transfer_call(e, &from, &to, amount);
 
-        let authorized = predicate_client::authorize_transaction(
+        // On failure the registry returns an `Err`, which `invoke_contract`
+        // propagates as a trap carrying the registry's exact error code
+        // (e.g. `Error(Contract, #4)` for an expired attestation). We deliberately
+        // do not catch and remap it: propagating the real error preserves far more
+        // detail than a generic "not authorized" code, and Soroban `#[contracterror]`
+        // enums are `#[repr(u32)]` and cannot carry the underlying error as a payload.
+        predicate_client::authorize_transaction(
             e,
             &registry,
             &attestation,
@@ -128,9 +133,6 @@ impl CompliantTokenContract {
             &policy,
             &network,
         );
-        if !authorized {
-            return Err(TokenError::NotAuthorized);
-        }
         // --- End compliance check ---
 
         // Execute transfer
