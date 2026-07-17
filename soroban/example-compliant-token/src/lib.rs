@@ -1,6 +1,7 @@
 #![no_std]
 
 use predicate_client::Attestation;
+use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     contract, contracterror, contractimpl, symbol_short, Address, Bytes, Env, String, Symbol,
 };
@@ -20,6 +21,7 @@ const BALANCE: Symbol = symbol_short!("balance");
 pub enum TokenError {
     InsufficientBalance = 1,
     InvalidAmount = 2,
+    NotAuthorized = 3,
 }
 
 /// A minimal token contract that requires Predicate attestation for transfers.
@@ -109,18 +111,13 @@ impl CompliantTokenContract {
         let policy: String = e.storage().instance().get(&POLICY).unwrap();
         let network: String = e.storage().instance().get(&NETWORK).unwrap();
 
-        // Encode the transfer call data for the attestation
-        let encoded_call = Bytes::from_slice(
-            e,
-            &e.crypto()
-                .sha256(&soroban_sdk::Bytes::from_slice(
-                    e,
-                    b"transfer(address,address,i128)",
-                ))
-                .to_array(),
-        );
+        // Encode the *concrete* transfer call (selector + all arguments) so the
+        // attestation binds the recipient and amount — not just the function
+        // selector. Without `to` in the signed digest, an attestation approved
+        // for one recipient could be redirected to any other recipient.
+        let encoded_call = encode_transfer_call(e, &from, &to, amount);
 
-        predicate_client::authorize_transaction(
+        let authorized = predicate_client::authorize_transaction(
             e,
             &registry,
             &attestation,
@@ -131,6 +128,9 @@ impl CompliantTokenContract {
             &policy,
             &network,
         );
+        if !authorized {
+            return Err(TokenError::NotAuthorized);
+        }
         // --- End compliance check ---
 
         // Execute transfer
@@ -159,6 +159,18 @@ impl CompliantTokenContract {
     pub fn policy_id(e: &Env) -> String {
         e.storage().instance().get(&POLICY).unwrap()
     }
+}
+
+/// Deterministically encode a concrete `transfer` call (selector + arguments)
+/// for inclusion in the attestation digest. The attester signs over this, so
+/// every argument that matters for compliance — including the recipient — is
+/// bound to the attestation and cannot be swapped at submission time.
+pub fn encode_transfer_call(e: &Env, from: &Address, to: &Address, amount: i128) -> Bytes {
+    let mut call_data = Bytes::from_slice(e, b"transfer(address,address,i128)");
+    call_data.append(&from.clone().to_xdr(e));
+    call_data.append(&to.clone().to_xdr(e));
+    call_data.append(&Bytes::from_slice(e, &amount.to_be_bytes()));
+    Bytes::from_slice(e, &e.crypto().sha256(&call_data).to_array())
 }
 
 #[cfg(test)]
@@ -226,12 +238,7 @@ mod test {
 
         // 6. Build attestation for the transfer
         let transfer_amount: i128 = 250;
-        let encoded_call = Bytes::from_slice(
-            &e,
-            &e.crypto()
-                .sha256(&Bytes::from_slice(&e, b"transfer(address,address,i128)"))
-                .to_array(),
-        );
+        let encoded_call = encode_transfer_call(&e, &alice, &bob, transfer_amount);
 
         let statement = Statement {
             uuid: String::from_str(&e, "transfer-001"),
@@ -259,6 +266,69 @@ mod test {
 
         assert_eq!(token.balance(&alice), 750);
         assert_eq!(token.balance(&bob), 250);
+    }
+
+    /// An attestation approved for a specific recipient must not be usable to
+    /// send tokens to a *different* recipient. This guards the fix that binds
+    /// `to` into the signed call data.
+    #[test]
+    #[should_panic] // ed25519_verify fails: signed digest bound `bob`, not `carol`
+    fn test_transfer_redirected_recipient_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let network = String::from_str(&e, "Test SDF Network ; September 2015");
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = e.register(PredicateRegistryContract, (registry_owner.clone(),));
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        let (attester_sk, attester_pk) = generate_ed25519_keypair(&e);
+        registry_client.register_attester(&registry_owner, &attester_pk);
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (
+                admin.clone(),
+                registry_addr.clone(),
+                policy_id.clone(),
+                network.clone(),
+            ),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+        token.register_policy();
+
+        let alice = Address::generate(&e);
+        let bob = Address::generate(&e);
+        let carol = Address::generate(&e);
+        token.mint(&alice, &1000);
+
+        let transfer_amount: i128 = 250;
+        // Attester approves a transfer to BOB.
+        let encoded_call = encode_transfer_call(&e, &alice, &bob, transfer_amount);
+        let statement = Statement {
+            uuid: String::from_str(&e, "transfer-redirect"),
+            msg_sender: alice.clone(),
+            target: token_addr.clone(),
+            msg_value: transfer_amount,
+            encoded_sig_and_args: encoded_call,
+            policy: policy_id.clone(),
+            expiration: e.ledger().timestamp() + 600,
+        };
+        let hash = registry_client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &attester_sk, &hash);
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: attester_pk,
+            signature,
+        };
+
+        // Attacker (Alice) tries to redirect the approved attestation to CAROL.
+        token.transfer(&alice, &carol, &transfer_amount, &attestation);
     }
 
     #[test]

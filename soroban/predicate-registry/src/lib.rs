@@ -617,4 +617,48 @@ mod test {
 
         client.validate_attestation(&statement, &attestation, &network, &client.address);
     }
+
+    #[test]
+    fn test_uuid_marker_ttl_extended_to_max() {
+        use soroban_sdk::testutils::storage::Persistent as _;
+
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let network = soroban_sdk::String::from_str(&e, "testnet");
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-ttl"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+
+        let hash = client.hash_statement(&statement, &network);
+        let signature = sign_hash(&e, &sk, &hash);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature,
+        };
+
+        client.validate_attestation(&statement, &attestation, &network, &client.address);
+
+        // The replay marker must be extended to the network max TTL, not a fixed
+        // ~30-day window that could be archived while an attestation is still valid.
+        let uuid_key = (symbol_short!("uuid"), statement.uuid.clone());
+        e.as_contract(&client.address, || {
+            let ttl = e.storage().persistent().get_ttl(&uuid_key);
+            let max_ttl = e.storage().max_ttl();
+            assert_eq!(ttl, max_ttl);
+        });
+    }
 }

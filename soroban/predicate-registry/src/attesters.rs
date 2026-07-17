@@ -7,7 +7,7 @@
 
 use soroban_sdk::{symbol_short, BytesN, Env, Vec};
 
-use crate::types::{RegistryError, PERSISTENT_TTL_EXTEND, PERSISTENT_TTL_THRESHOLD};
+use crate::types::RegistryError;
 
 // Storage keys
 const ATTESTERS_KEY: soroban_sdk::Symbol = symbol_short!("atts");
@@ -18,6 +18,24 @@ fn att_reg_key(attester: &BytesN<32>) -> (soroban_sdk::Symbol, BytesN<32>) {
 
 fn att_idx_key(attester: &BytesN<32>) -> (soroban_sdk::Symbol, BytesN<32>) {
     (symbol_short!("att_idx"), attester.clone())
+}
+
+/// Extend a persistent key to the maximum TTL the network allows. Attester
+/// registration is expected to be long-lived, so a fixed ~30-day TTL that is
+/// never refreshed risks silently archiving a live attester.
+fn extend_to_max(e: &Env, key: &(soroban_sdk::Symbol, BytesN<32>)) {
+    let max_ttl = e.storage().max_ttl();
+    e.storage().persistent().extend_ttl(key, max_ttl, max_ttl);
+}
+
+/// Refresh the TTL of an attester's registration entries to the network maximum.
+/// Called on every successful validation so an actively-used attester is never
+/// archived.
+pub fn refresh_ttl(e: &Env, attester: &BytesN<32>) {
+    if is_registered(e, attester) {
+        extend_to_max(e, &att_reg_key(attester));
+        extend_to_max(e, &att_idx_key(attester));
+    }
 }
 
 pub fn register(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
@@ -45,18 +63,10 @@ pub fn register(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
     e.storage().instance().set(&ATTESTERS_KEY, &attesters);
     // Mark as registered
     e.storage().persistent().set(&att_reg_key(attester), &true);
-    e.storage().persistent().extend_ttl(
-        &att_reg_key(attester),
-        PERSISTENT_TTL_THRESHOLD,
-        PERSISTENT_TTL_EXTEND,
-    );
+    extend_to_max(e, &att_reg_key(attester));
     // Store index
     e.storage().persistent().set(&att_idx_key(attester), &index);
-    e.storage().persistent().extend_ttl(
-        &att_idx_key(attester),
-        PERSISTENT_TTL_THRESHOLD,
-        PERSISTENT_TTL_EXTEND,
-    );
+    extend_to_max(e, &att_idx_key(attester));
 
     #[allow(deprecated)]
     e.events().publish(
@@ -90,6 +100,12 @@ pub fn deregister(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
         .get(&att_idx_key(attester))
         .unwrap();
 
+    // Defensive: the registration flag and the list must stay in sync. If the
+    // list is unexpectedly empty, treat it as "not registered" rather than
+    // underflowing `len() - 1`.
+    if attesters.is_empty() {
+        return Err(RegistryError::AttesterNotRegistered);
+    }
     let last_index = attesters.len() - 1;
 
     if index != last_index {
