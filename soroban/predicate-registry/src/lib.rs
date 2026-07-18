@@ -189,6 +189,16 @@ mod test {
     use super::*;
     use crate::types::{Attestation, Statement};
 
+    // Import the crate's own compiled WASM so the test can upload it and
+    // upgrade the registry to itself (proves the upgrade path + storage survival).
+    // Requires: stellar contract build --package predicate-registry
+    // (builds to wasm32v1-none, which the soroban host validator accepts)
+    mod registry_wasm {
+        soroban_sdk::contractimport!(
+            file = "../target/wasm32v1-none/release/predicate_registry.wasm"
+        );
+    }
+
     fn setup(e: &Env) -> (Address, PredicateRegistryContractClient) {
         let owner = Address::generate(e);
         let address = e.register(PredicateRegistryContract, (owner.clone(),));
@@ -609,6 +619,26 @@ mod test {
         let fake_hash = BytesN::from_array(&e, &[9u8; 32]);
 
         client.upgrade(&not_owner, &fake_hash);
+    }
+
+    #[test]
+    fn test_upgrade_happy_path_preserves_storage() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+
+        // Seed storage before the upgrade.
+        let attester = generate_attester_key(&e);
+        client.register_attester(&owner, &attester);
+        assert!(client.is_attester_registered(&attester));
+
+        // Upload the crate's own WASM and upgrade to it.
+        let wasm_hash = e.deployer().upload_contract_wasm(registry_wasm::WASM);
+        client.upgrade(&owner, &wasm_hash);
+
+        // Same address, same storage after the bytecode swap.
+        assert_eq!(client.owner(), owner);
+        assert!(client.is_attester_registered(&attester));
     }
 
     #[test]
