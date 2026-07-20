@@ -56,6 +56,12 @@ pub enum RegistryError {
 /// constructed statement, mirroring the EVM pattern where these values originate
 /// from the attester's signed payload.
 ///
+/// Returns `()` on success. On failure the registry returns an `Err`, and
+/// `invoke_contract` propagates it as a trap carrying the registry's exact typed
+/// error (e.g. `Error(Contract, #4)` for an expired attestation). The registry
+/// never returns `Ok(false)`, so there is no boolean outcome for the caller to
+/// branch on — a returning call means the transaction was authorized.
+///
 /// # Arguments
 /// * `e` - Soroban environment
 /// * `registry` - Address of the deployed PredicateRegistry contract
@@ -77,7 +83,7 @@ pub fn authorize_transaction(
     target: &Address,
     policy: &String,
     network: &String,
-) -> bool {
+) {
     let statement = Statement {
         uuid: attestation.uuid.clone(),
         msg_sender: msg_sender.clone(),
@@ -96,7 +102,10 @@ pub fn authorize_transaction(
         target.clone().into_val(e),
     ];
 
-    e.invoke_contract::<bool>(registry, &Symbol::new(e, "validate_attestation"), args)
+    // The registry returns `Ok(true)` or traps with a typed `RegistryError`; the
+    // `true` carries no information, so we discard it and rely on trap propagation
+    // to surface the real error to the caller.
+    let _: bool = e.invoke_contract(registry, &Symbol::new(e, "validate_attestation"), args);
 }
 
 #[cfg(test)]
@@ -166,7 +175,9 @@ mod test {
             signature,
         };
 
-        let result = authorize_transaction(
+        // A returning call means the transaction was authorized; a failed
+        // validation would trap and fail the test.
+        authorize_transaction(
             &e,
             &registry_addr,
             &attestation,
@@ -177,6 +188,5 @@ mod test {
             &policy,
             &network,
         );
-        assert!(result);
     }
 }
