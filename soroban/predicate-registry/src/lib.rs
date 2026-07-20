@@ -144,6 +144,26 @@ impl PredicateRegistryContract {
     ) -> Result<bool, RegistryError> {
         validation::validate(e, &statement, &attestation, &network, &caller)
     }
+
+    /// Replace the registry's WASM bytecode in place. Only the owner may call this.
+    /// The contract address and all storage (owner, attesters, policies, spent UUIDs)
+    /// are preserved; only the executable code changes.
+    ///
+    /// `new_wasm_hash` is the SHA-256 hash of an already-uploaded contract WASM
+    /// (see `stellar contract upload`).
+    pub fn upgrade(
+        e: &Env,
+        owner: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), RegistryError> {
+        require_owner(e, &owner)?;
+        e.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
+        #[allow(deprecated)]
+        e.events()
+            .publish((symbol_short!("upgrade"),), new_wasm_hash);
+        Ok(())
+    }
 }
 
 /// Internal helper: require that `caller` is the stored owner.
@@ -168,6 +188,16 @@ mod test {
 
     use super::*;
     use crate::types::{Attestation, Statement};
+
+    // Import the crate's own compiled WASM so the test can upload it and
+    // upgrade the registry to itself (proves the upgrade path + storage survival).
+    // Requires: stellar contract build --package predicate-registry
+    // (builds to wasm32v1-none, which the soroban host validator accepts)
+    mod registry_wasm {
+        soroban_sdk::contractimport!(
+            file = "../target/wasm32v1-none/release/predicate_registry.wasm"
+        );
+    }
 
     fn setup(e: &Env) -> (Address, PredicateRegistryContractClient) {
         let owner = Address::generate(e);
@@ -576,6 +606,39 @@ mod test {
         };
 
         client.validate_attestation(&statement, &attestation, &network, &client.address);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1)")]
+    fn test_non_owner_cannot_upgrade() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (_owner, client) = setup(&e);
+        let not_owner = Address::generate(&e);
+        // Any 32-byte hash — the Unauthorized check fires before the WASM is touched.
+        let fake_hash = BytesN::from_array(&e, &[9u8; 32]);
+
+        client.upgrade(&not_owner, &fake_hash);
+    }
+
+    #[test]
+    fn test_upgrade_happy_path_preserves_storage() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+
+        // Seed storage before the upgrade.
+        let attester = generate_attester_key(&e);
+        client.register_attester(&owner, &attester);
+        assert!(client.is_attester_registered(&attester));
+
+        // Upload the crate's own WASM and upgrade to it.
+        let wasm_hash = e.deployer().upload_contract_wasm(registry_wasm::WASM);
+        client.upgrade(&owner, &wasm_hash);
+
+        // Same address, same storage after the bytecode swap.
+        assert_eq!(client.owner(), owner);
+        assert!(client.is_attester_registered(&attester));
     }
 
     #[test]
