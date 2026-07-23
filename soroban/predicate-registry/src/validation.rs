@@ -1,9 +1,7 @@
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{symbol_short, Address, Bytes, BytesN, Env, String};
 
-use crate::types::{
-    Attestation, RegistryError, Statement, PERSISTENT_TTL_EXTEND, PERSISTENT_TTL_THRESHOLD,
-};
+use crate::types::{Attestation, RegistryError, Statement};
 
 /// Compute SHA-256 hash of a statement + network passphrase for attester signing.
 ///
@@ -70,6 +68,11 @@ pub fn validate(
         return Err(RegistryError::AttesterNotRegistered);
     }
 
+    // Maximum TTL the network allows for a ledger entry — used below to keep the
+    // replay marker (and the attester's registration entries) alive for as long
+    // as possible instead of a fixed short window.
+    let max_ttl = e.storage().max_ttl();
+
     // 6. Ed25519 signature verification — use caller-bound hash (hashStatementSafe)
     // Replace statement.target with the actual caller to prevent cross-contract replay
     let safe_statement = Statement {
@@ -82,11 +85,20 @@ pub fn validate(
     e.crypto()
         .ed25519_verify(&attestation.attester, &hash_bytes, &attestation.signature);
 
-    // 7. Mark UUID as spent
+    // 7. Mark UUID as spent.
+    //    Extend the replay marker to the maximum possible TTL. A fixed short TTL
+    //    (~30 days) could be archived/evicted while a longer-lived attestation is
+    //    still valid, which would re-open replay. Tying the marker to the network
+    //    max keeps the guard alive for as long as the ledger allows.
     e.storage().persistent().set(&uuid_key, &true);
     e.storage()
         .persistent()
-        .extend_ttl(&uuid_key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+        .extend_ttl(&uuid_key, max_ttl, max_ttl);
+
+    // Refresh the attester's registration TTL on every successful validation so
+    // that an actively-used attester's entries are never archived out from under
+    // the registry.
+    crate::attesters::refresh_ttl(e, &attestation.attester);
 
     // 8. Emit event (includes attester + caller for observability, mirroring EVM StatementValidated)
     #[allow(deprecated)]
