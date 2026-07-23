@@ -95,10 +95,10 @@ pub fn validate(
         .persistent()
         .extend_ttl(&uuid_key, max_ttl, max_ttl);
 
-    // Refresh the attester's registration TTL on every successful validation so
-    // that an actively-used attester's entries are never archived out from under
-    // the registry.
-    crate::attesters::refresh_ttl(e, &attestation.attester);
+    // Refresh the contract instance TTL on every successful validation so that
+    // an actively-used registry (and its attester set, held in instance storage)
+    // is never archived out from under callers.
+    crate::attesters::refresh_ttl(e);
 
     // 8. Emit event (includes attester + caller for observability, mirroring EVM StatementValidated)
     #[allow(deprecated)]

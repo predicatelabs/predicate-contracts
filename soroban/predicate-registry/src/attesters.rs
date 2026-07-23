@@ -1,72 +1,47 @@
-//! Attester registration and deregistration with O(1) swap-and-pop removal.
+//! Attester registration and deregistration.
 //!
-//! The full attester list is stored in instance storage as a `Vec`. This design
-//! assumes a small attester set (fewer than ~50 entries). For larger sets,
-//! consider a persistent-storage-based approach with a separate length counter
-//! to avoid deserializing the entire vector on every operation.
+//! The attester set is held as a single `Vec` in instance storage. The registry
+//! is expected to hold a very small set (typically one attester, at most a
+//! handful), so membership checks and removals scan the vector linearly rather
+//! than maintaining auxiliary per-attester flag/index entries. Because the set
+//! lives in instance storage, its lifetime is tied to the contract instance and
+//! needs no per-entry TTL bookkeeping.
 
 use soroban_sdk::{symbol_short, BytesN, Env, Vec};
 
 use crate::types::RegistryError;
 
-// Storage keys
+// Storage key
 const ATTESTERS_KEY: soroban_sdk::Symbol = symbol_short!("atts");
 
-fn att_reg_key(attester: &BytesN<32>) -> (soroban_sdk::Symbol, BytesN<32>) {
-    (symbol_short!("att_reg"), attester.clone())
+fn load(e: &Env) -> Vec<BytesN<32>> {
+    e.storage()
+        .instance()
+        .get(&ATTESTERS_KEY)
+        .unwrap_or(Vec::new(e))
 }
 
-fn att_idx_key(attester: &BytesN<32>) -> (soroban_sdk::Symbol, BytesN<32>) {
-    (symbol_short!("att_idx"), attester.clone())
+fn store(e: &Env, attesters: &Vec<BytesN<32>>) {
+    e.storage().instance().set(&ATTESTERS_KEY, attesters);
 }
 
-/// Extend a persistent key to the maximum TTL the network allows. Attester
-/// registration is expected to be long-lived, so a fixed ~30-day TTL that is
-/// never refreshed risks silently archiving a live attester.
-fn extend_to_max(e: &Env, key: &(soroban_sdk::Symbol, BytesN<32>)) {
+/// Extend the contract instance TTL to the network maximum. The attester set
+/// lives in instance storage, so refreshing the instance on every successful
+/// validation keeps an actively-used registry from being archived.
+pub fn refresh_ttl(e: &Env) {
     let max_ttl = e.storage().max_ttl();
-    e.storage().persistent().extend_ttl(key, max_ttl, max_ttl);
-}
-
-/// Refresh the TTL of an attester's registration entries to the network maximum.
-/// Called on every successful validation so an actively-used attester is never
-/// archived.
-pub fn refresh_ttl(e: &Env, attester: &BytesN<32>) {
-    if is_registered(e, attester) {
-        extend_to_max(e, &att_reg_key(attester));
-        extend_to_max(e, &att_idx_key(attester));
-    }
+    e.storage().instance().extend_ttl(max_ttl, max_ttl);
 }
 
 pub fn register(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
-    // Check if already registered
-    let registered: bool = e
-        .storage()
-        .persistent()
-        .get(&att_reg_key(attester))
-        .unwrap_or(false);
-    if registered {
+    let mut attesters = load(e);
+    if attesters.contains(attester) {
         return Err(RegistryError::AttesterAlreadyRegistered);
     }
 
-    // Get or create the attesters vec
-    let mut attesters: Vec<BytesN<32>> = e
-        .storage()
-        .instance()
-        .get(&ATTESTERS_KEY)
-        .unwrap_or(Vec::new(e));
-
-    let index = attesters.len();
     attesters.push_back(attester.clone());
-
-    // Store the vec
-    e.storage().instance().set(&ATTESTERS_KEY, &attesters);
-    // Mark as registered
-    e.storage().persistent().set(&att_reg_key(attester), &true);
-    extend_to_max(e, &att_reg_key(attester));
-    // Store index
-    e.storage().persistent().set(&att_idx_key(attester), &index);
-    extend_to_max(e, &att_idx_key(attester));
+    store(e, &attesters);
+    refresh_ttl(e);
 
     #[allow(deprecated)]
     e.events().publish(
@@ -78,55 +53,20 @@ pub fn register(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
 }
 
 pub fn deregister(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
-    // Check if registered
-    let registered: bool = e
-        .storage()
-        .persistent()
-        .get(&att_reg_key(attester))
-        .unwrap_or(false);
-    if !registered {
-        return Err(RegistryError::AttesterNotRegistered);
-    }
+    let mut attesters = load(e);
+    let index = attesters
+        .first_index_of(attester)
+        .ok_or(RegistryError::AttesterNotRegistered)?;
 
-    let mut attesters: Vec<BytesN<32>> = e
-        .storage()
-        .instance()
-        .get(&ATTESTERS_KEY)
-        .unwrap_or(Vec::new(e));
-
-    let index: u32 = e
-        .storage()
-        .persistent()
-        .get(&att_idx_key(attester))
-        .unwrap();
-
-    // Defensive: the registration flag and the list must stay in sync. If the
-    // list is unexpectedly empty, treat it as "not registered" rather than
-    // underflowing `len() - 1`.
-    if attesters.is_empty() {
-        return Err(RegistryError::AttesterNotRegistered);
-    }
+    // Swap-and-pop: move the last element into the vacated slot, then truncate.
     let last_index = attesters.len() - 1;
-
     if index != last_index {
-        // Swap with last element
         let last_attester = attesters.get(last_index).unwrap();
-        attesters.set(index, last_attester.clone());
-        // Update swapped element's index
-        e.storage()
-            .persistent()
-            .set(&att_idx_key(&last_attester), &index);
+        attesters.set(index, last_attester);
     }
-
-    // Pop the last element
     attesters.pop_back();
-
-    // Store updated vec
-    e.storage().instance().set(&ATTESTERS_KEY, &attesters);
-    // Remove registration flag (remove entirely — is_registered uses unwrap_or(false))
-    e.storage().persistent().remove(&att_reg_key(attester));
-    // Remove index
-    e.storage().persistent().remove(&att_idx_key(attester));
+    store(e, &attesters);
+    refresh_ttl(e);
 
     #[allow(deprecated)]
     e.events().publish(
@@ -138,15 +78,9 @@ pub fn deregister(e: &Env, attester: &BytesN<32>) -> Result<(), RegistryError> {
 }
 
 pub fn is_registered(e: &Env, attester: &BytesN<32>) -> bool {
-    e.storage()
-        .persistent()
-        .get(&att_reg_key(attester))
-        .unwrap_or(false)
+    load(e).contains(attester)
 }
 
 pub fn get_all(e: &Env) -> Vec<BytesN<32>> {
-    e.storage()
-        .instance()
-        .get(&ATTESTERS_KEY)
-        .unwrap_or(Vec::new(e))
+    load(e)
 }
