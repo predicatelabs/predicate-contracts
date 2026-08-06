@@ -51,23 +51,48 @@ impl CompliantTokenContract {
         e.storage().instance().set(&REGISTRY, &registry);
         e.storage().instance().set(&POLICY, &policy_id);
         e.storage().instance().set(&NETWORK, &network);
+
+        // Register with the Predicate Registry as part of deployment, so the
+        // token is usable after a single transaction.  Storing `registry` and
+        // `policy_id` above only records them here; the registry keeps its own
+        // mapping, and that is what `transfer` validates against.
+        //
+        // Deliberately no `admin.require_auth()`: the deployer is already
+        // authorizing this deployment and choosing the admin, and demanding the
+        // admin's signature too would break deploys where the admin is not the
+        // deployer.  Registering a brand-new contract's own policy affects
+        // nothing but that contract.
+        Self::write_policy_to_registry(e, &registry, &policy_id);
     }
 
     /// Register this contract's policy with the Predicate Registry.
-    /// Call this once after deployment. The admin must authorize.
+    ///
+    /// The constructor already does this, so a freshly deployed token needs no
+    /// follow-up call.  Retained for tokens deployed before that was the case,
+    /// and to re-register if the registry entry is ever cleared.  The admin
+    /// must authorize.
     pub fn register_policy(e: &Env) {
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
 
         let registry: Address = e.storage().instance().get(&REGISTRY).unwrap();
         let policy_id: String = e.storage().instance().get(&POLICY).unwrap();
+        Self::write_policy_to_registry(e, &registry, &policy_id);
+    }
 
+    /// Write this contract's policy id into the registry.
+    ///
+    /// The registry's `set_policy_id` keys the policy by its caller, so the
+    /// call has to come from the token itself — an admin acting directly on the
+    /// registry cannot register on the token's behalf.  The token's own
+    /// authorization is implicit as the invoking contract.
+    fn write_policy_to_registry(e: &Env, registry: &Address, policy_id: &String) {
         let args: soroban_sdk::Vec<soroban_sdk::Val> = soroban_sdk::vec![
             e,
             soroban_sdk::IntoVal::into_val(&e.current_contract_address(), e),
-            soroban_sdk::IntoVal::into_val(&policy_id, e),
+            soroban_sdk::IntoVal::into_val(policy_id, e),
         ];
-        e.invoke_contract::<()>(&registry, &Symbol::new(e, "set_policy_id"), args);
+        e.invoke_contract::<()>(registry, &Symbol::new(e, "set_policy_id"), args);
     }
 
     /// Mint tokens to an address. Admin only, no attestation required.
@@ -195,6 +220,111 @@ mod test {
         use ed25519_dalek::Signer;
         let sig = sk.sign(&hash.to_array());
         BytesN::from_array(e, &sig.to_bytes())
+    }
+
+    /// Deploy a registry owned by `owner` and return its address.
+    fn deploy_registry(e: &Env, owner: &Address) -> Address {
+        e.register(PredicateRegistryContract, (owner.clone(),))
+    }
+
+    /// The constructor registers the policy, so a freshly deployed token is
+    /// usable without a follow-up `register_policy()` call.
+    #[test]
+    fn test_constructor_registers_policy() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let network = String::from_str(&e, "Test SDF Network ; September 2015");
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = deploy_registry(&e, &registry_owner);
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        // The registry knows nothing about a contract it has never seen.
+        let unknown = Address::generate(&e);
+        assert_eq!(
+            registry_client.get_policy_id(&unknown),
+            String::from_str(&e, "")
+        );
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (
+                admin.clone(),
+                registry_addr.clone(),
+                policy_id.clone(),
+                network.clone(),
+            ),
+        );
+
+        // No register_policy() call — deployment alone must be enough.
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+    }
+
+    /// The constructor must not require the admin's signature: the admin is
+    /// frequently not the deployer, and demanding its auth would make such a
+    /// deploy impossible in one transaction.  No auth is mocked here, so any
+    /// `require_auth` on the deploy path would fail this test.
+    #[test]
+    fn test_constructor_does_not_require_admin_auth() {
+        let e = Env::default();
+
+        let network = String::from_str(&e, "Test SDF Network ; September 2015");
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = deploy_registry(&e, &registry_owner);
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        // An admin that is deliberately *not* the deployer and never signs.
+        let third_party_admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (
+                third_party_admin,
+                registry_addr.clone(),
+                policy_id.clone(),
+                network.clone(),
+            ),
+        );
+
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+    }
+
+    /// `register_policy()` stays available and idempotent for tokens deployed
+    /// before the constructor did the work.
+    #[test]
+    fn test_register_policy_is_idempotent() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let network = String::from_str(&e, "Test SDF Network ; September 2015");
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = deploy_registry(&e, &registry_owner);
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (
+                admin.clone(),
+                registry_addr.clone(),
+                policy_id.clone(),
+                network.clone(),
+            ),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+        token.register_policy();
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
     }
 
     /// Full end-to-end: deploy registry, deploy token, mint, transfer with attestation
