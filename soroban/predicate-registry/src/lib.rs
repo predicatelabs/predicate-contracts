@@ -125,8 +125,12 @@ impl PredicateRegistryContract {
 
     /// Compute SHA-256 hash of a statement for attester signing.
     /// This is the "hashStatementWithExpiry" equivalent — attesters sign this hash.
-    pub fn hash_statement(e: &Env, statement: Statement, network: String) -> BytesN<32> {
-        validation::compute_hash(e, &statement, &network)
+    ///
+    /// The digest is bound to the host network, read from the ledger rather than
+    /// supplied by the caller, so an attestation is only valid on the chain it was
+    /// signed for.
+    pub fn hash_statement(e: &Env, statement: Statement) -> BytesN<32> {
+        validation::compute_hash(e, &statement)
     }
 
     /// Validate an attestation against a statement.
@@ -139,10 +143,9 @@ impl PredicateRegistryContract {
         e: &Env,
         statement: Statement,
         attestation: Attestation,
-        network: String,
         caller: Address,
     ) -> Result<bool, RegistryError> {
-        validation::validate(e, &statement, &attestation, &network, &caller)
+        validation::validate(e, &statement, &attestation, &caller)
     }
 
     /// Replace the registry's WASM bytecode in place. Only the owner may call this.
@@ -402,7 +405,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "Test SDF Network ; September 2015");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key);
@@ -417,7 +419,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -427,8 +429,7 @@ mod test {
             signature,
         };
 
-        let result =
-            client.validate_attestation(&statement, &attestation, &network, &client.address);
+        let result = client.validate_attestation(&statement, &attestation, &client.address);
         assert!(result);
     }
 
@@ -438,7 +439,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key);
@@ -456,7 +456,7 @@ mod test {
             expiration: 0,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -466,7 +466,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -475,7 +475,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key);
@@ -490,7 +489,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -501,9 +500,9 @@ mod test {
         };
 
         // First call succeeds
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
         // Second call should fail with UuidAlreadyUsed
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -512,7 +511,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key);
@@ -527,7 +525,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -537,7 +535,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -546,7 +544,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key);
@@ -561,7 +558,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -571,7 +568,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -580,7 +577,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (_owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         // NOT registering attester
@@ -595,7 +591,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -605,7 +601,67 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
+    }
+
+    /// Build a statement whose `target` is already the caller, so `hash_statement`
+    /// returns exactly the digest `validate_attestation` recomputes. That isolates
+    /// the domain-separation checks below from the hashStatementSafe substitution.
+    fn caller_bound_statement(e: &Env, uuid: &str, caller: &Address) -> Statement {
+        Statement {
+            uuid: soroban_sdk::String::from_str(e, uuid),
+            msg_sender: Address::generate(e),
+            target: caller.clone(),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        }
+    }
+
+    /// The network is read from the ledger rather than supplied by the caller, so
+    /// the digest changes with the chain the registry is running on. Deliberately
+    /// *not* asserted here: that two registry instances on the same network hash
+    /// differently. The registry address is not part of the preimage — see the
+    /// rationale on `validation::compute_hash`.
+    #[test]
+    fn test_digest_is_bound_to_network_id() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (_owner, client) = setup(&e);
+
+        let caller = Address::generate(&e);
+        let statement = caller_bound_statement(&e, "uuid-per-network", &caller);
+
+        let hash = client.hash_statement(&statement);
+        e.ledger().set_network_id([7u8; 32]);
+        assert_ne!(hash, client.hash_statement(&statement));
+    }
+
+    /// An attestation signed on one chain cannot be presented on another, even to
+    /// the registry deployed at the same address.
+    #[test]
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")]
+    fn test_attestation_from_another_network_is_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let caller = Address::generate(&e);
+        let statement = caller_bound_statement(&e, "uuid-cross-network", &caller);
+
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature: sign_hash(&e, &sk, &client.hash_statement(&statement)),
+        };
+
+        e.ledger().set_network_id([7u8; 32]);
+        client.validate_attestation(&statement, &attestation, &caller);
     }
 
     #[test]
@@ -642,12 +698,11 @@ mod test {
     }
 
     #[test]
-    #[should_panic] // ed25519_verify panics on bad signature
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // ed25519_verify panics on bad signature
     fn test_validate_invalid_signature() {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         // Register attester A
         let (sk_a, pub_key_a) = generate_ed25519_keypair(&e);
@@ -667,7 +722,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         // Sign with key A but claim attester is key B
         let signature = sign_hash(&e, &sk_a, &hash);
 
@@ -678,7 +733,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -688,7 +743,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
-        let network = soroban_sdk::String::from_str(&e, "testnet");
 
         let (sk, pub_key) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key);
@@ -703,7 +757,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = client.hash_statement(&statement, &network);
+        let hash = client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -713,7 +767,7 @@ mod test {
             signature,
         };
 
-        client.validate_attestation(&statement, &attestation, &network, &client.address);
+        client.validate_attestation(&statement, &attestation, &client.address);
 
         // The replay marker must be extended to the network max TTL, not a fixed
         // ~30-day window that could be archived while an attestation is still valid.
