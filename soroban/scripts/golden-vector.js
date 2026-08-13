@@ -14,11 +14,21 @@
 // XDR spec rather than sharing code with either side. Its output is pinned as
 // constants in both, which locks them to one value instead of each to itself.
 //
-//   node soroban/scripts/golden-vector.js
+//   node soroban/scripts/golden-vector.js            # print the vector
+//   node soroban/scripts/golden-vector.js --check    # verify the pinned constants
+//
+// `--check` is what keeps this honest, and it runs in CI. A pinned constant on
+// its own only survives until someone hits a failing golden test and pastes in
+// whatever digest the code now produces — at which point the suite is green and
+// the protection is gone. Under --check that no longer works: this script's model
+// is independent, so a pasted digest disagrees with it and CI fails. Changing the
+// format then requires editing this model too, which is a visible, reviewable act
+// rather than a one-character fix.
 //
 // Consumers of the output:
-//   * soroban/predicate-registry/src/lib.rs — the GV_* constants
-//   * predicate-avs stmapiv2 — the Go golden-vector test
+//   * soroban/predicate-registry/src/lib.rs — the GV_* constants (checked here)
+//   * predicate-avs stmapiv2 — the Go golden-vector test (not reachable from
+//     this repo; keep it in step manually)
 //
 // Changing the digest invalidates every attestation already issued. If a change
 // is deliberate, regenerate here and update both sides in the same rollout.
@@ -162,17 +172,90 @@ if (!crypto.verify(null, digest, publicKey, signature)) {
   throw new Error('self-check failed: signature does not verify over the digest');
 }
 
-// --- output ------------------------------------------------------------------
+// --- the vector --------------------------------------------------------------
 
-console.log(`network passphrase   ${NETWORK_PASSPHRASE}`);
-console.log(`GV_NETWORK_ID        ${networkId.toString('hex')}`);
-console.log(`GV_MSG_SENDER        ${strkey(VERSION_BYTE_ACCOUNT, MSG_SENDER_KEY)}`);
-console.log(`GV_TARGET            ${strkey(VERSION_BYTE_CONTRACT, TARGET_KEY)}`);
-console.log(`GV_UUID              ${STATEMENT.uuid}`);
-console.log(`GV_POLICY            ${STATEMENT.policy}`);
-console.log(`GV_MSG_VALUE         ${STATEMENT.msgValue}`);
-console.log(`GV_EXPIRATION        ${STATEMENT.expiration}`);
-console.log(`preimage             ${preimage.length} bytes`);
-console.log(`GV_DIGEST            ${digest.toString('hex')}`);
-console.log(`GV_ATTESTER_PK       ${attesterPk.toString('hex')}`);
-console.log(`GV_SIGNATURE         ${signature.toString('hex')}`);
+const VECTOR = {
+  GV_NETWORK_ID: networkId.toString('hex'),
+  GV_MSG_SENDER: strkey(VERSION_BYTE_ACCOUNT, MSG_SENDER_KEY),
+  GV_TARGET: strkey(VERSION_BYTE_CONTRACT, TARGET_KEY),
+  GV_UUID: STATEMENT.uuid,
+  GV_POLICY: STATEMENT.policy,
+  GV_MSG_VALUE: STATEMENT.msgValue.toString(),
+  GV_EXPIRATION: STATEMENT.expiration.toString(),
+  GV_ENCODED_SIG_AND_ARGS: [...STATEMENT.encodedSigAndArgs].join(','),
+  GV_DIGEST: digest.toString('hex'),
+  GV_ATTESTER_PK: attesterPk.toString('hex'),
+  GV_SIGNATURE: signature.toString('hex'),
+};
+
+// --- output / check ----------------------------------------------------------
+
+const RUST_SOURCE = require('path').join(
+  __dirname,
+  '..',
+  'predicate-registry',
+  'src',
+  'lib.rs',
+);
+
+/** How each constant is written in the Rust source, so it can be read back. */
+const RUST_PATTERNS = {
+  GV_NETWORK_ID: /GV_NETWORK_ID\s*:\s*&str\s*=\s*"([0-9a-f]+)"/,
+  GV_MSG_SENDER: /GV_MSG_SENDER\s*:\s*&str\s*=\s*"([A-Z2-7]+)"/,
+  GV_TARGET: /GV_TARGET\s*:\s*&str\s*=\s*"([A-Z2-7]+)"/,
+  GV_UUID: /GV_UUID\s*:\s*&str\s*=\s*"([^"]+)"/,
+  GV_POLICY: /GV_POLICY\s*:\s*&str\s*=\s*"([^"]+)"/,
+  GV_MSG_VALUE: /GV_MSG_VALUE\s*:\s*i128\s*=\s*([0-9_]+)/,
+  GV_EXPIRATION: /GV_EXPIRATION\s*:\s*u64\s*=\s*([0-9_]+)/,
+  GV_ENCODED_SIG_AND_ARGS: /GV_ENCODED_SIG_AND_ARGS\s*:\s*\[u8;\s*\d+\]\s*=\s*\[([^\]]+)\]/,
+  GV_DIGEST: /GV_DIGEST\s*:\s*&str\s*=\s*"([0-9a-f]+)"/,
+  GV_ATTESTER_PK: /GV_ATTESTER_PK\s*:\s*&str\s*=\s*"([0-9a-f]+)"/,
+  GV_SIGNATURE: /GV_SIGNATURE\s*:\s*&str\s*=\s*"([0-9a-f]+)"/,
+};
+
+/** Rust writes numbers as 1_000_000 and byte arrays as [1, 2, 3]. */
+const normalise = (s) => s.replace(/[_\s]/g, '');
+
+function check() {
+  const source = require('fs').readFileSync(RUST_SOURCE, 'utf8');
+  const problems = [];
+
+  for (const [name, expected] of Object.entries(VECTOR)) {
+    const match = source.match(RUST_PATTERNS[name]);
+    if (!match) {
+      // Never pass silently because a constant moved or was deleted — that is
+      // exactly how a golden vector rots into a no-op.
+      problems.push(`${name}: not found in ${RUST_SOURCE}`);
+      continue;
+    }
+    const actual = normalise(match[1]);
+    if (actual !== normalise(expected)) {
+      problems.push(`${name}:\n    pinned in Rust  ${actual}\n    computed here   ${normalise(expected)}`);
+    }
+  }
+
+  if (problems.length) {
+    console.error('Golden vector mismatch — the pinned constants do not match this');
+    console.error('independent implementation:\n');
+    for (const p of problems) console.error(`  ${p}`);
+    console.error(
+      '\nIf the format change was deliberate, update the model in this script and',
+    );
+    console.error(
+      'regenerate every consumer, including the Go signer, in the same rollout.',
+    );
+    process.exit(1);
+  }
+
+  console.log(`Golden vector OK — ${Object.keys(VECTOR).length} constants match.`);
+}
+
+if (process.argv.includes('--check')) {
+  check();
+} else {
+  console.log(`network passphrase        ${NETWORK_PASSPHRASE}`);
+  console.log(`preimage                 ${preimage.length} bytes`);
+  for (const [name, value] of Object.entries(VECTOR)) {
+    console.log(`${name.padEnd(24)} ${value}`);
+  }
+}

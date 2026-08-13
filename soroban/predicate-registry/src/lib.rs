@@ -701,10 +701,7 @@ mod test {
     /// ed25519 public key for a signing seed of 32 `0x33` bytes.
     const GV_ATTESTER_PK: &str = "17cb79fb2b4120f2b1ec65e4198d6e08b28e813feb01e4a400839b85e18080ce";
     /// That key's signature over `GV_DIGEST`.
-    const GV_SIGNATURE: &str = concat!(
-        "5cd8dd1d7ce37284f17f951d7001a2f3b5927f6325d50550b87bf0396da46c72",
-        "243ed72003b1ecfa76c9cf1800e9ca1551343186231875211ec46a34810a1500",
-    );
+    const GV_SIGNATURE: &str = "5cd8dd1d7ce37284f17f951d7001a2f3b5927f6325d50550b87bf0396da46c72243ed72003b1ecfa76c9cf1800e9ca1551343186231875211ec46a34810a1500";
 
     fn unhex<const N: usize>(h: &str) -> [u8; N] {
         let bytes = h.as_bytes();

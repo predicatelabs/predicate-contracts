@@ -97,5 +97,12 @@ jobs:
           - name: Test Soroban contracts
             run: cd soroban && cargo test
 
+          # Recomputes the attestation digest with an implementation that shares
+          # no code with the contract, and fails if the pinned constants drift
+          # from it. Without this, a failing golden test can be "fixed" by
+          # pasting in whatever digest the code now produces.
+          - name: Check attestation golden vector
+            run: node soroban/scripts/golden-vector.js --check
+
           - name: Check Rust formatting
             run: cd soroban && cargo fmt --check
