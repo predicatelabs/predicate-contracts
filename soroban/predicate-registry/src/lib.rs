@@ -664,6 +664,123 @@ mod test {
         client.validate_attestation(&statement, &attestation, &caller);
     }
 
+    // --- Golden vector ---
+    //
+    // Every other test here asks the contract for a digest and then signs it, so
+    // the contract is only ever checked against itself: swapping the order of the
+    // appends in `compute_hash`, or renaming a `Statement` field — `#[contracttype]`
+    // uses field names as ScMap keys — silently changes the wire format while every
+    // test still passes. A plain refactor can therefore break every attestation the
+    // API has already signed.
+    //
+    // The constants below are the fix. They come from `scripts/golden-vector.js`, a
+    // third implementation hand-rolled from the XDR spec that shares no code with
+    // this contract, so nothing but a byte-identical layout satisfies them. Pinning
+    // the same vector in the Go signer locks both sides to one value instead of each
+    // agreeing with itself.
+    //
+    // If a change here is deliberate, regenerate with that script and update both
+    // sides in the same rollout — the digest changing invalidates every attestation
+    // already issued.
+
+    /// `sha256("Test SDF Network ; September 2015")`
+    const GV_NETWORK_ID: &str = "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472";
+    /// Account (`G…`) strkey over a payload of 32 `0x11` bytes.
+    const GV_MSG_SENDER: &str = "GAIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCF6M";
+    /// Contract (`C…`) strkey over a payload of 32 `0x22` bytes.
+    const GV_TARGET: &str = "CARCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRCEVQO";
+    const GV_UUID: &str = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+    const GV_POLICY: &str = "x-golden-vector-policy";
+    const GV_ENCODED_SIG_AND_ARGS: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+    const GV_MSG_VALUE: i128 = 1_000_000;
+    /// 2026-01-01T00:00:00Z
+    const GV_EXPIRATION: u64 = 1_767_225_600;
+
+    /// `sha256(XDR(ScVal::Bytes(GV_NETWORK_ID)) ++ XDR(statement))`
+    const GV_DIGEST: &str = "f84da64cd98e8f705c1afa37a268a7205e25bf2a71f43a6766b79292094f5cb2";
+    /// ed25519 public key for a signing seed of 32 `0x33` bytes.
+    const GV_ATTESTER_PK: &str = "17cb79fb2b4120f2b1ec65e4198d6e08b28e813feb01e4a400839b85e18080ce";
+    /// That key's signature over `GV_DIGEST`.
+    const GV_SIGNATURE: &str = concat!(
+        "5cd8dd1d7ce37284f17f951d7001a2f3b5927f6325d50550b87bf0396da46c72",
+        "243ed72003b1ecfa76c9cf1800e9ca1551343186231875211ec46a34810a1500",
+    );
+
+    fn unhex<const N: usize>(h: &str) -> [u8; N] {
+        let bytes = h.as_bytes();
+        assert_eq!(bytes.len(), N * 2, "hex literal is the wrong length");
+        let mut out = [0u8; N];
+        for (i, byte) in out.iter_mut().enumerate() {
+            let digit = |c: u8| (c as char).to_digit(16).expect("non-hex digit") as u8;
+            *byte = (digit(bytes[i * 2]) << 4) | digit(bytes[i * 2 + 1]);
+        }
+        out
+    }
+
+    fn to_hex(bytes: &[u8]) -> std::string::String {
+        let mut out = std::string::String::new();
+        for b in bytes {
+            out.push_str(&std::format!("{:02x}", b));
+        }
+        out
+    }
+
+    /// The statement the golden digest was computed over. `target` is the address
+    /// the test passes as `caller`, so `validate_attestation`'s hashStatementSafe
+    /// substitution is a no-op and it hashes exactly this.
+    fn golden_statement(e: &Env) -> Statement {
+        Statement {
+            uuid: soroban_sdk::String::from_str(e, GV_UUID),
+            msg_sender: Address::from_str(e, GV_MSG_SENDER),
+            target: Address::from_str(e, GV_TARGET),
+            msg_value: GV_MSG_VALUE,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(e, &GV_ENCODED_SIG_AND_ARGS),
+            policy: soroban_sdk::String::from_str(e, GV_POLICY),
+            expiration: GV_EXPIRATION,
+        }
+    }
+
+    /// The digest for a fixed statement on a fixed network must equal a value this
+    /// contract did not produce.
+    #[test]
+    fn test_golden_vector_digest() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set_network_id(unhex::<32>(GV_NETWORK_ID));
+        let (_owner, client) = setup(&e);
+
+        let digest = client.hash_statement(&golden_statement(&e));
+
+        assert_eq!(to_hex(&digest.to_array()), GV_DIGEST);
+    }
+
+    /// The same vector through the real verification path: an externally produced
+    /// ed25519 signature over `GV_DIGEST` must satisfy `validate_attestation`. This
+    /// covers the ed25519 call too, not just the hashing.
+    #[test]
+    fn test_golden_vector_signature() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set_network_id(unhex::<32>(GV_NETWORK_ID));
+        let (owner, client) = setup(&e);
+
+        let attester = BytesN::from_array(&e, &unhex::<32>(GV_ATTESTER_PK));
+        client.register_attester(&owner, &attester);
+
+        let statement = golden_statement(&e);
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester,
+            signature: BytesN::from_array(&e, &unhex::<64>(GV_SIGNATURE)),
+        };
+
+        // `caller` is the statement's own target, so the digest verified here is
+        // GV_DIGEST unchanged.
+        let caller = Address::from_str(&e, GV_TARGET);
+        assert!(client.validate_attestation(&statement, &attestation, &caller));
+    }
+
     #[test]
     #[should_panic(expected = "Error(Contract, #1)")]
     fn test_non_owner_cannot_upgrade() {
