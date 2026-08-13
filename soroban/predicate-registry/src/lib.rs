@@ -1,4 +1,35 @@
 #![no_std]
+//! Predicate Registry — verifies attester-signed [`Statement`]s for integrating
+//! contracts.
+//!
+//! # Trust boundary
+//!
+//! The registry verifies that a registered attester signed the statement it was
+//! handed. It cannot see the call it is authorizing: the live function selector,
+//! arguments, sender, and amount all belong to the integrating contract, which is
+//! a separate invocation. Only two fields are established independently of what
+//! the caller passes:
+//!
+//! * `target` — replaced with the authenticated `caller` before hashing, so an
+//!   attestation is bound to the contract presenting it (hashStatementSafe).
+//! * the network — read from the ledger, never a parameter (see
+//!   `validation::compute_hash`).
+//!
+//! Every remaining field (`msg_sender`, `msg_value`, `encoded_sig_and_args`,
+//! `policy`) is taken on trust. **Integrating contracts must derive them from the
+//! call currently executing, never from values an end user supplies.** A contract
+//! that forwards user-controlled statement fields will validate an attestation
+//! for one action and then execute a different one — the signature check passes
+//! because the attester really did sign the statement it was shown; it just is not
+//! the statement describing what happens next.
+//!
+//! Use [`predicate_client::authorize_transaction`] rather than calling
+//! [`PredicateRegistryContract::validate_attestation`] directly. It builds the
+//! statement from its arguments, which keeps the live-data requirement at the
+//! integrating function's signature where it is hard to get wrong. See
+//! `example-compliant-token` for a worked integration.
+//!
+//! [`predicate_client::authorize_transaction`]: https://github.com/predicatelabs/predicate-contracts/blob/main/soroban/predicate-client/src/lib.rs
 
 mod attesters;
 mod policy;
@@ -139,6 +170,28 @@ impl PredicateRegistryContract {
     /// it replaces `statement.target` with the actual caller address before
     /// verifying the signature, preventing cross-contract replay attacks.
     /// In Soroban, the calling contract should pass `e.current_contract_address()`.
+    /// `caller.require_auth()` makes that binding sound — a contract address
+    /// cannot be impersonated by whoever assembled the transaction.
+    ///
+    /// # The caller owns the statement's accuracy
+    ///
+    /// `statement` is trusted input apart from `target`. A returning call means
+    /// "a registered attester signed *this* statement", not "the action you are
+    /// about to take is approved" — those coincide only when the caller built the
+    /// statement from the call it is executing:
+    ///
+    /// * `uuid` / `expiration` — copy from the attestation (both are cross-checked)
+    /// * `msg_sender`, `msg_value` — the live sender and amount, after
+    ///   `require_auth()` on the sender
+    /// * `encoded_sig_and_args` — an encoding of the *concrete* call, covering every
+    ///   argument that matters for compliance, so no argument can be swapped between
+    ///   attestation and execution
+    /// * `policy` — the contract's own configured policy, from its storage
+    ///
+    /// Passing any of these straight through from a user-supplied parameter is an
+    /// authorization bypass in the integrating contract. Prefer
+    /// `predicate_client::authorize_transaction`, which takes these as arguments
+    /// and assembles the statement itself. See the crate-level trust boundary docs.
     pub fn validate_attestation(
         e: &Env,
         statement: Statement,

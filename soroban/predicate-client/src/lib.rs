@@ -62,24 +62,38 @@ pub enum RegistryError {
 /// never returns `Ok(false)`, so there is no boolean outcome for the caller to
 /// branch on — a returning call means the transaction was authorized.
 ///
+/// # Every argument must come from the live call
+///
+/// This helper exists to put the registry's trust boundary somewhere hard to get
+/// wrong. The registry establishes only `target` (from the authenticated caller)
+/// and the network (from the ledger) on its own; every other statement field is
+/// taken on trust. So a returning call means "an attester signed the statement
+/// built from these arguments" — which authorizes the action actually executing
+/// only if the arguments describe it.
+///
+/// Derive each one from the function you are protecting, never from a parameter an
+/// end user can choose. Forwarding user-supplied values here validates one action
+/// while executing another, with no signature forgery involved.
+///
 /// # Arguments
 /// * `e` - Soroban environment
 /// * `registry` - Address of the deployed PredicateRegistry contract
 /// * `attestation` - The signed attestation from an authorized attester
-/// * `encoded_sig_and_args` - Encoded function call data (variable-length)
-/// * `msg_sender` - The original caller
-/// * `msg_value` - Value sent with the transaction (token amount, equivalent to EVM msg.value)
+/// * `encoded_sig_and_args` - Encoding of the *concrete* call: selector plus every
+///   argument that matters for compliance. Omitting an argument leaves it free to
+///   change between attestation and execution — see `encode_transfer_call` in
+///   `example-compliant-token`, and the tampered-recipient/amount tests that pin it
+/// * `msg_sender` - The live sender, already `require_auth()`ed by the caller
+/// * `msg_value` - The live value (token amount, equivalent to EVM msg.value)
 /// * `target` - The contract being called — callers should pass `e.current_contract_address()`
 ///   so that the registry's hashStatementSafe logic can bind the attestation to this contract
-/// * `policy` - The policy ID for this contract
+/// * `policy` - This contract's configured policy, read from its own storage
 ///
-/// Domain separation (network and registry instance) is derived by the registry
-/// from the ledger, so there is nothing for the integrator to configure or get
-/// wrong here.
+/// Domain separation (the network) is derived by the registry from the ledger, so
+/// there is nothing for the integrator to configure or get wrong here.
 // The argument list mirrors the Statement fields on purpose. Collapsing it into a
 // params struct would make it natural to build one value and reuse it across
-// calls, and every field here has to be re-derived from the call being
-// authorized — a stale field authorizes an action other than the one executing.
+// calls, which is exactly what the section above rules out.
 #[allow(clippy::too_many_arguments)]
 pub fn authorize_transaction(
     e: &Env,
