@@ -10,7 +10,6 @@ use soroban_sdk::{
 const ADMIN: Symbol = symbol_short!("admin");
 const REGISTRY: Symbol = symbol_short!("registry");
 const POLICY: Symbol = symbol_short!("policy");
-const NETWORK: Symbol = symbol_short!("network");
 
 /// Storage key for token balances: (BALANCE, address) -> i128
 const BALANCE: Symbol = symbol_short!("balance");
@@ -39,18 +38,13 @@ impl CompliantTokenContract {
     /// * `admin` - Token admin who can mint
     /// * `registry` - Address of the deployed PredicateRegistry contract
     /// * `policy_id` - Policy identifier (e.g. "x-a1b2c3d4e5f6g7h8")
-    /// * `network` - Stellar network passphrase (e.g. "Test SDF Network ; September 2015")
-    pub fn __constructor(
-        e: &Env,
-        admin: Address,
-        registry: Address,
-        policy_id: String,
-        network: String,
-    ) {
+    ///
+    /// The network is not configured here: the registry derives it from the ledger
+    /// when it builds the attestation digest.
+    pub fn __constructor(e: &Env, admin: Address, registry: Address, policy_id: String) {
         e.storage().instance().set(&ADMIN, &admin);
         e.storage().instance().set(&REGISTRY, &registry);
         e.storage().instance().set(&POLICY, &policy_id);
-        e.storage().instance().set(&NETWORK, &network);
 
         // Register with the Predicate Registry as part of deployment, so the
         // token is usable after a single transaction.  Storing `registry` and
@@ -133,7 +127,6 @@ impl CompliantTokenContract {
         // --- Predicate compliance check ---
         let registry: Address = e.storage().instance().get(&REGISTRY).unwrap();
         let policy: String = e.storage().instance().get(&POLICY).unwrap();
-        let network: String = e.storage().instance().get(&NETWORK).unwrap();
 
         // Encode the *concrete* transfer call (selector + all arguments) so the
         // attestation binds the recipient and amount — not just the function
@@ -156,7 +149,6 @@ impl CompliantTokenContract {
             amount,
             &e.current_contract_address(),
             &policy,
-            &network,
         );
         // --- End compliance check ---
 
@@ -234,7 +226,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         let registry_owner = Address::generate(&e);
@@ -252,12 +243,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
 
         // No register_policy() call — deployment alone must be enough.
@@ -272,7 +258,6 @@ mod test {
     fn test_constructor_does_not_require_admin_auth() {
         let e = Env::default();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         let registry_owner = Address::generate(&e);
@@ -284,12 +269,7 @@ mod test {
         let third_party_admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                third_party_admin,
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (third_party_admin, registry_addr.clone(), policy_id.clone()),
         );
 
         assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
@@ -302,7 +282,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         let registry_owner = Address::generate(&e);
@@ -313,12 +292,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
         let token = CompliantTokenContractClient::new(&e, &token_addr);
 
@@ -333,7 +307,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         // 1. Deploy the Predicate Registry
@@ -350,12 +323,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
         let token = CompliantTokenContractClient::new(&e, &token_addr);
 
@@ -383,7 +351,7 @@ mod test {
         };
 
         // Hash and sign (this is what the Predicate API does off-chain)
-        let hash = registry_client.hash_statement(&statement, &network);
+        let hash = registry_client.hash_statement(&statement);
         let signature = sign_hash(&e, &attester_sk, &hash);
 
         let attestation = Attestation {
@@ -409,7 +377,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         let registry_owner = Address::generate(&e);
@@ -423,12 +390,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
         let token = CompliantTokenContractClient::new(&e, &token_addr);
         token.register_policy();
@@ -450,7 +412,7 @@ mod test {
             policy: policy_id.clone(),
             expiration: e.ledger().timestamp() + 600,
         };
-        let hash = registry_client.hash_statement(&statement, &network);
+        let hash = registry_client.hash_statement(&statement);
         let signature = sign_hash(&e, &attester_sk, &hash);
         let attestation = Attestation {
             uuid: statement.uuid.clone(),
@@ -469,7 +431,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         // Deploy registry and register a real attester
@@ -484,12 +445,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
         let token = CompliantTokenContractClient::new(&e, &token_addr);
 

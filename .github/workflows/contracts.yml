@@ -76,6 +76,7 @@ jobs:
             uses: dtolnay/rust-toolchain@stable
             with:
               targets: wasm32-unknown-unknown, wasm32v1-none
+              components: clippy
 
           - name: Cache cargo
             uses: actions/cache@v4
@@ -96,6 +97,19 @@ jobs:
 
           - name: Test Soroban contracts
             run: cd soroban && cargo test
+
+          # Recomputes the attestation digest with an implementation that shares
+          # no code with the contract, and fails if the pinned constants drift
+          # from it. Without this, a failing golden test can be "fixed" by
+          # pasting in whatever digest the code now produces.
+          - name: Check attestation golden vector
+            run: node soroban/scripts/golden-vector.js --check
+
+          # --all-targets so tests are linted too, and -D warnings so lints fail
+          # the build rather than scrolling past. This denies rustc warnings as
+          # well as clippy's, which is the intent.
+          - name: Lint Soroban contracts
+            run: cd soroban && cargo clippy --workspace --all-targets -- -D warnings
 
           - name: Check Rust formatting
             run: cd soroban && cargo fmt --check

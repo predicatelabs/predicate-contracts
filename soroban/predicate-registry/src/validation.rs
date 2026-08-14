@@ -1,16 +1,35 @@
 use soroban_sdk::xdr::ToXdr;
-use soroban_sdk::{symbol_short, Address, Bytes, BytesN, Env, String};
+use soroban_sdk::{symbol_short, Address, Bytes, BytesN, Env};
 
 use crate::types::{Attestation, RegistryError, Statement};
 
-/// Compute SHA-256 hash of a statement + network passphrase for attester signing.
+/// Compute SHA-256 hash of a statement for attester signing.
 ///
-/// Uses deterministic XDR serialization of the statement and network passphrase.
-pub fn compute_hash(e: &Env, statement: &Statement, network: &String) -> BytesN<32> {
+/// The preimage is the deterministic XDR serialization of the host network ID
+/// followed by the statement. The network ID is read from the ledger rather than
+/// taken as a parameter, so a caller cannot choose the chain it is validated
+/// against — this mirrors `block.chainid` in the EVM registry's
+/// `hashStatementWithExpiry`.
+///
+/// There is no separate version tag. XDR is self-describing and length-prefixed,
+/// so layouts cannot be confused for one another: this preimage opens with
+/// `ScVal::Bytes`, where the previous one (a network passphrase) opened with
+/// `ScVal::String`, and a statement is an `ScVal::Map` that no appended field
+/// could impersonate. Changing the layout is therefore already a hard break, and
+/// a tag would only restate that.
+///
+/// The registry's own address is deliberately *not* in the preimage, matching
+/// EVM and Solana. Replay across registry instances is already constrained by
+/// the caller binding below (see `validate`): it would need one integrating
+/// contract wired to two registries running this same preimage layout. Adding
+/// the address would instead require every attester to know which registry it is
+/// signing for, and only one registry per network is deployed. If that ever
+/// changes, append `e.current_contract_address()` here.
+pub fn compute_hash(e: &Env, statement: &Statement) -> BytesN<32> {
     let mut payload = Bytes::new(e);
 
-    // Domain separator: network passphrase
-    payload.append(&network.clone().to_xdr(e));
+    // Domain separator, read from the host — not caller-supplied.
+    payload.append(&e.ledger().network_id().to_xdr(e));
     // Statement fields in deterministic order
     payload.append(&statement.clone().to_xdr(e));
 
@@ -33,7 +52,6 @@ pub fn validate(
     e: &Env,
     statement: &Statement,
     attestation: &Attestation,
-    network: &String,
     caller: &Address,
 ) -> Result<bool, RegistryError> {
     // 0. Authenticate the caller — mirrors EVM's implicit msg.sender guarantee.
@@ -79,7 +97,7 @@ pub fn validate(
         target: caller.clone(),
         ..statement.clone()
     };
-    let hash = compute_hash(e, &safe_statement, network);
+    let hash = compute_hash(e, &safe_statement);
     let hash_bytes: Bytes = Bytes::from_slice(e, &hash.to_array());
     // NOTE: ed25519_verify panics on invalid signature
     e.crypto()

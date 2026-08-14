@@ -72,7 +72,15 @@ pub enum RegistryError {
 /// * `target` - The contract being called — callers should pass `e.current_contract_address()`
 ///   so that the registry's hashStatementSafe logic can bind the attestation to this contract
 /// * `policy` - The policy ID for this contract
-/// * `network` - Network passphrase for domain separation
+///
+/// Domain separation (network and registry instance) is derived by the registry
+/// from the ledger, so there is nothing for the integrator to configure or get
+/// wrong here.
+// The argument list mirrors the Statement fields on purpose. Collapsing it into a
+// params struct would make it natural to build one value and reuse it across
+// calls, and every field here has to be re-derived from the call being
+// authorized — a stale field authorizes an action other than the one executing.
+#[allow(clippy::too_many_arguments)]
 pub fn authorize_transaction(
     e: &Env,
     registry: &Address,
@@ -82,7 +90,6 @@ pub fn authorize_transaction(
     msg_value: i128,
     target: &Address,
     policy: &String,
-    network: &String,
 ) {
     let statement = Statement {
         uuid: attestation.uuid.clone(),
@@ -98,7 +105,6 @@ pub fn authorize_transaction(
         e,
         statement.into_val(e),
         attestation.clone().into_val(e),
-        network.clone().into_val(e),
         target.clone().into_val(e),
     ];
 
@@ -141,7 +147,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, registry_addr) = setup_registry(&e);
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
 
         let registry_client =
             predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
@@ -165,7 +170,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = registry_client.hash_statement(&statement, &network);
+        let hash = registry_client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -186,7 +191,6 @@ mod test {
             msg_value,
             &target,
             &policy,
-            &network,
         );
     }
 }
