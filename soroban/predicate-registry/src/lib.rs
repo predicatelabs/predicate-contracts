@@ -202,7 +202,7 @@ mod test {
         );
     }
 
-    fn setup(e: &Env) -> (Address, PredicateRegistryContractClient) {
+    fn setup(e: &Env) -> (Address, PredicateRegistryContractClient<'_>) {
         let owner = Address::generate(e);
         let address = e.register(PredicateRegistryContract, (owner.clone(),));
         let client = PredicateRegistryContractClient::new(e, &address);

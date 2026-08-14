@@ -123,7 +123,7 @@ mod test {
 
     use super::*;
 
-    fn setup(e: &Env) -> (Address, Address, Address, TestStablecoinContractClient) {
+    fn setup(e: &Env) -> (Address, Address, Address, TestStablecoinContractClient<'_>) {
         e.mock_all_auths();
         let admin = Address::generate(e);
         let manager = Address::generate(e);

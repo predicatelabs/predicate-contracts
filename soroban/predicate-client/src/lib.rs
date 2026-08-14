@@ -76,6 +76,11 @@ pub enum RegistryError {
 /// Domain separation (network and registry instance) is derived by the registry
 /// from the ledger, so there is nothing for the integrator to configure or get
 /// wrong here.
+// The argument list mirrors the Statement fields on purpose. Collapsing it into a
+// params struct would make it natural to build one value and reuse it across
+// calls, and every field here has to be re-derived from the call being
+// authorized — a stale field authorizes an action other than the one executing.
+#[allow(clippy::too_many_arguments)]
 pub fn authorize_transaction(
     e: &Env,
     registry: &Address,
