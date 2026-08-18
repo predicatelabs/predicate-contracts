@@ -1,103 +1,118 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy TestStablecoin to Stellar testnet
-#
-# Prerequisites:
-#   - stellar CLI installed (https://developers.stellar.org/docs/tools/developer-tools/cli/install-cli)
-#   - An identity configured: stellar keys generate <name> --network testnet
-#     or import existing: stellar keys add <name> --secret-key
+# TEST ONLY: deploy a private classic asset, its SAC, and the minimal test
+# administration wrapper. This script is not suitable for production assets.
 #
 # Usage:
-#   ./deploy.sh <identity> [admin_address] [manager_address] [blocker_address]
+#   STELLAR_NETWORK=testnet ./deploy.sh <issuer-key> [deployer-key] \
+#     [minter-address] [onboarder-address] [blocker-address] [unblocker-address]
 #
-# Examples:
-#   ./deploy.sh alice                                        # alice is admin, manager, and blocker
-#   ./deploy.sh alice GA...ADMIN GA...MANAGER GA...BLOCKER   # separate roles
+# Defaults:
+#   - deployer-key defaults to issuer-key
+#   - every role defaults to the issuer's public address
+#   - ASSET_CODE defaults to TSTUSD
+#
+# Mainnet requires:
+#   STELLAR_NETWORK=mainnet \
+#   ALLOW_MAINNET_TEST_DEPLOY=I_UNDERSTAND_TEST_ONLY \
+#   ./deploy.sh ...
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOROBAN_DIR="$(dirname "$SCRIPT_DIR")"
 
-NETWORK="testnet"
-TOKEN_NAME="Test USD"
-TOKEN_SYMBOL="TUSD"
-INITIAL_SUPPLY="1000000000" # 1000 tokens with 6 decimals
-
-# --- Parse args ---
-
-if [ $# -lt 1 ]; then
-  echo "Usage: $0 <identity> [admin_address] [manager_address] [blocker_address]"
-  echo ""
-  echo "  identity          Stellar CLI identity name (from 'stellar keys')"
-  echo "  admin_address     Admin address (defaults to identity's address)"
-  echo "  manager_address   Manager/compliance address (defaults to admin)"
-  echo "  blocker_address   Blocker/freeze address (defaults to admin)"
+if [[ $# -lt 1 || $# -gt 6 ]]; then
+  echo "Usage: $0 <issuer-key> [deployer-key] [minter-address] [onboarder-address] [blocker-address] [unblocker-address]" >&2
   exit 1
 fi
 
-IDENTITY="$1"
-ADMIN_ADDRESS="${2:-}"
-MANAGER_ADDRESS="${3:-}"
-BLOCKER_ADDRESS="${4:-}"
+ISSUER_KEY="$1"
+DEPLOYER_KEY="${2:-$ISSUER_KEY}"
+NETWORK="${STELLAR_NETWORK:-testnet}"
+ASSET_CODE="${ASSET_CODE:-TSTUSD}"
+ISSUER_ADDRESS="$(stellar keys address "$ISSUER_KEY")"
 
-# Resolve addresses from identity if not provided
-if [ -z "$ADMIN_ADDRESS" ]; then
-  ADMIN_ADDRESS=$(stellar keys address "$IDENTITY")
-  echo "Using identity address as admin: $ADMIN_ADDRESS"
-fi
+MINTER_ADDRESS="${3:-$ISSUER_ADDRESS}"
+ONBOARDER_ADDRESS="${4:-$ISSUER_ADDRESS}"
+BLOCKER_ADDRESS="${5:-$ISSUER_ADDRESS}"
+UNBLOCKER_ADDRESS="${6:-$ISSUER_ADDRESS}"
 
-if [ -z "$MANAGER_ADDRESS" ]; then
-  MANAGER_ADDRESS="$ADMIN_ADDRESS"
-  echo "Using admin address as manager: $MANAGER_ADDRESS"
-fi
-
-if [ -z "$BLOCKER_ADDRESS" ]; then
-  BLOCKER_ADDRESS="$ADMIN_ADDRESS"
-  echo "Using admin address as blocker: $BLOCKER_ADDRESS"
-fi
-
-# --- Build ---
-
-echo ""
-echo "Building test-stablecoin..."
-cd "$SOROBAN_DIR"
-cargo build --release --target wasm32-unknown-unknown
-
-echo "Optimizing WASM for Soroban VM..."
-stellar contract optimize --wasm "$SOROBAN_DIR/target/wasm32-unknown-unknown/release/test_stablecoin.wasm"
-WASM_PATH="$SOROBAN_DIR/target/wasm32-unknown-unknown/release/test_stablecoin.optimized.wasm"
-
-if [ ! -f "$WASM_PATH" ]; then
-  echo "ERROR: Optimized WASM not found at $WASM_PATH"
+if [[ "$NETWORK" == "mainnet" && "${ALLOW_MAINNET_TEST_DEPLOY:-}" != "I_UNDERSTAND_TEST_ONLY" ]]; then
+  echo "Refusing mainnet deployment without ALLOW_MAINNET_TEST_DEPLOY=I_UNDERSTAND_TEST_ONLY" >&2
   exit 1
 fi
 
-echo "WASM size: $(wc -c < "$WASM_PATH" | tr -d ' ') bytes (optimized)"
+if [[ ! "$ASSET_CODE" =~ ^[A-Z0-9]{1,12}$ ]]; then
+  echo "ASSET_CODE must contain 1-12 uppercase letters or digits" >&2
+  exit 1
+fi
 
-# --- Deploy + Initialize ---
+echo "WARNING: deploying an unaudited TEST-ONLY contract."
+echo "Network: $NETWORK"
+echo "Asset:   $ASSET_CODE:$ISSUER_ADDRESS"
+echo
 
-echo ""
-echo "Deploying to $NETWORK (name=$TOKEN_NAME, symbol=$TOKEN_SYMBOL, supply=$INITIAL_SUPPLY)..."
-CONTRACT_ID=$(stellar contract deploy \
-  --wasm "$WASM_PATH" \
-  --source "$IDENTITY" \
+echo "[1/5] Setting issuer authorization flags..."
+stellar tx new set-options \
+  --source-account "$ISSUER_KEY" \
   --network "$NETWORK" \
+  --set-required \
+  --set-revocable \
+  --set-clawback-enabled
+
+echo "[2/5] Deploying the Stellar Asset Contract..."
+SAC_CONTRACT_ID="$(
+  stellar contract asset deploy \
+    --source-account "$DEPLOYER_KEY" \
+    --network "$NETWORK" \
+    --asset "$ASSET_CODE:$ISSUER_ADDRESS" |
+    tr -d '\r\n'
+)"
+
+echo "[3/5] Building and optimizing the test wrapper..."
+(
+  cd "$SOROBAN_DIR"
+  cargo build --release --target wasm32-unknown-unknown --package test-stablecoin
+)
+RAW_WASM="$SOROBAN_DIR/target/wasm32-unknown-unknown/release/test_stablecoin.wasm"
+OPTIMIZED_WASM="$SOROBAN_DIR/target/wasm32-unknown-unknown/release/test_stablecoin.optimized.wasm"
+stellar contract optimize --wasm "$RAW_WASM"
+
+if [[ ! -f "$OPTIMIZED_WASM" ]]; then
+  echo "Optimized WASM not found at $OPTIMIZED_WASM" >&2
+  exit 1
+fi
+
+echo "[4/5] Deploying the test administration wrapper..."
+WRAPPER_CONTRACT_ID="$(
+  stellar contract deploy \
+    --source-account "$DEPLOYER_KEY" \
+    --network "$NETWORK" \
+    --wasm "$OPTIMIZED_WASM" \
+    -- \
+    --sac_token "$SAC_CONTRACT_ID" \
+    --minter "$MINTER_ADDRESS" \
+    --onboarder "$ONBOARDER_ADDRESS" \
+    --block_operator "$BLOCKER_ADDRESS" \
+    --unblock_operator "$UNBLOCKER_ADDRESS" |
+    tr -d '\r\n'
+)"
+
+echo "[5/5] Transferring SAC administration to the wrapper..."
+stellar contract invoke \
+  --source-account "$ISSUER_KEY" \
+  --network "$NETWORK" \
+  --id "$SAC_CONTRACT_ID" \
   -- \
-  --name "\"${TOKEN_NAME}\"" \
-  --symbol "\"${TOKEN_SYMBOL}\"" \
-  --admin "$ADMIN_ADDRESS" \
-  --manager "$MANAGER_ADDRESS" \
-  --blocker "$BLOCKER_ADDRESS" \
-  --initial_supply "$INITIAL_SUPPLY")
+  set_admin --new_admin "$WRAPPER_CONTRACT_ID"
 
-echo "Contract deployed: $CONTRACT_ID"
-
-echo ""
-echo "=== Deployment complete ==="
-echo "  Network:    $NETWORK"
-echo "  Contract:   $CONTRACT_ID"
-echo "  Admin:      $ADMIN_ADDRESS"
-echo "  Manager:    $MANAGER_ADDRESS"
-echo "  Blocker:    $BLOCKER_ADDRESS"
-echo "  Token:      $TOKEN_NAME ($TOKEN_SYMBOL)"
-echo "  Supply:     $INITIAL_SUPPLY (6 decimals = 1,000 tokens)"
+echo
+echo "Test deployment complete"
+echo "  Network:          $NETWORK"
+echo "  Asset:            $ASSET_CODE:$ISSUER_ADDRESS"
+echo "  SAC:              $SAC_CONTRACT_ID"
+echo "  Wrapper:          $WRAPPER_CONTRACT_ID"
+echo "  Minter:           $MINTER_ADDRESS"
+echo "  Onboarder:        $ONBOARDER_ADDRESS"
+echo "  Block operator:   $BLOCKER_ADDRESS"
+echo "  Unblock operator: $UNBLOCKER_ADDRESS"
