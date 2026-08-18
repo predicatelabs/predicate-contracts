@@ -372,7 +372,7 @@ mod test {
     /// send tokens to a *different* recipient. This guards the fix that binds
     /// `to` into the signed call data.
     #[test]
-    #[should_panic] // ed25519_verify fails: signed digest bound `bob`, not `carol`
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // signed digest bound `bob`, not `carol`
     fn test_transfer_redirected_recipient_rejected() {
         let e = Env::default();
         e.mock_all_auths();
@@ -423,6 +423,63 @@ mod test {
 
         // Attacker (Alice) tries to redirect the approved attestation to CAROL.
         token.transfer(&alice, &carol, &transfer_amount, &attestation);
+    }
+
+    /// The companion to the recipient test, for the amount. `transfer` derives
+    /// both `msg_value` and `encoded_sig_and_args` from its live `amount`, so an
+    /// attestation approved for one amount cannot be spent at another — the case
+    /// an integration would re-open by forwarding a user-supplied amount into the
+    /// statement instead of rebuilding it (audit FIND-002).
+    #[test]
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // signed digest bound 250, not 100
+    fn test_transfer_tampered_amount_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = e.register(PredicateRegistryContract, (registry_owner.clone(),));
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        let (attester_sk, attester_pk) = generate_ed25519_keypair(&e);
+        registry_client.register_attester(&registry_owner, &attester_pk);
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+
+        let alice = Address::generate(&e);
+        let bob = Address::generate(&e);
+        token.mint(&alice, &1000);
+
+        // Attester approves a transfer of 250.
+        let approved_amount: i128 = 250;
+        let statement = Statement {
+            uuid: String::from_str(&e, "transfer-amount"),
+            msg_sender: alice.clone(),
+            target: token_addr.clone(),
+            msg_value: approved_amount,
+            encoded_sig_and_args: encode_transfer_call(&e, &alice, &bob, approved_amount),
+            policy: policy_id.clone(),
+            expiration: e.ledger().timestamp() + 600,
+        };
+        let hash = registry_client.hash_statement(&statement);
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: attester_pk,
+            signature: sign_hash(&e, &attester_sk, &hash),
+        };
+
+        // Alice reuses it for a different amount. 100 is within her balance and
+        // passes the token's own checks, so the rejection can only come from the
+        // registry failing to verify the rebuilt digest.
+        token.transfer(&alice, &bob, &100, &attestation);
     }
 
     #[test]
