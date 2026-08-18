@@ -66,4 +66,6 @@ pub enum RegistryError {
     NotInitialized = 9,
     /// Contract has already been initialized
     AlreadyInitialized = 10,
+    /// Attestation is valid for longer than the registry's maximum lifetime
+    ExpirationTooFarInFuture = 11,
 }

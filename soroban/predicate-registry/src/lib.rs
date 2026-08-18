@@ -173,6 +173,11 @@ impl PredicateRegistryContract {
     /// `caller.require_auth()` makes that binding sound — a contract address
     /// cannot be impersonated by whoever assembled the transaction.
     ///
+    /// Both ends of the validity window are inclusive: an attestation is accepted
+    /// on the exact second it expires, and rejected if it expires more than
+    /// `validation::MAX_ATTESTATION_LIFETIME` (24h) beyond the current ledger time,
+    /// so a mis-issued far-future expiration cannot outlive that window.
+    ///
     /// # The caller owns the statement's accuracy
     ///
     /// `statement` is trusted input apart from `target`. A returning call means
@@ -522,6 +527,115 @@ mod test {
         client.validate_attestation(&statement, &attestation, &client.address);
     }
 
+    // --- Maximum attestation lifetime (FIND-003) ---
+
+    /// Sign a well-formed attestation for `expiration`, with the caller as target
+    /// so the digest needs no substitution. Used by the lifetime-bound tests, which
+    /// care only about how far in the future the expiration sits.
+    fn attestation_expiring_at(
+        e: &Env,
+        client: &PredicateRegistryContractClient<'_>,
+        owner: &Address,
+        uuid: &str,
+        expiration: u64,
+    ) -> (Statement, Attestation) {
+        let (sk, pub_key) = generate_ed25519_keypair(e);
+        client.register_attester(owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(e, uuid),
+            msg_sender: Address::generate(e),
+            target: client.address.clone(),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(e, "x-test"),
+            expiration,
+        };
+        let signature = sign_hash(e, &sk, &client.hash_statement(&statement));
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration,
+            attester: pub_key,
+            signature,
+        };
+        (statement, attestation)
+    }
+
+    /// The auditor's case: a far-future expiration must be refused even though the
+    /// signature is perfectly valid. Nothing else in validate would stop it.
+    #[test]
+    #[should_panic(expected = "Error(Contract, #11)")]
+    fn test_validate_expiration_beyond_u64_max_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        e.ledger().set_timestamp(1_700_000_000);
+
+        let (statement, attestation) =
+            attestation_expiring_at(&e, &client, &owner, "uuid-forever", u64::MAX);
+
+        client.validate_attestation(&statement, &attestation, &client.address);
+    }
+
+    /// One second past the ceiling is refused — the boundary is where it claims.
+    #[test]
+    #[should_panic(expected = "Error(Contract, #11)")]
+    fn test_validate_expiration_one_second_past_max_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let now = 1_700_000_000;
+        e.ledger().set_timestamp(now);
+
+        let (statement, attestation) = attestation_expiring_at(
+            &e,
+            &client,
+            &owner,
+            "uuid-too-long",
+            now + validation::MAX_ATTESTATION_LIFETIME + 1,
+        );
+
+        client.validate_attestation(&statement, &attestation, &client.address);
+    }
+
+    /// Exactly at the ceiling is accepted: the bound is inclusive, so the cap does
+    /// not quietly reject the longest lifetime it advertises.
+    #[test]
+    fn test_validate_expiration_exactly_at_max_accepted() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let now = 1_700_000_000;
+        e.ledger().set_timestamp(now);
+
+        let (statement, attestation) = attestation_expiring_at(
+            &e,
+            &client,
+            &owner,
+            "uuid-at-max",
+            now + validation::MAX_ATTESTATION_LIFETIME,
+        );
+
+        assert!(client.validate_attestation(&statement, &attestation, &client.address));
+    }
+
+    /// The other end of the window is inclusive too: an attestation is still good
+    /// on the exact second it expires, matching `block.timestamp <= expiration` on
+    /// EVM. Documented because the two inclusive bounds are easy to get wrong.
+    #[test]
+    fn test_validate_expiration_on_the_exact_second_accepted() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+        let now = 1_700_000_000;
+        e.ledger().set_timestamp(now);
+
+        let (statement, attestation) =
+            attestation_expiring_at(&e, &client, &owner, "uuid-exact-second", now);
+
+        assert!(client.validate_attestation(&statement, &attestation, &client.address));
+    }
+
     #[test]
     #[should_panic(expected = "Error(Contract, #5)")]
     fn test_validate_uuid_replay() {
@@ -812,6 +926,12 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         e.ledger().set_network_id(unhex::<32>(GV_NETWORK_ID));
+        // Move the ledger to just before GV_EXPIRATION. The vector's expiration is
+        // a fixed absolute timestamp, which from the default ledger time of 0 is
+        // decades away and now exceeds MAX_ATTESTATION_LIFETIME. The ledger clock
+        // is not part of the digest, so this keeps the pinned vector intact — do
+        // not "fix" this by editing GV_EXPIRATION, which would change GV_DIGEST.
+        e.ledger().set_timestamp(GV_EXPIRATION - 600);
         let (owner, client) = setup(&e);
 
         let attester = BytesN::from_array(&e, &unhex::<32>(GV_ATTESTER_PK));

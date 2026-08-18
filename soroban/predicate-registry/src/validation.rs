@@ -36,11 +36,29 @@ pub fn compute_hash(e: &Env, statement: &Statement) -> BytesN<32> {
     e.crypto().sha256(&payload).to_bytes()
 }
 
+/// Longest window, in seconds, for which the registry will honour an attestation.
+///
+/// The attester decides each attestation's expiration, so without a ceiling a
+/// single mis-issued one stays usable indefinitely — the realistic failure is not
+/// an attacker but a units bug off-chain (milliseconds where seconds were meant
+/// puts the expiration ~55,000 years out) or an operator typo. Capping the window
+/// bounds that to a day rather than forever, and costs nothing in normal
+/// operation: the Predicate API issues one-hour attestations by default, so this
+/// leaves 24x headroom.
+///
+/// Consequence worth knowing before raising or lowering it: the API's TTL is
+/// per-project configurable, and a project configured above this ceiling has its
+/// attestations rejected on-chain. Keep that validation off-chain too, so the
+/// mismatch surfaces when the project is configured rather than when a user
+/// transacts. Changing this value requires a contract upgrade.
+pub const MAX_ATTESTATION_LIFETIME: u64 = 24 * 60 * 60;
+
 /// Validate an attestation against a statement.
 ///
 /// Performs the following checks:
 /// 0. Caller authentication (mirrors EVM's implicit msg.sender)
-/// 1. Attestation not expired
+/// 1. Attestation not expired, and not valid for longer than
+///    [`MAX_ATTESTATION_LIFETIME`]
 /// 2. UUID not already spent (replay protection)
 /// 3. UUID matches between statement and attestation
 /// 4. Expiration matches between statement and attestation
@@ -59,9 +77,18 @@ pub fn validate(
     //    caller address and burn valid UUIDs.
     caller.require_auth();
 
-    // 1. Check expiration
-    if e.ledger().timestamp() > attestation.expiration {
+    // 1. Check expiration. Both bounds are inclusive: an attestation is still
+    //    valid on the exact second it expires, matching `block.timestamp <=
+    //    expiration` in the EVM registry, and an expiration exactly
+    //    MAX_ATTESTATION_LIFETIME away is accepted.
+    let now = e.ledger().timestamp();
+    if now > attestation.expiration {
         return Err(RegistryError::AttestationExpired);
+    }
+    // saturating_add so a near-u64::MAX timestamp cannot wrap into a low ceiling
+    // that would wave the attestation through.
+    if attestation.expiration > now.saturating_add(MAX_ATTESTATION_LIFETIME) {
+        return Err(RegistryError::ExpirationTooFarInFuture);
     }
 
     // 2. Check UUID not already spent

@@ -44,6 +44,7 @@ pub enum RegistryError {
     InvalidSignature = 8,
     NotInitialized = 9,
     AlreadyInitialized = 10,
+    ExpirationTooFarInFuture = 11,
 }
 
 // --- Client helper ---
