@@ -264,6 +264,12 @@ impl TestSacAdminContract {
         is_onboarded(e, &account)
     }
 
+    /// Returns whether the address holds the fixed onboarder role.
+    pub fn is_onboarder(e: &Env, account: Address) -> bool {
+        extend_instance_ttl(e);
+        account == read_instance_address(e, &DataKey::Onboarder)
+    }
+
     /// Returns whether the address is currently on the compliance block list.
     pub fn is_on_block_list(e: &Env, account: Address) -> bool {
         extend_instance_ttl(e);
@@ -627,6 +633,14 @@ mod test {
         assert!(s.contract.try_onboard_user(&user, &s.onboarder).is_err());
         assert!(s.contract.try_block_user(&user, &s.blocker).is_err());
         assert!(s.contract.try_unblock_user(&user, &s.unblocker).is_err());
+    }
+
+    #[test]
+    fn is_onboarder_identifies_only_the_configured_onboarder() {
+        let s = setup();
+
+        assert!(s.contract.is_onboarder(&s.onboarder));
+        assert!(!s.contract.is_onboarder(&s.blocker));
     }
 
     #[test]
