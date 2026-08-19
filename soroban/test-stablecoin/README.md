@@ -38,6 +38,8 @@ These states can differ. In particular:
 - `mint(caller, to, amount)`
 - `is_onboarded(account)`
 - `is_onboarder(account)`
+- `is_block_operator(account)`
+- `is_unblock_operator(account)`
 - `is_on_block_list(account)`
 - `blocked(account)`
 - `balance(account)`

@@ -27,8 +27,8 @@ pub enum TestSacAdminError {
     NotInitialized = 2,
     Unauthorized = 3,
     InvalidAmount = 4,
-    UserBlocked = 5,
     DestinationNotAuthorized = 6,
+    UserBlockedError = 105,
 }
 
 #[derive(Clone)]
@@ -158,7 +158,7 @@ impl TestSacAdminContract {
     ///
     /// # Errors
     ///
-    /// Returns [`TestSacAdminError::UserBlocked`] while the address is on the
+    /// Returns [`TestSacAdminError::UserBlockedError`] while the address is on the
     /// compliance block list.
     pub fn onboard_user(
         e: &Env,
@@ -169,7 +169,7 @@ impl TestSacAdminContract {
         extend_instance_ttl(e);
 
         if is_on_block_list(e, &user) {
-            return Err(TestSacAdminError::UserBlocked);
+            return Err(TestSacAdminError::UserBlockedError);
         }
 
         let first_onboarding = !is_onboarded(e, &user);
@@ -268,6 +268,18 @@ impl TestSacAdminContract {
     pub fn is_onboarder(e: &Env, account: Address) -> bool {
         extend_instance_ttl(e);
         account == read_instance_address(e, &DataKey::Onboarder)
+    }
+
+    /// Returns whether the address holds the fixed block-operator role.
+    pub fn is_block_operator(e: &Env, account: Address) -> bool {
+        extend_instance_ttl(e);
+        account == read_instance_address(e, &DataKey::BlockOperator)
+    }
+
+    /// Returns whether the address holds the fixed unblock-operator role.
+    pub fn is_unblock_operator(e: &Env, account: Address) -> bool {
+        extend_instance_ttl(e);
+        account == read_instance_address(e, &DataKey::UnblockOperator)
     }
 
     /// Returns whether the address is currently on the compliance block list.
@@ -464,9 +476,14 @@ mod test {
 
         let result = s.contract.try_onboard_user(&user, &s.onboarder);
 
-        assert_eq!(result, Err(Ok(TestSacAdminError::UserBlocked)));
+        assert_eq!(result, Err(Ok(TestSacAdminError::UserBlockedError)));
         assert!(!s.contract.is_onboarded(&user));
         assert!(s.contract.is_on_block_list(&user));
+    }
+
+    #[test]
+    fn blocked_onboarding_error_matches_gateway_compatibility_code() {
+        assert_eq!(TestSacAdminError::UserBlockedError as u32, 105);
     }
 
     #[test]
@@ -641,6 +658,16 @@ mod test {
 
         assert!(s.contract.is_onboarder(&s.onboarder));
         assert!(!s.contract.is_onboarder(&s.blocker));
+    }
+
+    #[test]
+    fn operator_views_identify_only_their_configured_roles() {
+        let s = setup();
+
+        assert!(s.contract.is_block_operator(&s.blocker));
+        assert!(!s.contract.is_block_operator(&s.unblocker));
+        assert!(s.contract.is_unblock_operator(&s.unblocker));
+        assert!(!s.contract.is_unblock_operator(&s.blocker));
     }
 
     #[test]
