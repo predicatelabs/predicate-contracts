@@ -195,10 +195,8 @@ impl PredicateRegistryContract {
     ///
     /// # Failure modes
     ///
-    /// Returns `Ok(())` on success — there is no boolean, because there was never
-    /// an `Ok(false)` to distinguish from `Ok(true)`.
-    ///
-    /// Failures arrive two different ways, and integrators have to handle both:
+    /// Returns `Ok(())` when every check passes. Failures arrive two different
+    /// ways, and integrators have to handle both:
     ///
     /// * Checks on the attestation's shape — expiry, replay, uuid/expiration
     ///   agreement, attester registration — return a typed [`RegistryError`].
@@ -207,7 +205,7 @@ impl PredicateRegistryContract {
     ///   failure before a contract can see it, and soroban-sdk 23.5.3 exposes no
     ///   fallible ed25519 API, so this cannot be turned into a `RegistryError`.
     ///   `RegistryError` deliberately has no `InvalidSignature` variant as a
-    ///   result (FIND-013).
+    ///   result.
     ///
     /// Either way the UUID is not marked spent, so a rejected attestation can be
     /// retried once whatever was wrong with it is fixed.
@@ -926,9 +924,9 @@ mod test {
     /// The trap is only tolerable because it costs the caller nothing but the fee:
     /// nothing is committed, so the uuid stays unspent and the same statement works
     /// once a correct signature arrives. `try_validate_attestation` is what lets a
-    /// caller observe the abort without unwinding — and what it returns shows the
-    /// ABI mismatch FIND-013 is about, an invocation error rather than a
-    /// `RegistryError` the caller could match on.
+    /// caller observe the abort without unwinding — and what it returns shows why
+    /// there is no `InvalidSignature` error to match on: an invocation error, not a
+    /// `RegistryError`.
     #[test]
     fn test_invalid_signature_aborts_and_leaves_uuid_unspent() {
         let e = Env::default();

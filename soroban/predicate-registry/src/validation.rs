@@ -12,11 +12,10 @@ use crate::types::{Attestation, RegistryError, Statement};
 /// `hashStatementWithExpiry`.
 ///
 /// There is no separate version tag. XDR is self-describing and length-prefixed,
-/// so layouts cannot be confused for one another: this preimage opens with
-/// `ScVal::Bytes`, where the previous one (a network passphrase) opened with
-/// `ScVal::String`, and a statement is an `ScVal::Map` that no appended field
-/// could impersonate. Changing the layout is therefore already a hard break, and
-/// a tag would only restate that.
+/// so one layout cannot be parsed as another: the network id is `ScVal::Bytes`
+/// and the statement an `ScVal::Map`, and no appended field could impersonate
+/// either. Any change to the layout is therefore already a hard break, which a
+/// tag would only restate.
 ///
 /// The registry's own address is deliberately *not* in the preimage, matching
 /// EVM and Solana. Replay across registry instances is already constrained by
@@ -109,17 +108,17 @@ pub fn validate(
     // ed25519 API in soroban-sdk 23.5.3 to map onto a RegistryError. Callers must
     // treat an invalid signature as an aborted invocation, not a returned error.
     //
-    // This is why RegistryError has no InvalidSignature variant (FIND-013): an
+    // This is why RegistryError has no InvalidSignature variant: an
     // error the contract can never return is worse than none, because integrators
     // write handling for it that cannot fire.
     e.crypto()
         .ed25519_verify(&attestation.attester, &hash_bytes, &attestation.signature);
 
     // 7. Mark UUID as spent.
-    //    Extend the replay marker to the maximum possible TTL. A fixed short TTL
-    //    (~30 days) could be archived/evicted while a longer-lived attestation is
-    //    still valid, which would re-open replay. Tying the marker to the network
-    //    max keeps the guard alive for as long as the ledger allows.
+    //    Extend the replay marker to the maximum possible TTL. A short TTL could
+    //    be archived while a longer-lived attestation is still valid, which would
+    //    re-open replay; tying the marker to the network max keeps the guard alive
+    //    for as long as the ledger allows.
     e.storage().persistent().set(&uuid_key, &true);
     e.storage()
         .persistent()

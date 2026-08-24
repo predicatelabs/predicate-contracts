@@ -41,9 +41,7 @@ pub enum RegistryError {
     UuidAlreadyUsed = 5,
     UuidMismatch = 6,
     ExpirationMismatch = 7,
-    // 8 is reserved; see predicate-registry's RegistryError (FIND-013).
-    NotInitialized = 9,
-    AlreadyInitialized = 10,
+    NotInitialized = 8,
 }
 
 // --- Client helper ---
