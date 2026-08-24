@@ -48,12 +48,15 @@ pub fn compute_hash(e: &Env, statement: &Statement) -> BytesN<32> {
 /// 6. Ed25519 signature verification using caller-bound hash (hashStatementSafe)
 /// 7. Marks UUID as spent
 /// 8. Emits validation event
+///
+/// Returns `Ok(())` when every check passes. Checks 1-5 return a typed
+/// `RegistryError`; check 6 does not — see the note there.
 pub fn validate(
     e: &Env,
     statement: &Statement,
     attestation: &Attestation,
     caller: &Address,
-) -> Result<bool, RegistryError> {
+) -> Result<(), RegistryError> {
     // 0. Authenticate the caller — mirrors EVM's implicit msg.sender guarantee.
     //    Without this, anyone could call validate_attestation with an arbitrary
     //    caller address and burn valid UUIDs.
@@ -99,7 +102,16 @@ pub fn validate(
     };
     let hash = compute_hash(e, &safe_statement);
     let hash_bytes: Bytes = Bytes::from_slice(e, &hash.to_array());
-    // NOTE: ed25519_verify panics on invalid signature
+    // A failed verification does NOT return Err — it traps, aborting the whole
+    // invocation with `Error(Crypto, InvalidInput)`. The host builds a HostError
+    // (soroban-env-host crypto/mod.rs) and the SDK discards it (`let _ = ...`), so
+    // a contract cannot observe the failure as a value; there is no fallible
+    // ed25519 API in soroban-sdk 23.5.3 to map onto a RegistryError. Callers must
+    // treat an invalid signature as an aborted invocation, not a returned error.
+    //
+    // This is why RegistryError has no InvalidSignature variant (FIND-013): an
+    // error the contract can never return is worse than none, because integrators
+    // write handling for it that cannot fire.
     e.crypto()
         .ed25519_verify(&attestation.attester, &hash_bytes, &attestation.signature);
 
@@ -129,5 +141,5 @@ pub fn validate(
         ),
     );
 
-    Ok(true)
+    Ok(())
 }

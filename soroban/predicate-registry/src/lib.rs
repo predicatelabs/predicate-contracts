@@ -192,12 +192,31 @@ impl PredicateRegistryContract {
     /// authorization bypass in the integrating contract. Prefer
     /// `predicate_client::authorize_transaction`, which takes these as arguments
     /// and assembles the statement itself. See the crate-level trust boundary docs.
+    ///
+    /// # Failure modes
+    ///
+    /// Returns `Ok(())` on success — there is no boolean, because there was never
+    /// an `Ok(false)` to distinguish from `Ok(true)`.
+    ///
+    /// Failures arrive two different ways, and integrators have to handle both:
+    ///
+    /// * Checks on the attestation's shape — expiry, replay, uuid/expiration
+    ///   agreement, attester registration — return a typed [`RegistryError`].
+    /// * An **invalid signature traps** rather than returning an error, aborting
+    ///   the invocation with `Error(Crypto, InvalidInput)`. The host escalates the
+    ///   failure before a contract can see it, and soroban-sdk 23.5.3 exposes no
+    ///   fallible ed25519 API, so this cannot be turned into a `RegistryError`.
+    ///   `RegistryError` deliberately has no `InvalidSignature` variant as a
+    ///   result (FIND-013).
+    ///
+    /// Either way the UUID is not marked spent, so a rejected attestation can be
+    /// retried once whatever was wrong with it is fixed.
     pub fn validate_attestation(
         e: &Env,
         statement: Statement,
         attestation: Attestation,
         caller: Address,
-    ) -> Result<bool, RegistryError> {
+    ) -> Result<(), RegistryError> {
         validation::validate(e, &statement, &attestation, &caller)
     }
 
@@ -482,8 +501,7 @@ mod test {
             signature,
         };
 
-        let result = client.validate_attestation(&statement, &attestation, &client.address);
-        assert!(result);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -828,7 +846,7 @@ mod test {
         // `caller` is the statement's own target, so the digest verified here is
         // GV_DIGEST unchanged.
         let caller = Address::from_str(&e, GV_TARGET);
-        assert!(client.validate_attestation(&statement, &attestation, &caller));
+        client.validate_attestation(&statement, &attestation, &caller);
     }
 
     #[test]
@@ -864,8 +882,10 @@ mod test {
         assert!(client.is_attester_registered(&attester));
     }
 
+    /// Pins the trap documented on `validate_attestation`: a bad signature aborts
+    /// the invocation with a host error, and never surfaces as a `RegistryError`.
     #[test]
-    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // ed25519_verify panics on bad signature
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")]
     fn test_validate_invalid_signature() {
         let e = Env::default();
         e.mock_all_auths();
@@ -901,6 +921,56 @@ mod test {
         };
 
         client.validate_attestation(&statement, &attestation, &client.address);
+    }
+
+    /// The trap is only tolerable because it costs the caller nothing but the fee:
+    /// nothing is committed, so the uuid stays unspent and the same statement works
+    /// once a correct signature arrives. `try_validate_attestation` is what lets a
+    /// caller observe the abort without unwinding — and what it returns shows the
+    /// ABI mismatch FIND-013 is about, an invocation error rather than a
+    /// `RegistryError` the caller could match on.
+    #[test]
+    fn test_invalid_signature_aborts_and_leaves_uuid_unspent() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        let (other_sk, _other_pk) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-retry-after-bad-sig"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+        let hash = client.hash_statement(&statement);
+
+        // Signed by a key the registry does not know: verification fails.
+        let forged = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key.clone(),
+            signature: sign_hash(&e, &other_sk, &hash),
+        };
+        let outcome = client.try_validate_attestation(&statement, &forged, &client.address);
+        // Err at the outer level is the invocation failing. The inner Err being an
+        // InvokeError rather than a RegistryError is the mismatch itself: there is
+        // no contract error code here for a caller to branch on.
+        assert_eq!(outcome, Err(Err(soroban_sdk::InvokeError::Abort)));
+
+        // The failed attempt committed nothing, so the same uuid is still spendable.
+        let genuine = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature: sign_hash(&e, &sk, &hash),
+        };
+        client.validate_attestation(&statement, &genuine, &client.address);
     }
 
     #[test]

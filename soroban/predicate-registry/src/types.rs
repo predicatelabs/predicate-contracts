@@ -60,8 +60,12 @@ pub enum RegistryError {
     UuidMismatch = 6,
     /// Statement/Attestation expiration mismatch
     ExpirationMismatch = 7,
-    /// Ed25519 signature verification failed
-    InvalidSignature = 8,
+    // 8 was InvalidSignature. The host traps on a failed ed25519 verification
+    // instead of returning a value, so the registry could never produce this
+    // error; declaring it only misled integrators into writing handling that
+    // could not fire (FIND-013). The discriminant stays reserved — reusing 8 for
+    // something else would make existing integrator code read a new error as
+    // "invalid signature".
     /// Contract has not been initialized
     NotInitialized = 9,
     /// Contract has already been initialized
