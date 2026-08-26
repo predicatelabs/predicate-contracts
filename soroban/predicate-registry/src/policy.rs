@@ -11,8 +11,7 @@ pub fn set(e: &Env, caller: &Address, policy_id: &String) {
     e.storage()
         .persistent()
         .set(&policy_storage_key(caller), policy_id);
-    // Extend to the network maximum: a fixed short TTL that is never refreshed
-    // could archive a client's policy binding while it is still in use.
+    // Max TTL: a binding archived while still in use silently unregisters a client.
     let max_ttl = e.storage().max_ttl();
     e.storage()
         .persistent()

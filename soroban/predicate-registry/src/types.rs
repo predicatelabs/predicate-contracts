@@ -1,46 +1,32 @@
 use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, String};
 
-/// Mirrors the EVM Statement struct.
-/// Describes a transaction to be authorized.
+/// Describes a transaction to be authorized. Mirrors the EVM Statement struct.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Statement {
-    /// Unique identifier — replay protection key
     pub uuid: String,
-    /// Original transaction sender
     pub msg_sender: Address,
-    /// Target contract address
     pub target: Address,
-    /// Value sent with the transaction (token amount).
-    /// Equivalent to EVM's msg.value — included in signed digest so
-    /// attesters can constrain transaction value.
     pub msg_value: i128,
-    /// Encoded function signature and arguments — variable-length to match
-    /// the EVM `bytes encodedSigAndArgs` field. Callers may pass the raw
-    /// call data or a hash of it.
+    /// Raw call data or a hash of it; the attester signs whichever is supplied.
     pub encoded_sig_and_args: Bytes,
-    /// Policy identifier (e.g. "x-a1b2c3d4e5f6g7h8")
+    /// Policy identifier, e.g. "x-a1b2c3d4e5f6g7h8".
     pub policy: String,
-    /// Deadline ledger timestamp
+    /// Ledger timestamp, in seconds.
     pub expiration: u64,
 }
 
-/// Ed25519-signed authorization from an attester.
+/// Ed25519-signed authorization. `uuid` and `expiration` must match the statement's.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attestation {
-    /// Must match Statement.uuid
     pub uuid: String,
-    /// Must match Statement.expiration
     pub expiration: u64,
-    /// Ed25519 public key of the attester (32 bytes)
     pub attester: BytesN<32>,
-    /// Ed25519 signature (64 bytes)
     pub signature: BytesN<64>,
 }
 
-// TODO: Replace events().publish() with #[contractevent] when available in a future SDK version.
-// soroban-sdk 23.5.3 does not support #[contractevent].
+// Switch events().publish() to #[contractevent] once the SDK supports it; 23.5.3 does not.
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
