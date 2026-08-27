@@ -90,7 +90,6 @@ echo
 echo "1. Swap the two appends in compute_hash (reorders the preimage)."
 apply "$VALIDATION" \
   '    payload.append(&e.ledger().network_id().to_xdr(e));
-    // Statement fields in deterministic order
     payload.append(&statement.clone().to_xdr(e));' \
   '    payload.append(&statement.clone().to_xdr(e));
     payload.append(&e.ledger().network_id().to_xdr(e));'

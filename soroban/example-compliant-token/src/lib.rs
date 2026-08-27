@@ -62,9 +62,8 @@ impl CompliantTokenContract {
     /// Register this contract's policy with the Predicate Registry.
     ///
     /// The constructor already does this, so a freshly deployed token needs no
-    /// follow-up call.  Retained for tokens deployed before that was the case,
-    /// and to re-register if the registry entry is ever cleared.  The admin
-    /// must authorize.
+    /// follow-up call.  Kept so the entry can be re-registered if the registry's
+    /// mapping is ever cleared.  The admin must authorize.
     pub fn register_policy(e: &Env) {
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
@@ -429,7 +428,7 @@ mod test {
     /// both `msg_value` and `encoded_sig_and_args` from its live `amount`, so an
     /// attestation approved for one amount cannot be spent at another — the case
     /// an integration would re-open by forwarding a user-supplied amount into the
-    /// statement instead of rebuilding it (audit FIND-002).
+    /// statement instead of rebuilding it.
     #[test]
     #[should_panic(expected = "Error(Crypto, InvalidInput)")] // signed digest bound 250, not 100
     fn test_transfer_tampered_amount_rejected() {

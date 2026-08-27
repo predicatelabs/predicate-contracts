@@ -5,9 +5,8 @@ use soroban_sdk::{
     Vec,
 };
 
-// --- Types (mirrored from predicate-registry to avoid linking the contract impl) ---
+// Mirrored from predicate-registry so integrators need not link the contract impl.
 
-/// Describes a transaction to be authorized.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Statement {
@@ -20,7 +19,6 @@ pub struct Statement {
     pub expiration: u64,
 }
 
-/// Ed25519-signed authorization from an attester.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attestation {
@@ -41,59 +39,20 @@ pub enum RegistryError {
     UuidAlreadyUsed = 5,
     UuidMismatch = 6,
     ExpirationMismatch = 7,
-    InvalidSignature = 8,
-    NotInitialized = 9,
-    AlreadyInitialized = 10,
+    NotInitialized = 8,
 }
 
-// --- Client helper ---
-
-/// Build a Statement and validate it against the Predicate Registry.
+/// Assembles a Statement from the live call and has the registry validate it.
 ///
-/// This is the Soroban equivalent of the EVM PredicateClient._authorizeTransaction() pattern.
+/// Returning means authorized; every failure aborts the invocation instead.
 ///
-/// The `uuid` and `expiration` fields are copied from the attestation into the
-/// constructed statement, mirroring the EVM pattern where these values originate
-/// from the attester's signed payload.
-///
-/// Returns `()` on success. On failure the registry returns an `Err`, and
-/// `invoke_contract` propagates it as a trap carrying the registry's exact typed
-/// error (e.g. `Error(Contract, #4)` for an expired attestation). The registry
-/// never returns `Ok(false)`, so there is no boolean outcome for the caller to
-/// branch on — a returning call means the transaction was authorized.
-///
-/// # Every argument must come from the live call
-///
-/// This helper exists to put the registry's trust boundary somewhere hard to get
-/// wrong. The registry establishes only `target` (from the authenticated caller)
-/// and the network (from the ledger) on its own; every other statement field is
-/// taken on trust. So a returning call means "an attester signed the statement
-/// built from these arguments" — which authorizes the action actually executing
-/// only if the arguments describe it.
-///
-/// Derive each one from the function you are protecting, never from a parameter an
-/// end user can choose. Forwarding user-supplied values here validates one action
-/// while executing another, with no signature forgery involved.
-///
-/// # Arguments
-/// * `e` - Soroban environment
-/// * `registry` - Address of the deployed PredicateRegistry contract
-/// * `attestation` - The signed attestation from an authorized attester
-/// * `encoded_sig_and_args` - Encoding of the *concrete* call: selector plus every
-///   argument that matters for compliance. Omitting an argument leaves it free to
-///   change between attestation and execution — see `encode_transfer_call` in
-///   `example-compliant-token`, and the tampered-recipient/amount tests that pin it
-/// * `msg_sender` - The live sender, already `require_auth()`ed by the caller
-/// * `msg_value` - The live value (token amount, equivalent to EVM msg.value)
-/// * `target` - The contract being called — callers should pass `e.current_contract_address()`
-///   so that the registry's hashStatementSafe logic can bind the attestation to this contract
-/// * `policy` - This contract's configured policy, read from its own storage
-///
-/// Domain separation (the network) is derived by the registry from the ledger, so
-/// there is nothing for the integrator to configure or get wrong here.
-// The argument list mirrors the Statement fields on purpose. Collapsing it into a
-// params struct would make it natural to build one value and reuse it across
-// calls, which is exactly what the section above rules out.
+/// Each argument must describe the call being authorized — `target` is
+/// `e.current_contract_address()`, `encoded_sig_and_args` covers every argument
+/// that matters for compliance, `policy` comes from this contract's storage.
+/// Forwarding a user-supplied value here authorizes one action while executing
+/// another, with no signature forgery involved.
+// Kept as positional arguments rather than a params struct: a struct invites
+// building one value and reusing it, which is what the above rules out.
 #[allow(clippy::too_many_arguments)]
 pub fn authorize_transaction(
     e: &Env,
@@ -122,10 +81,7 @@ pub fn authorize_transaction(
         target.clone().into_val(e),
     ];
 
-    // The registry returns `Ok(true)` or traps with a typed `RegistryError`; the
-    // `true` carries no information, so we discard it and rely on trap propagation
-    // to surface the real error to the caller.
-    let _: bool = e.invoke_contract(registry, &Symbol::new(e, "validate_attestation"), args);
+    e.invoke_contract::<()>(registry, &Symbol::new(e, "validate_attestation"), args);
 }
 
 #[cfg(test)]
@@ -173,7 +129,6 @@ mod test {
         let encoded = Bytes::from_slice(&e, &[0xBBu8; 16]);
         let msg_value: i128 = 1000;
 
-        // Build statement matching what authorize_transaction will build
         let statement = predicate_registry::Statement {
             uuid: String::from_str(&e, "uuid-client-test"),
             msg_sender: msg_sender.clone(),
@@ -194,8 +149,6 @@ mod test {
             signature,
         };
 
-        // A returning call means the transaction was authorized; a failed
-        // validation would trap and fail the test.
         authorize_transaction(
             &e,
             &registry_addr,

@@ -1,35 +1,11 @@
 #![no_std]
-//! Predicate Registry — verifies attester-signed [`Statement`]s for integrating
-//! contracts.
+//! Verifies attester-signed [`Statement`]s on behalf of integrating contracts.
 //!
-//! # Trust boundary
-//!
-//! The registry verifies that a registered attester signed the statement it was
-//! handed. It cannot see the call it is authorizing: the live function selector,
-//! arguments, sender, and amount all belong to the integrating contract, which is
-//! a separate invocation. Only two fields are established independently of what
-//! the caller passes:
-//!
-//! * `target` — replaced with the authenticated `caller` before hashing, so an
-//!   attestation is bound to the contract presenting it (hashStatementSafe).
-//! * the network — read from the ledger, never a parameter (see
-//!   `validation::compute_hash`).
-//!
-//! Every remaining field (`msg_sender`, `msg_value`, `encoded_sig_and_args`,
-//! `policy`) is taken on trust. **Integrating contracts must derive them from the
-//! call currently executing, never from values an end user supplies.** A contract
-//! that forwards user-controlled statement fields will validate an attestation
-//! for one action and then execute a different one — the signature check passes
-//! because the attester really did sign the statement it was shown; it just is not
-//! the statement describing what happens next.
-//!
-//! Use [`predicate_client::authorize_transaction`] rather than calling
-//! [`PredicateRegistryContract::validate_attestation`] directly. It builds the
-//! statement from its arguments, which keeps the live-data requirement at the
-//! integrating function's signature where it is hard to get wrong. See
-//! `example-compliant-token` for a worked integration.
-//!
-//! [`predicate_client::authorize_transaction`]: https://github.com/predicatelabs/predicate-contracts/blob/main/soroban/predicate-client/src/lib.rs
+//! The registry cannot see the call it authorizes — that runs in the integrating
+//! contract's own invocation. It establishes two fields itself, `target` and the
+//! network, and trusts the rest as passed. Integrators must therefore build those
+//! from the call being authorized; `predicate-client` exists to make that the
+//! path of least resistance. See [`PredicateRegistryContract::validate_attestation`].
 
 mod attesters;
 mod policy;
@@ -42,7 +18,6 @@ use soroban_sdk::{
 
 pub use types::{Attestation, RegistryError, Statement};
 
-// Storage keys
 const OWNER: Symbol = soroban_sdk::symbol_short!("owner");
 const PENDING_OWNER: Symbol = soroban_sdk::symbol_short!("pnd_own");
 
@@ -51,26 +26,15 @@ pub struct PredicateRegistryContract;
 
 #[contractimpl]
 impl PredicateRegistryContract {
-    /// Initialize the registry with an owner address.
-    ///
-    /// # Arguments
-    ///
-    /// * `owner` - Address with administrative privileges. Can register and
-    ///   deregister attesters, and propose a new owner via the two-step
-    ///   `transfer_ownership` / `accept_ownership` flow.
     pub fn __constructor(e: &Env, owner: Address) {
         e.storage().instance().set(&OWNER, &owner);
     }
 
-    /// Return the contract owner.
     pub fn owner(e: &Env) -> Address {
         e.storage().instance().get(&OWNER).unwrap()
     }
 
-    /// Propose a new owner. Only the current owner may call this.
-    /// The new owner must call `accept_ownership` to finalize the transfer.
-    /// This two-step pattern mirrors EVM's Ownable2StepUpgradeable, preventing
-    /// accidental transfers to wrong addresses.
+    /// Proposes only; `new_owner` must call `accept_ownership` to take effect.
     pub fn transfer_ownership(
         e: &Env,
         current_owner: Address,
@@ -86,7 +50,6 @@ impl PredicateRegistryContract {
         Ok(())
     }
 
-    /// Accept a pending ownership transfer. Only the pending owner may call this.
     pub fn accept_ownership(e: &Env, new_owner: Address) -> Result<(), RegistryError> {
         let pending: Address = e
             .storage()
@@ -109,12 +72,10 @@ impl PredicateRegistryContract {
         Ok(())
     }
 
-    /// Return the pending owner, if any.
     pub fn pending_owner(e: &Env) -> Option<Address> {
         e.storage().instance().get(&PENDING_OWNER)
     }
 
-    /// Register a new attester. Only the contract owner may call this.
     pub fn register_attester(
         e: &Env,
         owner: Address,
@@ -124,7 +85,6 @@ impl PredicateRegistryContract {
         attesters::register(e, &attester)
     }
 
-    /// Deregister an attester using swap-and-pop. Only the contract owner may call this.
     pub fn deregister_attester(
         e: &Env,
         owner: Address,
@@ -134,79 +94,47 @@ impl PredicateRegistryContract {
         attesters::deregister(e, &attester)
     }
 
-    /// Check whether an attester is currently registered.
     pub fn is_attester_registered(e: &Env, attester: BytesN<32>) -> bool {
         attesters::is_registered(e, &attester)
     }
 
-    /// Return all registered attesters.
     pub fn get_registered_attesters(e: &Env) -> Vec<BytesN<32>> {
         attesters::get_all(e)
     }
 
-    /// Set the policy ID for the calling address.
     pub fn set_policy_id(e: &Env, caller: Address, policy_id: String) {
         policy::set(e, &caller, &policy_id);
     }
 
-    /// Get the policy ID for a client address.
     pub fn get_policy_id(e: &Env, client: Address) -> String {
         policy::get(e, &client)
     }
 
-    /// Compute SHA-256 hash of a statement for attester signing.
-    /// This is the "hashStatementWithExpiry" equivalent — attesters sign this hash.
-    ///
-    /// The digest is bound to the host network, read from the ledger rather than
-    /// supplied by the caller, so an attestation is only valid on the chain it was
-    /// signed for.
+    /// The digest an attester signs, bound to the host network so it is valid
+    /// only on the chain that produced it.
     pub fn hash_statement(e: &Env, statement: Statement) -> BytesN<32> {
         validation::compute_hash(e, &statement)
     }
 
-    /// Validate an attestation against a statement.
+    /// `caller` should be `e.current_contract_address()`. It replaces
+    /// `statement.target` before hashing, so an attestation only works for the
+    /// contract presenting it; every other field is trusted exactly as passed.
     ///
-    /// The `caller` parameter implements the hashStatementSafe pattern:
-    /// it replaces `statement.target` with the actual caller address before
-    /// verifying the signature, preventing cross-contract replay attacks.
-    /// In Soroban, the calling contract should pass `e.current_contract_address()`.
-    /// `caller.require_auth()` makes that binding sound — a contract address
-    /// cannot be impersonated by whoever assembled the transaction.
-    ///
-    /// # The caller owns the statement's accuracy
-    ///
-    /// `statement` is trusted input apart from `target`. A returning call means
-    /// "a registered attester signed *this* statement", not "the action you are
-    /// about to take is approved" — those coincide only when the caller built the
-    /// statement from the call it is executing:
-    ///
-    /// * `uuid` / `expiration` — copy from the attestation (both are cross-checked)
-    /// * `msg_sender`, `msg_value` — the live sender and amount, after
-    ///   `require_auth()` on the sender
-    /// * `encoded_sig_and_args` — an encoding of the *concrete* call, covering every
-    ///   argument that matters for compliance, so no argument can be swapped between
-    ///   attestation and execution
-    /// * `policy` — the contract's own configured policy, from its storage
-    ///
-    /// Passing any of these straight through from a user-supplied parameter is an
-    /// authorization bypass in the integrating contract. Prefer
-    /// `predicate_client::authorize_transaction`, which takes these as arguments
-    /// and assembles the statement itself. See the crate-level trust boundary docs.
+    /// Expiry, replay, uuid or expiration disagreement, and an unregistered
+    /// attester return a [`RegistryError`]. An invalid signature instead aborts
+    /// the invocation with `Error(Crypto, InvalidInput)`, which is why no
+    /// `InvalidSignature` variant exists. Neither outcome spends the uuid.
     pub fn validate_attestation(
         e: &Env,
         statement: Statement,
         attestation: Attestation,
         caller: Address,
-    ) -> Result<bool, RegistryError> {
+    ) -> Result<(), RegistryError> {
         validation::validate(e, &statement, &attestation, &caller)
     }
 
-    /// Replace the registry's WASM bytecode in place. Only the owner may call this.
-    /// The contract address and all storage (owner, attesters, policies, spent UUIDs)
-    /// are preserved; only the executable code changes.
-    ///
-    /// `new_wasm_hash` is the SHA-256 hash of an already-uploaded contract WASM
-    /// (see `stellar contract upload`).
+    /// Swaps the bytecode in place: the address and all storage survive.
+    /// `new_wasm_hash` must already be uploaded — see `stellar contract upload`.
     pub fn upgrade(
         e: &Env,
         owner: Address,
@@ -222,7 +150,6 @@ impl PredicateRegistryContract {
     }
 }
 
-/// Internal helper: require that `caller` is the stored owner.
 pub(crate) fn require_owner(e: &Env, caller: &Address) -> Result<(), RegistryError> {
     let owner: Address = e
         .storage()
@@ -245,10 +172,8 @@ mod test {
     use super::*;
     use crate::types::{Attestation, Statement};
 
-    // Import the crate's own compiled WASM so the test can upload it and
-    // upgrade the registry to itself (proves the upgrade path + storage survival).
-    // Requires: stellar contract build --package predicate-registry
-    // (builds to wasm32v1-none, which the soroban host validator accepts)
+    // Requires `stellar contract build --package predicate-registry` first: the
+    // host validator only accepts the wasm32v1-none build.
     mod registry_wasm {
         soroban_sdk::contractimport!(
             file = "../target/wasm32v1-none/release/predicate_registry.wasm"
@@ -390,8 +315,6 @@ mod test {
         assert_eq!(client.get_policy_id(&caller), p2);
     }
 
-    // --- Ownership transfer tests ---
-
     #[test]
     fn test_two_step_ownership_transfer() {
         let e = Env::default();
@@ -399,12 +322,10 @@ mod test {
         let (owner, client) = setup(&e);
         let new_owner = Address::generate(&e);
 
-        // Step 1: propose
         client.transfer_ownership(&owner, &new_owner);
         assert_eq!(client.owner(), owner); // still the old owner
         assert_eq!(client.pending_owner(), Some(new_owner.clone()));
 
-        // Step 2: accept
         client.accept_ownership(&new_owner);
         assert_eq!(client.owner(), new_owner);
         assert_eq!(client.pending_owner(), None);
@@ -435,9 +356,6 @@ mod test {
         client.accept_ownership(&attacker); // wrong address
     }
 
-    // --- Validation tests ---
-
-    /// Helper: create an ed25519 signing key and return (signing_key, pub_key_bytes)
     fn generate_ed25519_keypair(e: &Env) -> (ed25519_dalek::SigningKey, BytesN<32>) {
         use ed25519_dalek::SigningKey;
         use rand::rngs::OsRng;
@@ -446,7 +364,6 @@ mod test {
         (sk, BytesN::from_array(e, &pk_bytes))
     }
 
-    /// Helper: sign a hash (BytesN<32>) with an ed25519 signing key, returning BytesN<64>
     fn sign_hash(e: &Env, sk: &ed25519_dalek::SigningKey, hash: &BytesN<32>) -> BytesN<64> {
         use ed25519_dalek::Signer;
         let sig = sk.sign(&hash.to_array());
@@ -482,8 +399,7 @@ mod test {
             signature,
         };
 
-        let result = client.validate_attestation(&statement, &attestation, &client.address);
-        assert!(result);
+        client.validate_attestation(&statement, &attestation, &client.address);
     }
 
     #[test]
@@ -552,9 +468,7 @@ mod test {
             signature,
         };
 
-        // First call succeeds
         client.validate_attestation(&statement, &attestation, &client.address);
-        // Second call should fail with UuidAlreadyUsed
         client.validate_attestation(&statement, &attestation, &client.address);
     }
 
@@ -657,9 +571,8 @@ mod test {
         client.validate_attestation(&statement, &attestation, &client.address);
     }
 
-    /// Build a statement whose `target` is already the caller, so `hash_statement`
-    /// returns exactly the digest `validate_attestation` recomputes. That isolates
-    /// the domain-separation checks below from the hashStatementSafe substitution.
+    /// `target` is the caller, so `hash_statement` returns exactly what
+    /// `validate_attestation` recomputes and the substitution is a no-op.
     fn caller_bound_statement(e: &Env, uuid: &str, caller: &Address) -> Statement {
         Statement {
             uuid: soroban_sdk::String::from_str(e, uuid),
@@ -672,11 +585,8 @@ mod test {
         }
     }
 
-    /// The network is read from the ledger rather than supplied by the caller, so
-    /// the digest changes with the chain the registry is running on. Deliberately
-    /// *not* asserted here: that two registry instances on the same network hash
-    /// differently. The registry address is not part of the preimage — see the
-    /// rationale on `validation::compute_hash`.
+    /// Two instances on the same network hash identically; the registry address is
+    /// not in the preimage, only the network id.
     #[test]
     fn test_digest_is_bound_to_network_id() {
         let e = Env::default();
@@ -691,8 +601,7 @@ mod test {
         assert_ne!(hash, client.hash_statement(&statement));
     }
 
-    /// An attestation signed on one chain cannot be presented on another, even to
-    /// the registry deployed at the same address.
+    /// An attestation signed on one chain cannot be presented on another.
     #[test]
     #[should_panic(expected = "Error(Crypto, InvalidInput)")]
     fn test_attestation_from_another_network_is_rejected() {
@@ -717,24 +626,12 @@ mod test {
         client.validate_attestation(&statement, &attestation, &caller);
     }
 
-    // --- Golden vector ---
-    //
-    // Every other test here asks the contract for a digest and then signs it, so
-    // the contract is only ever checked against itself: swapping the order of the
-    // appends in `compute_hash`, or renaming a `Statement` field — `#[contracttype]`
-    // uses field names as ScMap keys — silently changes the wire format while every
-    // test still passes. A plain refactor can therefore break every attestation the
-    // API has already signed.
-    //
-    // The constants below are the fix. They come from `scripts/golden-vector.js`, a
-    // third implementation hand-rolled from the XDR spec that shares no code with
-    // this contract, so nothing but a byte-identical layout satisfies them. Pinning
-    // the same vector in the Go signer locks both sides to one value instead of each
-    // agreeing with itself.
-    //
-    // If a change here is deliberate, regenerate with that script and update both
-    // sides in the same rollout — the digest changing invalidates every attestation
-    // already issued.
+    // These constants come from `scripts/golden-vector.js`, an implementation that
+    // shares no code with this contract. Never regenerate them from `hash_statement`
+    // — a vector derived from the code under test cannot detect the code changing.
+    // Reordering the preimage or renaming a `Statement` field (`#[contracttype]`
+    // uses field names as ScMap keys) alters the wire format, and every other test
+    // here would still pass. The Go signer pins the same values.
 
     /// `sha256("Test SDF Network ; September 2015")`
     const GV_NETWORK_ID: &str = "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472";
@@ -775,9 +672,8 @@ mod test {
         out
     }
 
-    /// The statement the golden digest was computed over. `target` is the address
-    /// the test passes as `caller`, so `validate_attestation`'s hashStatementSafe
-    /// substitution is a no-op and it hashes exactly this.
+    /// `target` is the address the test passes as `caller`, so the substitution in
+    /// `validate_attestation` is a no-op and it hashes exactly this.
     fn golden_statement(e: &Env) -> Statement {
         Statement {
             uuid: soroban_sdk::String::from_str(e, GV_UUID),
@@ -790,8 +686,6 @@ mod test {
         }
     }
 
-    /// The digest for a fixed statement on a fixed network must equal a value this
-    /// contract did not produce.
     #[test]
     fn test_golden_vector_digest() {
         let e = Env::default();
@@ -804,9 +698,8 @@ mod test {
         assert_eq!(to_hex(&digest.to_array()), GV_DIGEST);
     }
 
-    /// The same vector through the real verification path: an externally produced
-    /// ed25519 signature over `GV_DIGEST` must satisfy `validate_attestation`. This
-    /// covers the ed25519 call too, not just the hashing.
+    /// The same vector through the verification path, so the ed25519 call is
+    /// covered and not just the hashing.
     #[test]
     fn test_golden_vector_signature() {
         let e = Env::default();
@@ -825,10 +718,8 @@ mod test {
             signature: BytesN::from_array(&e, &unhex::<64>(GV_SIGNATURE)),
         };
 
-        // `caller` is the statement's own target, so the digest verified here is
-        // GV_DIGEST unchanged.
         let caller = Address::from_str(&e, GV_TARGET);
-        assert!(client.validate_attestation(&statement, &attestation, &caller));
+        client.validate_attestation(&statement, &attestation, &caller);
     }
 
     #[test]
@@ -850,32 +741,29 @@ mod test {
         e.mock_all_auths();
         let (owner, client) = setup(&e);
 
-        // Seed storage before the upgrade.
         let attester = generate_attester_key(&e);
         client.register_attester(&owner, &attester);
         assert!(client.is_attester_registered(&attester));
 
-        // Upload the crate's own WASM and upgrade to it.
         let wasm_hash = e.deployer().upload_contract_wasm(registry_wasm::WASM);
         client.upgrade(&owner, &wasm_hash);
 
-        // Same address, same storage after the bytecode swap.
         assert_eq!(client.owner(), owner);
         assert!(client.is_attester_registered(&attester));
     }
 
+    /// A bad signature aborts with a host error, never a `RegistryError`.
     #[test]
-    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // ed25519_verify panics on bad signature
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")]
     fn test_validate_invalid_signature() {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, client) = setup(&e);
 
-        // Register attester A
         let (sk_a, pub_key_a) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key_a);
 
-        // Also register attester B (so it's registered) but sign with A's key
+        // B is registered too, so only the signature can be what fails.
         let (_sk_b, pub_key_b) = generate_ed25519_keypair(&e);
         client.register_attester(&owner, &pub_key_b);
 
@@ -890,7 +778,6 @@ mod test {
         };
 
         let hash = client.hash_statement(&statement);
-        // Sign with key A but claim attester is key B
         let signature = sign_hash(&e, &sk_a, &hash);
 
         let attestation = Attestation {
@@ -901,6 +788,52 @@ mod test {
         };
 
         client.validate_attestation(&statement, &attestation, &client.address);
+    }
+
+    /// The abort commits nothing, so the uuid survives for a corrected retry.
+    /// `try_validate_attestation` observes it without unwinding.
+    #[test]
+    fn test_invalid_signature_aborts_and_leaves_uuid_unspent() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let (owner, client) = setup(&e);
+
+        let (sk, pub_key) = generate_ed25519_keypair(&e);
+        let (other_sk, _other_pk) = generate_ed25519_keypair(&e);
+        client.register_attester(&owner, &pub_key);
+
+        let statement = Statement {
+            uuid: soroban_sdk::String::from_str(&e, "uuid-retry-after-bad-sig"),
+            msg_sender: Address::generate(&e),
+            target: client.address.clone(),
+            msg_value: 0,
+            encoded_sig_and_args: soroban_sdk::Bytes::from_slice(&e, &[0u8; 32]),
+            policy: soroban_sdk::String::from_str(&e, "x-test"),
+            expiration: e.ledger().timestamp() + 600,
+        };
+        let hash = client.hash_statement(&statement);
+
+        // Signed by a key the registry does not know: verification fails.
+        let forged = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key.clone(),
+            signature: sign_hash(&e, &other_sk, &hash),
+        };
+        let outcome = client.try_validate_attestation(&statement, &forged, &client.address);
+        // Err at the outer level is the invocation failing. The inner Err being an
+        // InvokeError rather than a RegistryError is the mismatch itself: there is
+        // no contract error code here for a caller to branch on.
+        assert_eq!(outcome, Err(Err(soroban_sdk::InvokeError::Abort)));
+
+        // The failed attempt committed nothing, so the same uuid is still spendable.
+        let genuine = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: pub_key,
+            signature: sign_hash(&e, &sk, &hash),
+        };
+        client.validate_attestation(&statement, &genuine, &client.address);
     }
 
     #[test]
