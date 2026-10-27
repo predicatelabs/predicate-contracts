@@ -1,4 +1,4 @@
 project = "predicate-contracts"
 
 include_dependencies = ["TransparentUpgradeableProxy", "ProxyAdmin"]
-exclude_paths = ["proxy/MetaCoin.sol", "examples/MetaCoin.sol", "examples/wallet-onboarding/TestOnboardingToken.sol"]
+exclude_paths = ["proxy/MetaCoin.sol", "examples/MetaCoin.sol"]

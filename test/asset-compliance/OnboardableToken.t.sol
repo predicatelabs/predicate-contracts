@@ -5,12 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IFreezable} from "../../src/interfaces/IFreezable.sol";
-import {TestOnboardingToken} from "../../src/examples/wallet-onboarding/TestOnboardingToken.sol";
+import {OnboardableToken} from "../../src/examples/asset-compliance/OnboardableToken.sol";
 
-contract TestOnboardingTokenTest is Test {
+contract OnboardableTokenTest is Test {
     event WhitelistUpdated(address indexed account, bool allowed);
 
-    TestOnboardingToken internal token;
+    OnboardableToken internal token;
 
     address internal admin = makeAddr("admin");
     address internal predicateFreezer = makeAddr("predicateFreezer");
@@ -22,7 +22,7 @@ contract TestOnboardingTokenTest is Test {
     uint256 internal constant AMOUNT = 1000e6;
 
     function setUp() public {
-        token = new TestOnboardingToken("Onboarding Test USD", "otUSD", admin, predicateFreezer, predicateOnboarder);
+        token = new OnboardableToken("Onboardable USD", "oUSD", admin, predicateFreezer, predicateOnboarder);
     }
 
     function _onboard(
@@ -47,12 +47,12 @@ contract TestOnboardingTokenTest is Test {
     }
 
     function test_LagoonSurfaceSelectors() public {
-        assertEq(TestOnboardingToken.isAllowed.selector, bytes4(keccak256("isAllowed(address)")));
-        assertEq(TestOnboardingToken.addToWhitelist.selector, bytes4(keccak256("addToWhitelist(address[])")));
-        assertEq(TestOnboardingToken.revokeFromWhitelist.selector, bytes4(keccak256("revokeFromWhitelist(address[])")));
-        assertEq(TestOnboardingToken.version.selector, bytes4(keccak256("version()")));
-        assertEq(TestOnboardingToken.OnlyWhitelistManager.selector, bytes4(keccak256("OnlyWhitelistManager(address)")));
-        assertEq(TestOnboardingToken.AddressNotAllowed.selector, bytes4(keccak256("AddressNotAllowed(address)")));
+        assertEq(OnboardableToken.isAllowed.selector, bytes4(keccak256("isAllowed(address)")));
+        assertEq(OnboardableToken.addToWhitelist.selector, bytes4(keccak256("addToWhitelist(address[])")));
+        assertEq(OnboardableToken.revokeFromWhitelist.selector, bytes4(keccak256("revokeFromWhitelist(address[])")));
+        assertEq(OnboardableToken.version.selector, bytes4(keccak256("version()")));
+        assertEq(OnboardableToken.OnlyWhitelistManager.selector, bytes4(keccak256("OnlyWhitelistManager(address)")));
+        assertEq(OnboardableToken.AddressNotAllowed.selector, bytes4(keccak256("AddressNotAllowed(address)")));
     }
 
     function test_RolesAssigned() public {
@@ -63,14 +63,14 @@ contract TestOnboardingTokenTest is Test {
     }
 
     function test_ConstructorRejectsZeroAddresses() public {
-        vm.expectRevert(TestOnboardingToken.ZeroAddress.selector);
-        new TestOnboardingToken("T", "T", address(0), predicateFreezer, predicateOnboarder);
+        vm.expectRevert(OnboardableToken.ZeroAddress.selector);
+        new OnboardableToken("T", "T", address(0), predicateFreezer, predicateOnboarder);
 
-        vm.expectRevert(TestOnboardingToken.ZeroAddress.selector);
-        new TestOnboardingToken("T", "T", admin, predicateFreezer, address(0));
+        vm.expectRevert(OnboardableToken.ZeroAddress.selector);
+        new OnboardableToken("T", "T", admin, predicateFreezer, address(0));
 
         vm.expectRevert(IFreezable.ZeroFreezeManager.selector);
-        new TestOnboardingToken("T", "T", admin, address(0), predicateOnboarder);
+        new OnboardableToken("T", "T", admin, address(0), predicateOnboarder);
     }
 
     function test_VersionIsReadable() public {
@@ -138,7 +138,7 @@ contract TestOnboardingTokenTest is Test {
     function test_AddToWhitelistRequiresRole() public {
         address[] memory accounts = _single(alice);
 
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.OnlyWhitelistManager.selector, stranger));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.OnlyWhitelistManager.selector, stranger));
         vm.prank(stranger);
         token.addToWhitelist(accounts);
     }
@@ -147,7 +147,7 @@ contract TestOnboardingTokenTest is Test {
         _onboard(alice);
         address[] memory accounts = _single(alice);
 
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.OnlyWhitelistManager.selector, admin));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.OnlyWhitelistManager.selector, admin));
         vm.prank(admin);
         token.revokeFromWhitelist(accounts);
     }
@@ -156,7 +156,7 @@ contract TestOnboardingTokenTest is Test {
         address[] memory accounts = _single(address(uint160(uint256(keccak256("random probe")))));
 
         vm.prank(predicateOnboarder);
-        (bool ok,) = address(token).call(abi.encodeCall(TestOnboardingToken.addToWhitelist, (accounts)));
+        (bool ok,) = address(token).call(abi.encodeCall(OnboardableToken.addToWhitelist, (accounts)));
         assertTrue(ok);
     }
 
@@ -171,7 +171,7 @@ contract TestOnboardingTokenTest is Test {
     }
 
     function test_MintToUnlistedReverts() public {
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.AddressNotAllowed.selector, alice));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.AddressNotAllowed.selector, alice));
         vm.prank(admin);
         token.mint(alice, AMOUNT);
     }
@@ -202,7 +202,7 @@ contract TestOnboardingTokenTest is Test {
         vm.prank(admin);
         token.mint(alice, AMOUNT);
 
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.AddressNotAllowed.selector, bob));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.AddressNotAllowed.selector, bob));
         vm.prank(alice);
         token.transfer(bob, 1);
     }
@@ -219,11 +219,11 @@ contract TestOnboardingTokenTest is Test {
 
         _offboard(alice);
 
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.AddressNotAllowed.selector, alice));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.AddressNotAllowed.selector, alice));
         vm.prank(alice);
         token.transfer(bob, 1);
 
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.AddressNotAllowed.selector, alice));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.AddressNotAllowed.selector, alice));
         vm.prank(bob);
         token.transfer(alice, 1);
 
@@ -247,7 +247,7 @@ contract TestOnboardingTokenTest is Test {
         assertEq(token.balanceOf(bob), 50);
 
         _offboard(bob);
-        vm.expectRevert(abi.encodeWithSelector(TestOnboardingToken.AddressNotAllowed.selector, bob));
+        vm.expectRevert(abi.encodeWithSelector(OnboardableToken.AddressNotAllowed.selector, bob));
         vm.prank(stranger);
         token.transferFrom(alice, bob, 50);
     }

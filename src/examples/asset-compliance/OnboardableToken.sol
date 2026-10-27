@@ -5,7 +5,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 
 import {Freezable} from "../../Freezable.sol";
 
-contract TestOnboardingToken is ERC20Upgradeable, Freezable {
+contract OnboardableToken is ERC20Upgradeable, Freezable {
     bytes32 public constant WHITELIST_MANAGER_ROLE = keccak256("WHITELIST_MANAGER_ROLE");
 
     mapping(address account => bool allowed) private _allowed;
@@ -34,7 +34,7 @@ contract TestOnboardingToken is ERC20Upgradeable, Freezable {
     }
 
     function version() external pure returns (string memory) {
-        return "predicate-test-onboarding-token-v1";
+        return "1.0.0";
     }
 
     function isAllowed(
