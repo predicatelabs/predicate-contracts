@@ -16,6 +16,8 @@ A token can also restrict who may hold it to an allowlist that Predicate manages
 
 [`OnboardableToken.sol`](OnboardableToken.sol) shows this alongside freezing. Mints and transfers revert with `AddressNotAllowed` unless every non-zero party is on the list, and freeze checks still apply on top.
 
+For Stellar, [`soroban/example-onboardable-token`](../../../soroban/example-onboardable-token) is the equivalent SEP-41 token.
+
 ## Role model
 
 The roles a token defines, and who holds them, are the issuer's choice. The pattern below is the one the example token implements and the one we recommend: role-based access control where no single key can both freeze an account and move or destroy its funds. Each capability is its own role held by a separate key, and `DEFAULT_ADMIN_ROLE` (ideally a multisig or timelock) administers the others and authorizes upgrades.

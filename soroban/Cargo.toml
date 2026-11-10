@@ -5,6 +5,7 @@ members = [
     "predicate-registry",
     "predicate-client",
     "example-compliant-token",
+    "example-onboardable-token",
 ]
 
 [profile.release]
