@@ -24,8 +24,9 @@ interface below.
   onboarded and not blocked. The spender in `transfer_from` is not checked.
 - `burn` and `burn_from` skip the onboarding check but still refuse a blocked
   owner, so a block holds funds in place.
-- Onboarding and blocking are independent: blocking does not offboard, and an
-  onboarded wallet stays onboarded while blocked.
+- A blocked wallet cannot be onboarded: `onboard_user` refuses it with
+  `UserBlockedError`. Blocking an onboarded wallet does not offboard it, so it
+  can transact again once unblocked.
 - Onboard, offboard, block, and unblock are idempotent; events are emitted only
   on a state change.
 
@@ -45,41 +46,42 @@ else; none of them can mint or move funds.
 
 ## Interface
 
-Predicate calls this fixed interface; keep the names and argument order if you
-adapt the example.
+Predicate calls a fixed interface and does not adapt to a token's own function
+names. Keep these names, argument order, and error codes if you adapt the
+example.
 
 | Function | Purpose |
 | --- | --- |
-| `onboard_user(user, operator)` | Onboard a wallet. `operator` must hold `onboarder` and sign. |
-| `offboard_user(user, operator)` | Offboard a wallet. `operator` must hold `onboarder` and sign. |
+| `onboard_user(user, operator)` | Onboard a wallet. `operator` must hold `onboarder` and sign. Refuses a blocked wallet with `UserBlockedError`. |
 | `is_onboarded(account) -> bool` | Whether a wallet is onboarded. `false` for any address never onboarded. |
 | `is_onboarder(account) -> bool` | Whether an address holds `onboarder`. |
 | `block_user(user, operator)` | Block an account. `operator` must hold `blocker` and sign. |
 | `unblock_user(user, operator)` | Unblock an account. `operator` must hold `unblocker` and sign. |
+| `batch_block_users(users, operator)` | Block every account in `users`. Requires `blocker`. |
+| `batch_unblock_users(users, operator)` | Unblock every account in `users`. Requires `unblocker`. |
 | `is_on_block_list(account) -> bool` | Whether an account is blocked. |
 | `is_block_operator(account) -> bool` | Whether an address holds `blocker`. |
 | `is_unblock_operator(account) -> bool` | Whether an address holds `unblocker`. |
 | `balance(account) -> i128` | SEP-41 balance. |
 
-Batch variants take a list of wallets. Each checks the operator's role and
-signature once, then applies the single-wallet logic to every entry, so
-already-applied entries and duplicates are skipped without an event. A refused
-batch writes nothing.
+The token also implements these, which Predicate does not call today:
 
 | Function | Purpose |
 | --- | --- |
-| `onboard_users(users, operator)` | Onboard every wallet in `users`. Requires `onboarder`. |
-| `offboard_users(users, operator)` | Offboard every wallet in `users`. Requires `onboarder`. |
-| `block_users(users, operator)` | Block every account in `users`. Requires `blocker`. |
-| `unblock_users(users, operator)` | Unblock every account in `users`. Requires `unblocker`. |
+| `batch_onboard_users(users, operator) -> Vec<Address>` | Onboard every wallet in `users`. Requires `onboarder`. Blocked wallets are skipped and returned. |
+| `offboard_user(user, operator)` | Offboard a wallet. Requires `onboarder`. |
+| `batch_offboard_users(users, operator)` | Offboard every wallet in `users`. Requires `onboarder`. |
 
-Batch size is bounded by the network's per-transaction limits, not by the
-contract. Each state change writes one ledger entry and emits one event of
-about 130 bytes, so the 16 KB event limit is reached first: keep batches to
-about 100 wallets.
+Each batch function checks the operator's role and signature once, then
+applies the single-wallet logic to every entry, so already-applied entries and
+duplicates are skipped without an event. A batch takes at most
+`MAX_BATCH_SIZE` (40) wallets; a larger one is refused with
+`BatchTooLargeError`. A refused batch writes nothing.
 
 | Error | Code | Raised when |
 | --- | --- | --- |
+| `OnboardableTokenError::BatchTooLargeError` | 102 | A batch has more than 40 wallets. |
+| `OnboardableTokenError::UserBlockedError` | 105 | `onboard_user` is called for a blocked wallet. |
 | `FungibleTokenError::UserNotAllowed` | 113 | A party that must be onboarded is not. |
 | `FungibleTokenError::UserBlocked` | 114 | A party is on the block list. |
 | `AccessControlError::Unauthorized` | 2000 | `operator` lacks the role for the call. |

@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, symbol_short, Address, Env, MuxedAddress, String,
-    Symbol, Vec,
+    contract, contracterror, contractimpl, panic_with_error, symbol_short, Address, Env,
+    MuxedAddress, String, Symbol, Vec,
 };
 use stellar_access::access_control::{self as access_control, AccessControl};
 use stellar_tokens::fungible::{
@@ -15,7 +15,17 @@ pub const ONBOARDER_ROLE: Symbol = symbol_short!("onboarder");
 pub const BLOCKER_ROLE: Symbol = symbol_short!("blocker");
 pub const UNBLOCKER_ROLE: Symbol = symbol_short!("unblocker");
 
+pub const MAX_BATCH_SIZE: u32 = 40;
+
 const DECIMALS: u32 = 6;
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum OnboardableTokenError {
+    BatchTooLargeError = 102,
+    UserBlockedError = 105,
+}
 
 fn extend_instance_ttl(e: &Env) {
     e.storage()
@@ -27,6 +37,13 @@ fn authorize_operator(e: &Env, operator: &Address, role: &Symbol) {
     access_control::ensure_role(e, role, operator);
     operator.require_auth();
     extend_instance_ttl(e);
+}
+
+fn authorize_batch_operator(e: &Env, users: &Vec<Address>, operator: &Address, role: &Symbol) {
+    authorize_operator(e, operator, role);
+    if users.len() > MAX_BATCH_SIZE {
+        panic_with_error!(e, OnboardableTokenError::BatchTooLargeError);
+    }
 }
 
 fn has_role(e: &Env, account: &Address, role: &Symbol) -> bool {
@@ -99,6 +116,9 @@ impl OnboardableTokenContract {
 
     pub fn onboard_user(e: &Env, user: Address, operator: Address) {
         authorize_operator(e, &operator, &ONBOARDER_ROLE);
+        if BlockList::blocked(e, &user) {
+            panic_with_error!(e, OnboardableTokenError::UserBlockedError);
+        }
         AllowList::allow_user(e, &user);
     }
 
@@ -117,29 +137,35 @@ impl OnboardableTokenContract {
         BlockList::unblock_user(e, &user);
     }
 
-    pub fn onboard_users(e: &Env, users: Vec<Address>, operator: Address) {
-        authorize_operator(e, &operator, &ONBOARDER_ROLE);
+    pub fn batch_onboard_users(e: &Env, users: Vec<Address>, operator: Address) -> Vec<Address> {
+        authorize_batch_operator(e, &users, &operator, &ONBOARDER_ROLE);
+        let mut blocked = Vec::new(e);
         for user in users.iter() {
-            AllowList::allow_user(e, &user);
+            if BlockList::blocked(e, &user) {
+                blocked.push_back(user);
+            } else {
+                AllowList::allow_user(e, &user);
+            }
         }
+        blocked
     }
 
-    pub fn offboard_users(e: &Env, users: Vec<Address>, operator: Address) {
-        authorize_operator(e, &operator, &ONBOARDER_ROLE);
+    pub fn batch_offboard_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_batch_operator(e, &users, &operator, &ONBOARDER_ROLE);
         for user in users.iter() {
             AllowList::disallow_user(e, &user);
         }
     }
 
-    pub fn block_users(e: &Env, users: Vec<Address>, operator: Address) {
-        authorize_operator(e, &operator, &BLOCKER_ROLE);
+    pub fn batch_block_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_batch_operator(e, &users, &operator, &BLOCKER_ROLE);
         for user in users.iter() {
             BlockList::block_user(e, &user);
         }
     }
 
-    pub fn unblock_users(e: &Env, users: Vec<Address>, operator: Address) {
-        authorize_operator(e, &operator, &UNBLOCKER_ROLE);
+    pub fn batch_unblock_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_batch_operator(e, &users, &operator, &UNBLOCKER_ROLE);
         for user in users.iter() {
             BlockList::unblock_user(e, &user);
         }
@@ -264,6 +290,10 @@ mod test {
     }
 
     fn token_error(error: FungibleTokenError) -> Error {
+        error.into()
+    }
+
+    fn gateway_error(error: OnboardableTokenError) -> Error {
         error.into()
     }
 
@@ -423,10 +453,19 @@ mod test {
         assert!(s.token.try_block_user(&s.alice, &s.blocker).is_err());
         assert!(s.token.try_unblock_user(&s.alice, &s.unblocker).is_err());
         let users = soroban_sdk::vec![&s.env, s.alice.clone()];
-        assert!(s.token.try_onboard_users(&users, &s.onboarder).is_err());
-        assert!(s.token.try_offboard_users(&users, &s.onboarder).is_err());
-        assert!(s.token.try_block_users(&users, &s.blocker).is_err());
-        assert!(s.token.try_unblock_users(&users, &s.unblocker).is_err());
+        assert!(s
+            .token
+            .try_batch_onboard_users(&users, &s.onboarder)
+            .is_err());
+        assert!(s
+            .token
+            .try_batch_offboard_users(&users, &s.onboarder)
+            .is_err());
+        assert!(s.token.try_batch_block_users(&users, &s.blocker).is_err());
+        assert!(s
+            .token
+            .try_batch_unblock_users(&users, &s.unblocker)
+            .is_err());
     }
 
     fn generate_users(env: &Env, count: u32) -> soroban_sdk::Vec<Address> {
@@ -438,11 +477,11 @@ mod test {
     }
 
     #[test]
-    fn onboard_users_onboards_each_and_emits_per_user() {
+    fn batch_onboard_users_onboards_each_and_emits_per_user() {
         let s = setup();
         let users = generate_users(&s.env, 3);
 
-        s.token.onboard_users(&users, &s.onboarder);
+        s.token.batch_onboard_users(&users, &s.onboarder);
 
         let events = token_events(&s);
         assert_eq!(events.len(), 3);
@@ -453,12 +492,12 @@ mod test {
     }
 
     #[test]
-    fn onboard_users_skips_already_onboarded_and_duplicates() {
+    fn batch_onboard_users_skips_already_onboarded_and_duplicates() {
         let s = setup();
         s.token.onboard_user(&s.alice, &s.onboarder);
         let users = soroban_sdk::vec![&s.env, s.alice.clone(), s.bob.clone(), s.bob.clone()];
 
-        s.token.onboard_users(&users, &s.onboarder);
+        s.token.batch_onboard_users(&users, &s.onboarder);
 
         let events = token_events(&s);
         assert_eq!(events.len(), 1);
@@ -477,21 +516,21 @@ mod test {
         let s = setup();
         let users = soroban_sdk::Vec::new(&s.env);
 
-        s.token.onboard_users(&users, &s.onboarder);
-        s.token.offboard_users(&users, &s.onboarder);
-        s.token.block_users(&users, &s.blocker);
-        s.token.unblock_users(&users, &s.unblocker);
+        s.token.batch_onboard_users(&users, &s.onboarder);
+        s.token.batch_offboard_users(&users, &s.onboarder);
+        s.token.batch_block_users(&users, &s.blocker);
+        s.token.batch_unblock_users(&users, &s.unblocker);
 
         assert!(token_events(&s).is_empty());
     }
 
     #[test]
-    fn offboard_users_offboards_each() {
+    fn batch_offboard_users_offboards_each() {
         let s = setup();
         let users = generate_users(&s.env, 3);
-        s.token.onboard_users(&users, &s.onboarder);
+        s.token.batch_onboard_users(&users, &s.onboarder);
 
-        s.token.offboard_users(&users, &s.onboarder);
+        s.token.batch_offboard_users(&users, &s.onboarder);
 
         assert_eq!(token_events(&s).len(), 3);
         for user in users.iter() {
@@ -500,14 +539,14 @@ mod test {
     }
 
     #[test]
-    fn block_users_and_unblock_users_toggle_each() {
+    fn batch_block_users_and_batch_unblock_users_toggle_each() {
         let s = setup();
         s.token.onboard_user(&s.alice, &s.onboarder);
         s.token.onboard_user(&s.bob, &s.onboarder);
         s.token.mint(&s.alice, &AMOUNT);
         let users = soroban_sdk::vec![&s.env, s.alice.clone(), s.bob.clone()];
 
-        s.token.block_users(&users, &s.blocker);
+        s.token.batch_block_users(&users, &s.blocker);
         assert_eq!(token_events(&s).len(), 2);
         assert!(s.token.is_on_block_list(&s.alice));
         assert!(s.token.is_on_block_list(&s.bob));
@@ -516,7 +555,7 @@ mod test {
             Err(Ok(token_error(FungibleTokenError::UserBlocked)))
         );
 
-        s.token.unblock_users(&users, &s.unblocker);
+        s.token.batch_unblock_users(&users, &s.unblocker);
         assert_eq!(token_events(&s).len(), 2);
         assert!(!s.token.is_on_block_list(&s.alice));
         assert!(!s.token.is_on_block_list(&s.bob));
@@ -532,18 +571,35 @@ mod test {
             access_control::AccessControlError::Unauthorized,
         )));
 
-        assert_eq!(s.token.try_onboard_users(&users, &s.blocker), unauthorized);
-        assert_eq!(s.token.try_block_users(&users, &s.onboarder), unauthorized);
-        assert_eq!(s.token.try_block_users(&users, &s.unblocker), unauthorized);
+        assert_eq!(
+            s.token.try_batch_onboard_users(&users, &s.blocker),
+            Err(Ok(access_error(
+                access_control::AccessControlError::Unauthorized
+            )))
+        );
+        assert_eq!(
+            s.token.try_batch_block_users(&users, &s.onboarder),
+            unauthorized
+        );
+        assert_eq!(
+            s.token.try_batch_block_users(&users, &s.unblocker),
+            unauthorized
+        );
         for user in users.iter() {
             assert!(!s.token.is_onboarded(&user));
             assert!(!s.token.is_on_block_list(&user));
         }
 
-        s.token.onboard_users(&users, &s.onboarder);
-        s.token.block_users(&users, &s.blocker);
-        assert_eq!(s.token.try_offboard_users(&users, &s.blocker), unauthorized);
-        assert_eq!(s.token.try_unblock_users(&users, &s.blocker), unauthorized);
+        s.token.batch_onboard_users(&users, &s.onboarder);
+        s.token.batch_block_users(&users, &s.blocker);
+        assert_eq!(
+            s.token.try_batch_offboard_users(&users, &s.blocker),
+            unauthorized
+        );
+        assert_eq!(
+            s.token.try_batch_unblock_users(&users, &s.blocker),
+            unauthorized
+        );
         for user in users.iter() {
             assert!(s.token.is_onboarded(&user));
             assert!(s.token.is_on_block_list(&user));
@@ -710,17 +766,95 @@ mod test {
     }
 
     #[test]
-    fn onboarding_and_blocking_are_independent() {
+    fn onboarding_block_listed_user_returns_user_blocked_error() {
         let s = setup();
         s.token.block_user(&s.alice, &s.blocker);
 
+        assert_eq!(
+            s.token.try_onboard_user(&s.alice, &s.onboarder),
+            Err(Ok(gateway_error(OnboardableTokenError::UserBlockedError)))
+        );
+        assert!(!s.token.is_onboarded(&s.alice));
+
+        s.token.unblock_user(&s.alice, &s.unblocker);
         s.token.onboard_user(&s.alice, &s.onboarder);
+        assert!(s.token.is_onboarded(&s.alice));
+    }
+
+    #[test]
+    fn blocking_an_onboarded_user_keeps_the_onboarding() {
+        let s = setup();
+        s.token.onboard_user(&s.alice, &s.onboarder);
+
+        s.token.block_user(&s.alice, &s.blocker);
         assert!(s.token.is_onboarded(&s.alice));
         assert!(s.token.is_on_block_list(&s.alice));
 
         s.token.unblock_user(&s.alice, &s.unblocker);
         assert!(s.token.is_onboarded(&s.alice));
         assert!(!s.token.is_on_block_list(&s.alice));
+    }
+
+    #[test]
+    fn error_codes_match_the_supported_interface() {
+        assert_eq!(OnboardableTokenError::BatchTooLargeError as u32, 102);
+        assert_eq!(OnboardableTokenError::UserBlockedError as u32, 105);
+    }
+
+    #[test]
+    fn batch_onboard_users_skips_and_returns_block_listed_users() {
+        let s = setup();
+        let carol = Address::generate(&s.env);
+        s.token.block_user(&s.bob, &s.blocker);
+        let users = soroban_sdk::vec![&s.env, s.alice.clone(), s.bob.clone(), carol.clone()];
+
+        let blocked = s.token.batch_onboard_users(&users, &s.onboarder);
+
+        assert_eq!(blocked, soroban_sdk::vec![&s.env, s.bob.clone()]);
+        assert!(s.token.is_onboarded(&s.alice));
+        assert!(!s.token.is_onboarded(&s.bob));
+        assert!(s.token.is_onboarded(&carol));
+    }
+
+    #[test]
+    fn batches_accept_up_to_max_batch_size() {
+        let s = setup();
+        let users = generate_users(&s.env, MAX_BATCH_SIZE);
+
+        assert!(s.token.batch_onboard_users(&users, &s.onboarder).is_empty());
+        s.token.batch_block_users(&users, &s.blocker);
+        s.token.batch_unblock_users(&users, &s.unblocker);
+        s.token.batch_offboard_users(&users, &s.onboarder);
+
+        for user in users.iter() {
+            assert!(!s.token.is_onboarded(&user));
+            assert!(!s.token.is_on_block_list(&user));
+        }
+    }
+
+    #[test]
+    fn batches_over_max_batch_size_are_refused() {
+        let s = setup();
+        let users = generate_users(&s.env, MAX_BATCH_SIZE + 1);
+        let too_large = Err(Ok(gateway_error(OnboardableTokenError::BatchTooLargeError)));
+
+        assert_eq!(
+            s.token.try_batch_onboard_users(&users, &s.onboarder),
+            Err(Ok(gateway_error(OnboardableTokenError::BatchTooLargeError)))
+        );
+        assert_eq!(
+            s.token.try_batch_offboard_users(&users, &s.onboarder),
+            too_large
+        );
+        assert_eq!(s.token.try_batch_block_users(&users, &s.blocker), too_large);
+        assert_eq!(
+            s.token.try_batch_unblock_users(&users, &s.unblocker),
+            too_large
+        );
+        for user in users.iter() {
+            assert!(!s.token.is_onboarded(&user));
+            assert!(!s.token.is_on_block_list(&user));
+        }
     }
 
     #[test]
