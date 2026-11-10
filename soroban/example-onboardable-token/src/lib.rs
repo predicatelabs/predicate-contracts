@@ -117,6 +117,34 @@ impl OnboardableTokenContract {
         BlockList::unblock_user(e, &user);
     }
 
+    pub fn onboard_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_operator(e, &operator, &ONBOARDER_ROLE);
+        for user in users.iter() {
+            AllowList::allow_user(e, &user);
+        }
+    }
+
+    pub fn offboard_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_operator(e, &operator, &ONBOARDER_ROLE);
+        for user in users.iter() {
+            AllowList::disallow_user(e, &user);
+        }
+    }
+
+    pub fn block_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_operator(e, &operator, &BLOCKER_ROLE);
+        for user in users.iter() {
+            BlockList::block_user(e, &user);
+        }
+    }
+
+    pub fn unblock_users(e: &Env, users: Vec<Address>, operator: Address) {
+        authorize_operator(e, &operator, &UNBLOCKER_ROLE);
+        for user in users.iter() {
+            BlockList::unblock_user(e, &user);
+        }
+    }
+
     pub fn is_onboarded(e: &Env, account: Address) -> bool {
         AllowList::allowed(e, &account)
     }
@@ -394,6 +422,132 @@ mod test {
         assert!(s.token.try_offboard_user(&s.alice, &s.onboarder).is_err());
         assert!(s.token.try_block_user(&s.alice, &s.blocker).is_err());
         assert!(s.token.try_unblock_user(&s.alice, &s.unblocker).is_err());
+        let users = soroban_sdk::vec![&s.env, s.alice.clone()];
+        assert!(s.token.try_onboard_users(&users, &s.onboarder).is_err());
+        assert!(s.token.try_offboard_users(&users, &s.onboarder).is_err());
+        assert!(s.token.try_block_users(&users, &s.blocker).is_err());
+        assert!(s.token.try_unblock_users(&users, &s.unblocker).is_err());
+    }
+
+    fn generate_users(env: &Env, count: u32) -> soroban_sdk::Vec<Address> {
+        let mut users = soroban_sdk::Vec::new(env);
+        for _ in 0..count {
+            users.push_back(Address::generate(env));
+        }
+        users
+    }
+
+    #[test]
+    fn onboard_users_onboards_each_and_emits_per_user() {
+        let s = setup();
+        let users = generate_users(&s.env, 3);
+
+        s.token.onboard_users(&users, &s.onboarder);
+
+        let events = token_events(&s);
+        assert_eq!(events.len(), 3);
+        for (user, (_, topics, _)) in users.iter().zip(events.iter()) {
+            assert_eq!(topics, &UserAllowed { user: user.clone() }.topics(&s.env));
+            assert!(s.token.is_onboarded(&user));
+        }
+    }
+
+    #[test]
+    fn onboard_users_skips_already_onboarded_and_duplicates() {
+        let s = setup();
+        s.token.onboard_user(&s.alice, &s.onboarder);
+        let users = soroban_sdk::vec![&s.env, s.alice.clone(), s.bob.clone(), s.bob.clone()];
+
+        s.token.onboard_users(&users, &s.onboarder);
+
+        let events = token_events(&s);
+        assert_eq!(events.len(), 1);
+        assert_last_event(
+            &s,
+            &UserAllowed {
+                user: s.bob.clone(),
+            },
+        );
+        assert!(s.token.is_onboarded(&s.alice));
+        assert!(s.token.is_onboarded(&s.bob));
+    }
+
+    #[test]
+    fn empty_batches_are_silent_noops() {
+        let s = setup();
+        let users = soroban_sdk::Vec::new(&s.env);
+
+        s.token.onboard_users(&users, &s.onboarder);
+        s.token.offboard_users(&users, &s.onboarder);
+        s.token.block_users(&users, &s.blocker);
+        s.token.unblock_users(&users, &s.unblocker);
+
+        assert!(token_events(&s).is_empty());
+    }
+
+    #[test]
+    fn offboard_users_offboards_each() {
+        let s = setup();
+        let users = generate_users(&s.env, 3);
+        s.token.onboard_users(&users, &s.onboarder);
+
+        s.token.offboard_users(&users, &s.onboarder);
+
+        assert_eq!(token_events(&s).len(), 3);
+        for user in users.iter() {
+            assert!(!s.token.is_onboarded(&user));
+        }
+    }
+
+    #[test]
+    fn block_users_and_unblock_users_toggle_each() {
+        let s = setup();
+        s.token.onboard_user(&s.alice, &s.onboarder);
+        s.token.onboard_user(&s.bob, &s.onboarder);
+        s.token.mint(&s.alice, &AMOUNT);
+        let users = soroban_sdk::vec![&s.env, s.alice.clone(), s.bob.clone()];
+
+        s.token.block_users(&users, &s.blocker);
+        assert_eq!(token_events(&s).len(), 2);
+        assert!(s.token.is_on_block_list(&s.alice));
+        assert!(s.token.is_on_block_list(&s.bob));
+        assert_eq!(
+            s.token.try_transfer(&s.alice, &s.bob, &1),
+            Err(Ok(token_error(FungibleTokenError::UserBlocked)))
+        );
+
+        s.token.unblock_users(&users, &s.unblocker);
+        assert_eq!(token_events(&s).len(), 2);
+        assert!(!s.token.is_on_block_list(&s.alice));
+        assert!(!s.token.is_on_block_list(&s.bob));
+        s.token.transfer(&s.alice, &s.bob, &400);
+        assert_eq!(s.token.balance(&s.bob), 400);
+    }
+
+    #[test]
+    fn batches_require_their_roles_and_write_nothing_when_refused() {
+        let s = setup();
+        let users = soroban_sdk::vec![&s.env, s.alice.clone(), s.bob.clone()];
+        let unauthorized = Err(Ok(access_error(
+            access_control::AccessControlError::Unauthorized,
+        )));
+
+        assert_eq!(s.token.try_onboard_users(&users, &s.blocker), unauthorized);
+        assert_eq!(s.token.try_block_users(&users, &s.onboarder), unauthorized);
+        assert_eq!(s.token.try_block_users(&users, &s.unblocker), unauthorized);
+        for user in users.iter() {
+            assert!(!s.token.is_onboarded(&user));
+            assert!(!s.token.is_on_block_list(&user));
+        }
+
+        s.token.onboard_users(&users, &s.onboarder);
+        s.token.block_users(&users, &s.blocker);
+        assert_eq!(s.token.try_offboard_users(&users, &s.blocker), unauthorized);
+        assert_eq!(s.token.try_unblock_users(&users, &s.blocker), unauthorized);
+        for user in users.iter() {
+            assert!(s.token.is_onboarded(&user));
+            assert!(s.token.is_on_block_list(&user));
+        }
     }
 
     #[test]

@@ -61,6 +61,23 @@ adapt the example.
 | `is_unblock_operator(account) -> bool` | Whether an address holds `unblocker`. |
 | `balance(account) -> i128` | SEP-41 balance. |
 
+Batch variants take a list of wallets. Each checks the operator's role and
+signature once, then applies the single-wallet logic to every entry, so
+already-applied entries and duplicates are skipped without an event. A refused
+batch writes nothing.
+
+| Function | Purpose |
+| --- | --- |
+| `onboard_users(users, operator)` | Onboard every wallet in `users`. Requires `onboarder`. |
+| `offboard_users(users, operator)` | Offboard every wallet in `users`. Requires `onboarder`. |
+| `block_users(users, operator)` | Block every account in `users`. Requires `blocker`. |
+| `unblock_users(users, operator)` | Unblock every account in `users`. Requires `unblocker`. |
+
+Batch size is bounded by the network's per-transaction limits, not by the
+contract. Each state change writes one ledger entry and emits one event of
+about 130 bytes, so the 16 KB event limit is reached first: keep batches to
+about 100 wallets.
+
 | Error | Code | Raised when |
 | --- | --- | --- |
 | `FungibleTokenError::UserNotAllowed` | 113 | A party that must be onboarded is not. |
