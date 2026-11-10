@@ -8,6 +8,10 @@ extra_output = ["storageLayout", "abi", "metadata", "devdoc", "userdoc"]
 libs = ["lib"]
 gas_reports = ["*"]
 solc_version = '0.8.28'
+# Pinned so a Foundry or solc bump cannot silently retarget a newer EVM than a
+# deployment chain supports. Matches what Foundry 1.4.1 + solc 0.8.28 already produce,
+# so existing artifacts are unchanged. Tron enables the Prague opcode set on mainnet and Nile.
+evm_version = 'prague'
 
 [fmt]
 bracket_spacing = false
