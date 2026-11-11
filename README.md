@@ -36,7 +36,7 @@ src/
 └── examples/                   # Reference implementations
     ├── inheritance/            # Direct inheritance pattern (Application Compliance)
     ├── proxy/                  # Proxy pattern for separation of concerns
-    └── asset-compliance/       # Asset Compliance pattern (account freezing)
+    └── asset-compliance/       # Asset Compliance patterns (account freezing, wallet onboarding)
 ```
 
 ## Installation

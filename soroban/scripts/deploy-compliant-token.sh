@@ -17,7 +17,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOROBAN_DIR="$(dirname "$SCRIPT_DIR")"
 
 NETWORK="testnet"
-NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
 if [ $# -lt 3 ]; then
   echo "Usage: $0 <identity> <registry_contract_id> <policy_id>"
@@ -55,7 +54,6 @@ echo "Deploying CompliantToken to $NETWORK..."
 echo "  Admin:     $ADMIN_ADDRESS"
 echo "  Registry:  $REGISTRY_ID"
 echo "  Policy:    $POLICY_ID"
-echo "  Network:   $NETWORK_PASSPHRASE"
 
 TOKEN_ID=$(stellar contract deploy \
   --wasm "$WASM_PATH" \
@@ -64,8 +62,7 @@ TOKEN_ID=$(stellar contract deploy \
   -- \
   --admin "$ADMIN_ADDRESS" \
   --registry "$REGISTRY_ID" \
-  --policy_id "$POLICY_ID" \
-  --network "$NETWORK_PASSPHRASE")
+  --policy_id "$POLICY_ID")
 
 echo "Token deployed: $TOKEN_ID"
 

@@ -5,9 +5,8 @@ use soroban_sdk::{
     Vec,
 };
 
-// --- Types (mirrored from predicate-registry to avoid linking the contract impl) ---
+// Mirrored from predicate-registry so integrators need not link the contract impl.
 
-/// Describes a transaction to be authorized.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Statement {
@@ -20,7 +19,6 @@ pub struct Statement {
     pub expiration: u64,
 }
 
-/// Ed25519-signed authorization from an attester.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attestation {
@@ -41,32 +39,21 @@ pub enum RegistryError {
     UuidAlreadyUsed = 5,
     UuidMismatch = 6,
     ExpirationMismatch = 7,
-    InvalidSignature = 8,
-    NotInitialized = 9,
-    AlreadyInitialized = 10,
+    NotInitialized = 8,
 }
 
-// --- Client helper ---
-
-/// Build a Statement and validate it against the Predicate Registry.
+/// Assembles a Statement from the live call and has the registry validate it.
 ///
-/// This is the Soroban equivalent of the EVM PredicateClient._authorizeTransaction() pattern.
+/// Returning means authorized; every failure aborts the invocation instead.
 ///
-/// The `uuid` and `expiration` fields are copied from the attestation into the
-/// constructed statement, mirroring the EVM pattern where these values originate
-/// from the attester's signed payload.
-///
-/// # Arguments
-/// * `e` - Soroban environment
-/// * `registry` - Address of the deployed PredicateRegistry contract
-/// * `attestation` - The signed attestation from an authorized attester
-/// * `encoded_sig_and_args` - Encoded function call data (variable-length)
-/// * `msg_sender` - The original caller
-/// * `msg_value` - Value sent with the transaction (token amount, equivalent to EVM msg.value)
-/// * `target` - The contract being called — callers should pass `e.current_contract_address()`
-///   so that the registry's hashStatementSafe logic can bind the attestation to this contract
-/// * `policy` - The policy ID for this contract
-/// * `network` - Network passphrase for domain separation
+/// Each argument must describe the call being authorized — `target` is
+/// `e.current_contract_address()`, `encoded_sig_and_args` covers every argument
+/// that matters for compliance, `policy` comes from this contract's storage.
+/// Forwarding a user-supplied value here authorizes one action while executing
+/// another, with no signature forgery involved.
+// Kept as positional arguments rather than a params struct: a struct invites
+// building one value and reusing it, which is what the above rules out.
+#[allow(clippy::too_many_arguments)]
 pub fn authorize_transaction(
     e: &Env,
     registry: &Address,
@@ -76,8 +63,7 @@ pub fn authorize_transaction(
     msg_value: i128,
     target: &Address,
     policy: &String,
-    network: &String,
-) -> bool {
+) {
     let statement = Statement {
         uuid: attestation.uuid.clone(),
         msg_sender: msg_sender.clone(),
@@ -92,11 +78,10 @@ pub fn authorize_transaction(
         e,
         statement.into_val(e),
         attestation.clone().into_val(e),
-        network.clone().into_val(e),
         target.clone().into_val(e),
     ];
 
-    e.invoke_contract::<bool>(registry, &Symbol::new(e, "validate_attestation"), args)
+    e.invoke_contract::<()>(registry, &Symbol::new(e, "validate_attestation"), args);
 }
 
 #[cfg(test)]
@@ -132,7 +117,6 @@ mod test {
         let e = Env::default();
         e.mock_all_auths();
         let (owner, registry_addr) = setup_registry(&e);
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
 
         let registry_client =
             predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
@@ -145,7 +129,6 @@ mod test {
         let encoded = Bytes::from_slice(&e, &[0xBBu8; 16]);
         let msg_value: i128 = 1000;
 
-        // Build statement matching what authorize_transaction will build
         let statement = predicate_registry::Statement {
             uuid: String::from_str(&e, "uuid-client-test"),
             msg_sender: msg_sender.clone(),
@@ -156,7 +139,7 @@ mod test {
             expiration: e.ledger().timestamp() + 600,
         };
 
-        let hash = registry_client.hash_statement(&statement, &network);
+        let hash = registry_client.hash_statement(&statement);
         let signature = sign_hash(&e, &sk, &hash);
 
         let attestation = Attestation {
@@ -166,7 +149,7 @@ mod test {
             signature,
         };
 
-        let result = authorize_transaction(
+        authorize_transaction(
             &e,
             &registry_addr,
             &attestation,
@@ -175,8 +158,6 @@ mod test {
             msg_value,
             &target,
             &policy,
-            &network,
         );
-        assert!(result);
     }
 }

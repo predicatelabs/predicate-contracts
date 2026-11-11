@@ -6,14 +6,11 @@ import {Freezable} from "../../Freezable.sol";
 /**
  * @title FreezableToken
  * @author Predicate Labs, Inc (https://predicate.io)
- * @notice Minimal example demonstrating asset compliance via account freezing.
- * @dev Shows how to integrate Freezable into a token to block frozen accounts from transfers.
- *
- *      Asset Compliance vs Application Compliance:
- *      - Asset Compliance: Enforcement at the asset level (this example)
- *        The token itself blocks frozen accounts from transferring.
- *      - Application Compliance: Enforcement via Predicate attestations
- *        See BasicVault.sol and AdvancedVault.sol for those patterns.
+ * @notice Minimal token built on the {Freezable} base — the smallest example of enforcing a
+ *         freeze list in `transfer`. See {FreezableStablecoin} for a full ERC-20 with pause,
+ *         mint/burn, and seize.
+ * @dev Frozen accounts can neither send nor receive. `freeze`/`unfreeze` are gated by
+ *      FREEZE_MANAGER_ROLE; grant that role to Predicate's freezer to enable enforcement.
  */
 contract FreezableToken is Freezable {
     mapping(address => uint256) public balances;

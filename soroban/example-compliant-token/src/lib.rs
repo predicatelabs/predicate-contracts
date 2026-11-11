@@ -1,6 +1,7 @@
 #![no_std]
 
 use predicate_client::Attestation;
+use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     contract, contracterror, contractimpl, symbol_short, Address, Bytes, Env, String, Symbol,
 };
@@ -9,7 +10,6 @@ use soroban_sdk::{
 const ADMIN: Symbol = symbol_short!("admin");
 const REGISTRY: Symbol = symbol_short!("registry");
 const POLICY: Symbol = symbol_short!("policy");
-const NETWORK: Symbol = symbol_short!("network");
 
 /// Storage key for token balances: (BALANCE, address) -> i128
 const BALANCE: Symbol = symbol_short!("balance");
@@ -38,35 +38,54 @@ impl CompliantTokenContract {
     /// * `admin` - Token admin who can mint
     /// * `registry` - Address of the deployed PredicateRegistry contract
     /// * `policy_id` - Policy identifier (e.g. "x-a1b2c3d4e5f6g7h8")
-    /// * `network` - Stellar network passphrase (e.g. "Test SDF Network ; September 2015")
-    pub fn __constructor(
-        e: &Env,
-        admin: Address,
-        registry: Address,
-        policy_id: String,
-        network: String,
-    ) {
+    ///
+    /// The network is not configured here: the registry derives it from the ledger
+    /// when it builds the attestation digest.
+    pub fn __constructor(e: &Env, admin: Address, registry: Address, policy_id: String) {
         e.storage().instance().set(&ADMIN, &admin);
         e.storage().instance().set(&REGISTRY, &registry);
         e.storage().instance().set(&POLICY, &policy_id);
-        e.storage().instance().set(&NETWORK, &network);
+
+        // Register with the Predicate Registry as part of deployment, so the
+        // token is usable after a single transaction.  Storing `registry` and
+        // `policy_id` above only records them here; the registry keeps its own
+        // mapping, and that is what `transfer` validates against.
+        //
+        // Deliberately no `admin.require_auth()`: the deployer is already
+        // authorizing this deployment and choosing the admin, and demanding the
+        // admin's signature too would break deploys where the admin is not the
+        // deployer.  Registering a brand-new contract's own policy affects
+        // nothing but that contract.
+        Self::write_policy_to_registry(e, &registry, &policy_id);
     }
 
     /// Register this contract's policy with the Predicate Registry.
-    /// Call this once after deployment. The admin must authorize.
+    ///
+    /// The constructor already does this, so a freshly deployed token needs no
+    /// follow-up call.  Kept so the entry can be re-registered if the registry's
+    /// mapping is ever cleared.  The admin must authorize.
     pub fn register_policy(e: &Env) {
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
 
         let registry: Address = e.storage().instance().get(&REGISTRY).unwrap();
         let policy_id: String = e.storage().instance().get(&POLICY).unwrap();
+        Self::write_policy_to_registry(e, &registry, &policy_id);
+    }
 
+    /// Write this contract's policy id into the registry.
+    ///
+    /// The registry's `set_policy_id` keys the policy by its caller, so the
+    /// call has to come from the token itself — an admin acting directly on the
+    /// registry cannot register on the token's behalf.  The token's own
+    /// authorization is implicit as the invoking contract.
+    fn write_policy_to_registry(e: &Env, registry: &Address, policy_id: &String) {
         let args: soroban_sdk::Vec<soroban_sdk::Val> = soroban_sdk::vec![
             e,
             soroban_sdk::IntoVal::into_val(&e.current_contract_address(), e),
-            soroban_sdk::IntoVal::into_val(&policy_id, e),
+            soroban_sdk::IntoVal::into_val(policy_id, e),
         ];
-        e.invoke_contract::<()>(&registry, &Symbol::new(e, "set_policy_id"), args);
+        e.invoke_contract::<()>(registry, &Symbol::new(e, "set_policy_id"), args);
     }
 
     /// Mint tokens to an address. Admin only, no attestation required.
@@ -107,19 +126,19 @@ impl CompliantTokenContract {
         // --- Predicate compliance check ---
         let registry: Address = e.storage().instance().get(&REGISTRY).unwrap();
         let policy: String = e.storage().instance().get(&POLICY).unwrap();
-        let network: String = e.storage().instance().get(&NETWORK).unwrap();
 
-        // Encode the transfer call data for the attestation
-        let encoded_call = Bytes::from_slice(
-            e,
-            &e.crypto()
-                .sha256(&soroban_sdk::Bytes::from_slice(
-                    e,
-                    b"transfer(address,address,i128)",
-                ))
-                .to_array(),
-        );
+        // Encode the *concrete* transfer call (selector + all arguments) so the
+        // attestation binds the recipient and amount — not just the function
+        // selector. Without `to` in the signed digest, an attestation approved
+        // for one recipient could be redirected to any other recipient.
+        let encoded_call = encode_transfer_call(e, &from, &to, amount);
 
+        // On failure the registry returns an `Err`, which `invoke_contract`
+        // propagates as a trap carrying the registry's exact error code
+        // (e.g. `Error(Contract, #4)` for an expired attestation). We deliberately
+        // do not catch and remap it: propagating the real error preserves far more
+        // detail than a generic "not authorized" code, and Soroban `#[contracterror]`
+        // enums are `#[repr(u32)]` and cannot carry the underlying error as a payload.
         predicate_client::authorize_transaction(
             e,
             &registry,
@@ -129,7 +148,6 @@ impl CompliantTokenContract {
             amount,
             &e.current_contract_address(),
             &policy,
-            &network,
         );
         // --- End compliance check ---
 
@@ -161,6 +179,18 @@ impl CompliantTokenContract {
     }
 }
 
+/// Deterministically encode a concrete `transfer` call (selector + arguments)
+/// for inclusion in the attestation digest. The attester signs over this, so
+/// every argument that matters for compliance — including the recipient — is
+/// bound to the attestation and cannot be swapped at submission time.
+pub fn encode_transfer_call(e: &Env, from: &Address, to: &Address, amount: i128) -> Bytes {
+    let mut call_data = Bytes::from_slice(e, b"transfer(address,address,i128)");
+    call_data.append(&from.clone().to_xdr(e));
+    call_data.append(&to.clone().to_xdr(e));
+    call_data.append(&Bytes::from_slice(e, &amount.to_be_bytes()));
+    Bytes::from_slice(e, &e.crypto().sha256(&call_data).to_array())
+}
+
 #[cfg(test)]
 mod test {
     extern crate std;
@@ -183,13 +213,99 @@ mod test {
         BytesN::from_array(e, &sig.to_bytes())
     }
 
+    /// Deploy a registry owned by `owner` and return its address.
+    fn deploy_registry(e: &Env, owner: &Address) -> Address {
+        e.register(PredicateRegistryContract, (owner.clone(),))
+    }
+
+    /// The constructor registers the policy, so a freshly deployed token is
+    /// usable without a follow-up `register_policy()` call.
+    #[test]
+    fn test_constructor_registers_policy() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = deploy_registry(&e, &registry_owner);
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        // The registry knows nothing about a contract it has never seen.
+        let unknown = Address::generate(&e);
+        assert_eq!(
+            registry_client.get_policy_id(&unknown),
+            String::from_str(&e, "")
+        );
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
+        );
+
+        // No register_policy() call — deployment alone must be enough.
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+    }
+
+    /// The constructor must not require the admin's signature: the admin is
+    /// frequently not the deployer, and demanding its auth would make such a
+    /// deploy impossible in one transaction.  No auth is mocked here, so any
+    /// `require_auth` on the deploy path would fail this test.
+    #[test]
+    fn test_constructor_does_not_require_admin_auth() {
+        let e = Env::default();
+
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = deploy_registry(&e, &registry_owner);
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        // An admin that is deliberately *not* the deployer and never signs.
+        let third_party_admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (third_party_admin, registry_addr.clone(), policy_id.clone()),
+        );
+
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+    }
+
+    /// `register_policy()` stays available and idempotent for tokens deployed
+    /// before the constructor did the work.
+    #[test]
+    fn test_register_policy_is_idempotent() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = deploy_registry(&e, &registry_owner);
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+        token.register_policy();
+        assert_eq!(registry_client.get_policy_id(&token_addr), policy_id);
+    }
+
     /// Full end-to-end: deploy registry, deploy token, mint, transfer with attestation
     #[test]
     fn test_compliant_transfer() {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         // 1. Deploy the Predicate Registry
@@ -206,12 +322,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
         let token = CompliantTokenContractClient::new(&e, &token_addr);
 
@@ -226,12 +337,7 @@ mod test {
 
         // 6. Build attestation for the transfer
         let transfer_amount: i128 = 250;
-        let encoded_call = Bytes::from_slice(
-            &e,
-            &e.crypto()
-                .sha256(&Bytes::from_slice(&e, b"transfer(address,address,i128)"))
-                .to_array(),
-        );
+        let encoded_call = encode_transfer_call(&e, &alice, &bob, transfer_amount);
 
         let statement = Statement {
             uuid: String::from_str(&e, "transfer-001"),
@@ -244,7 +350,7 @@ mod test {
         };
 
         // Hash and sign (this is what the Predicate API does off-chain)
-        let hash = registry_client.hash_statement(&statement, &network);
+        let hash = registry_client.hash_statement(&statement);
         let signature = sign_hash(&e, &attester_sk, &hash);
 
         let attestation = Attestation {
@@ -261,13 +367,126 @@ mod test {
         assert_eq!(token.balance(&bob), 250);
     }
 
+    /// An attestation approved for a specific recipient must not be usable to
+    /// send tokens to a *different* recipient. This guards the fix that binds
+    /// `to` into the signed call data.
+    #[test]
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // signed digest bound `bob`, not `carol`
+    fn test_transfer_redirected_recipient_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = e.register(PredicateRegistryContract, (registry_owner.clone(),));
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        let (attester_sk, attester_pk) = generate_ed25519_keypair(&e);
+        registry_client.register_attester(&registry_owner, &attester_pk);
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+        token.register_policy();
+
+        let alice = Address::generate(&e);
+        let bob = Address::generate(&e);
+        let carol = Address::generate(&e);
+        token.mint(&alice, &1000);
+
+        let transfer_amount: i128 = 250;
+        // Attester approves a transfer to BOB.
+        let encoded_call = encode_transfer_call(&e, &alice, &bob, transfer_amount);
+        let statement = Statement {
+            uuid: String::from_str(&e, "transfer-redirect"),
+            msg_sender: alice.clone(),
+            target: token_addr.clone(),
+            msg_value: transfer_amount,
+            encoded_sig_and_args: encoded_call,
+            policy: policy_id.clone(),
+            expiration: e.ledger().timestamp() + 600,
+        };
+        let hash = registry_client.hash_statement(&statement);
+        let signature = sign_hash(&e, &attester_sk, &hash);
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: attester_pk,
+            signature,
+        };
+
+        // Attacker (Alice) tries to redirect the approved attestation to CAROL.
+        token.transfer(&alice, &carol, &transfer_amount, &attestation);
+    }
+
+    /// The companion to the recipient test, for the amount. `transfer` derives
+    /// both `msg_value` and `encoded_sig_and_args` from its live `amount`, so an
+    /// attestation approved for one amount cannot be spent at another — the case
+    /// an integration would re-open by forwarding a user-supplied amount into the
+    /// statement instead of rebuilding it.
+    #[test]
+    #[should_panic(expected = "Error(Crypto, InvalidInput)")] // signed digest bound 250, not 100
+    fn test_transfer_tampered_amount_rejected() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let policy_id = String::from_str(&e, "x-example-policy");
+
+        let registry_owner = Address::generate(&e);
+        let registry_addr = e.register(PredicateRegistryContract, (registry_owner.clone(),));
+        let registry_client =
+            predicate_registry::PredicateRegistryContractClient::new(&e, &registry_addr);
+
+        let (attester_sk, attester_pk) = generate_ed25519_keypair(&e);
+        registry_client.register_attester(&registry_owner, &attester_pk);
+
+        let admin = Address::generate(&e);
+        let token_addr = e.register(
+            CompliantTokenContract,
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
+        );
+        let token = CompliantTokenContractClient::new(&e, &token_addr);
+
+        let alice = Address::generate(&e);
+        let bob = Address::generate(&e);
+        token.mint(&alice, &1000);
+
+        // Attester approves a transfer of 250.
+        let approved_amount: i128 = 250;
+        let statement = Statement {
+            uuid: String::from_str(&e, "transfer-amount"),
+            msg_sender: alice.clone(),
+            target: token_addr.clone(),
+            msg_value: approved_amount,
+            encoded_sig_and_args: encode_transfer_call(&e, &alice, &bob, approved_amount),
+            policy: policy_id.clone(),
+            expiration: e.ledger().timestamp() + 600,
+        };
+        let hash = registry_client.hash_statement(&statement);
+        let attestation = Attestation {
+            uuid: statement.uuid.clone(),
+            expiration: statement.expiration,
+            attester: attester_pk,
+            signature: sign_hash(&e, &attester_sk, &hash),
+        };
+
+        // Alice reuses it for a different amount. 100 is within her balance and
+        // passes the token's own checks, so the rejection can only come from the
+        // registry failing to verify the rebuilt digest.
+        token.transfer(&alice, &bob, &100, &attestation);
+    }
+
     #[test]
     #[should_panic(expected = "HostError: Error(Contract")]
     fn test_transfer_without_valid_attestation() {
         let e = Env::default();
         e.mock_all_auths();
 
-        let network = String::from_str(&e, "Test SDF Network ; September 2015");
         let policy_id = String::from_str(&e, "x-example-policy");
 
         // Deploy registry and register a real attester
@@ -282,12 +501,7 @@ mod test {
         let admin = Address::generate(&e);
         let token_addr = e.register(
             CompliantTokenContract,
-            (
-                admin.clone(),
-                registry_addr.clone(),
-                policy_id.clone(),
-                network.clone(),
-            ),
+            (admin.clone(), registry_addr.clone(), policy_id.clone()),
         );
         let token = CompliantTokenContractClient::new(&e, &token_addr);
 
