@@ -383,8 +383,8 @@ mod test {
 
         s.token.onboard_user(&s.alice, &s.onboarder);
 
-        assert!(s.token.is_onboarded(&s.alice));
         assert!(token_events(&s).is_empty());
+        assert!(s.token.is_onboarded(&s.alice));
     }
 
     #[test]
@@ -517,10 +517,12 @@ mod test {
         let users = soroban_sdk::Vec::new(&s.env);
 
         s.token.batch_onboard_users(&users, &s.onboarder);
+        assert!(token_events(&s).is_empty());
         s.token.batch_offboard_users(&users, &s.onboarder);
+        assert!(token_events(&s).is_empty());
         s.token.batch_block_users(&users, &s.blocker);
+        assert!(token_events(&s).is_empty());
         s.token.batch_unblock_users(&users, &s.unblocker);
-
         assert!(token_events(&s).is_empty());
     }
 
