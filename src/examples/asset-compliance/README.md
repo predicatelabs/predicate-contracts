@@ -16,6 +16,8 @@ A token can also restrict who may hold it to an allowlist that Predicate manages
 
 [`OnboardableToken.sol`](OnboardableToken.sol) shows this alongside freezing. Mints and transfers revert with `AddressNotAllowed` unless every non-zero party is on the list, and freeze checks still apply on top.
 
+[`ConcreteOnboardableToken.sol`](ConcreteOnboardableToken.sol) is the same token for Concrete's `WhitelistUserDepositHook` interface: the list is managed through `whitelistUsers` / `unWhitelistUsers`, and the contract's `owner()` is the account allowed to change it. Mints and transfers revert with `AddressNotWhitelisted` instead.
+
 For Stellar, [`soroban/example-onboardable-token`](../../../soroban/example-onboardable-token) is the equivalent SEP-41 token.
 
 ## Role model
@@ -28,6 +30,7 @@ Nothing forces this separation. A token could define a single role and grant it 
 | --- | --- | --- |
 | Freeze / unfreeze (+ batch) | `FREEZE_MANAGER_ROLE` | Predicate enforcer, and/or issuer ops |
 | Onboard / offboard wallets (`OnboardableToken`) | `WHITELIST_MANAGER_ROLE` | Predicate enforcer |
+| Onboard / offboard wallets (`ConcreteOnboardableToken`) | `owner()` | Predicate enforcer |
 | Seize / clawback | `FORCED_TRANSFER_MANAGER_ROLE` | Issuer, separate key from freeze |
 | Pause | `PAUSER_ROLE` | Issuer ops |
 | Mint / burn | `MINTER_ROLE` / `BURNER_ROLE` | Issuer treasury |
@@ -46,6 +49,14 @@ Nothing forces this separation. A token could define a single role and grant it 
 - It authorizes `addToWhitelist` and `revokeFromWhitelist`, and nothing else. It cannot freeze, mint, or move funds.
 - A caller without it reverts with `OnlyWhitelistManager(address)`. Predicate reads that error to confirm it holds the role when you enroll, so keep it if you adapt the example.
 
+### The whitelist owner
+
+`ConcreteOnboardableToken` follows Concrete's hook, which gates its list by `Ownable` rather than a role. You make Predicate's enforcement address the owner.
+
+- Ownership authorizes `whitelistUsers` and `unWhitelistUsers`, plus OpenZeppelin's `transferOwnership` and `renounceOwnership`. It cannot freeze, mint, or move funds.
+- Predicate checks that `owner()` is its enforcement address when you enroll. Only the owner can hand ownership back, so the admin cannot reclaim the list on its own.
+- A caller who is not the owner reverts with `OwnableUnauthorizedAccount(address)`, and a zero address in the list reverts with `ZeroAddress()`.
+
 ## Examples
 
 | File | What it shows |
@@ -53,12 +64,15 @@ Nothing forces this separation. A token could define a single role and grant it 
 | [`FreezableStablecoin.sol`](FreezableStablecoin.sol) | Upgradeable ERC-20 on the [`Freezable`](../../Freezable.sol) base (implements `IFreezable`), with EIP-2612 permit, pause, role-gated mint/burn, and seize (`forceTransfer`). Freeze is enforced in `_update`, blocking both send and receive. |
 | [`FreezableToken.sol`](FreezableToken.sol) | The smallest token that implements `IFreezable`: the bare interface, no extras. |
 | [`OnboardableToken.sol`](OnboardableToken.sol) | ERC-20 on the [`Freezable`](../../Freezable.sol) base that also implements the wallet onboarding interface. Mints and transfers require every non-zero party to be onboarded; burns do not. |
+| [`ConcreteOnboardableToken.sol`](ConcreteOnboardableToken.sol) | The same token behind Concrete's `WhitelistUserDepositHook` interface, with an `Ownable` list owner. It does not expose the interface above, so only one onboarding interface matches it. |
 | [`Freezable.sol`](../../Freezable.sol) · [`IFreezable.sol`](../../interfaces/IFreezable.sol) | The reusable freeze base and its interface. |
 | [`DeployFreezableStablecoin.s.sol`](../../../script/asset-compliance/DeployFreezableStablecoin.s.sol) | Deploys the token behind an ERC-1967 proxy with initial roles. |
 | [`GrantFreezeManager.s.sol`](../../../script/asset-compliance/GrantFreezeManager.s.sol) | Grant (`run()`), revoke (`revoke()`), and verify (`check()`) Predicate's `FREEZE_MANAGER_ROLE`, with `cast` equivalents. |
 | [`FreezableStablecoin.t.sol`](../../../test/asset-compliance/FreezableStablecoin.t.sol) | Tests covering freeze enforcement, the role boundaries (the freeze role cannot seize/mint/pause/upgrade), and that revoking the role disables enforcement. |
 | [`DeployOnboardableToken.s.sol`](../../../script/asset-compliance/DeployOnboardableToken.s.sol) | Deploys `OnboardableToken`, granting both `FREEZE_MANAGER_ROLE` and `WHITELIST_MANAGER_ROLE` to Predicate's enforcement address by default. |
 | [`OnboardableToken.t.sol`](../../../test/asset-compliance/OnboardableToken.t.sol) | Tests covering the onboarding interface and its errors, allowlist enforcement on mint and transfer, and how it combines with freezing. |
+| [`DeployConcreteOnboardableToken.s.sol`](../../../script/asset-compliance/DeployConcreteOnboardableToken.s.sol) | Deploys `ConcreteOnboardableToken`, granting `FREEZE_MANAGER_ROLE` and ownership to Predicate's enforcement address by default. |
+| [`ConcreteOnboardableToken.t.sol`](../../../test/asset-compliance/ConcreteOnboardableToken.t.sol) | The same coverage for the Concrete interface, plus the owner gate, ownership transfer, and that the other interface is absent. |
 
 ```bash
 forge test --match-path "*asset-compliance*"
@@ -82,6 +96,21 @@ For wallet onboarding, Predicate calls this allowlist interface, which [`Onboard
 | `version() returns (string)` | Contract version. |
 | `error OnlyWhitelistManager(address)` | Raised when the caller lacks the whitelist manager role. |
 | `error AddressNotAllowed(address)` | Raised when a wallet that is not onboarded is refused. |
+
+Predicate also supports Concrete's `WhitelistUserDepositHook` interface, which [`ConcreteOnboardableToken.sol`](ConcreteOnboardableToken.sol) implements:
+
+| Function / error | Purpose |
+| --- | --- |
+| `isWhitelisted(address) returns (bool)` | Whether a wallet is onboarded. Must return `false` for any address that was never added. |
+| `whitelistUsers(address[])` | Onboard wallets. Owner only. |
+| `unWhitelistUsers(address[])` | Offboard wallets. Owner only. |
+| `owner() returns (address)` | The account allowed to change the list. Must be Predicate's enforcement address. |
+| `userDepositCap() returns (uint256)` | Part of the hook interface. The example token caps no one and returns `type(uint256).max`. |
+| `VAULT() returns (address)` | The vault the hook guards. The example token returns its own address. |
+| `error OwnableUnauthorizedAccount(address)` | Raised when the caller is not the owner. |
+| `error ZeroAddress()` | Raised when the list contains the zero address. |
+
+A contract must implement only one of these two interfaces. Predicate refuses to enroll a contract that matches both.
 
 ## Further reading
 
